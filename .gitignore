@@ -1,0 +1,6 @@
+.DS_Store
+/.vscode/launch.json
+/dist-tests/
+/dist/
+/www/
+node_modules/

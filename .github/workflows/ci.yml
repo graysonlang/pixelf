@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Checkout is all this needs. Set explicitly rather than inherited, since the
+# repo/org default for GITHUB_TOKEN can be read-write and a template has no say
+# in where it lands.
+permissions:
+  contents: read
+
+jobs:
+  # The four gates from AGENTS.md, in the same order and with the same names a
+  # contributor runs locally (`npm run check` chains them). Ordered cheapest
+  # first, and each step runs even if an earlier one failed, so a red run
+  # reports every problem rather than only the first.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # `npm ci` runs the `prepare` script, which renders .vscode/launch.json
+      # from launch_template.json — that path is exercised here too.
+      - run: npm ci
+
+      - name: Typecheck
+        id: typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        id: lint
+        if: ${{ !cancelled() }}
+        run: npm run lint
+
+      - name: Test
+        id: test
+        if: ${{ !cancelled() }}
+        run: npm test
+
+      - name: Build
+        id: build
+        if: ${{ !cancelled() }}
+        run: npm run build

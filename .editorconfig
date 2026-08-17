@@ -1,0 +1,20 @@
+# Editor-level enforcement of the conventions in AGENTS.md, so the rules hold
+# for hand edits too and not only for lint runs.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+max_line_length = off
+
+[*.md]
+# Trailing whitespace is significant in Markdown (two spaces is a hard break),
+# so leave it alone here even though it is stripped everywhere else.
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab
