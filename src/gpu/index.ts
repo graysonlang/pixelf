@@ -17,6 +17,8 @@ export {
 } from './readback.js';
 export {
   alignedUniformSize,
+  flattenGraphForGpu,
+  gpuDirectRenderable,
   GpuImageRenderer,
   ShaderCompilationError,
   type RendererStats,

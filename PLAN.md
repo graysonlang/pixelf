@@ -10,7 +10,7 @@ It should be updated when a phase materially changes direction or is completed.
 - [x] Phase 2 - Tiled CPU reference compositor
 - [x] Phase 3 - First WebGPU image path
 - [x] Phase 4 - Target-first layer editor
-- [ ] Phase 5 - Reversible processing vocabulary
+- [x] Phase 5 - Reversible processing vocabulary
 - [ ] Phase 6 - Demand-driven tiles and large images
 - [ ] Phase 7 - Durable projects and faithful export
 - [ ] Phase 8 - Advanced wiring and extensibility

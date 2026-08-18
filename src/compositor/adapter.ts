@@ -1,6 +1,15 @@
-import type { PixelfProject, ProjectNode, TargetNode } from '../project/types.js';
+import { nodeRegistry } from '../project/registry.js';
+import type { PixelfProject, ProcessorNode, ProjectNode, TargetNode } from '../project/types.js';
 import { validateProject } from '../project/validation.js';
-import { image, type Effect, type Graph, type ImageSource } from './graph.js';
+import {
+  image,
+  solid,
+  type BlendMode,
+  type Effect,
+  type EntityMask,
+  type Graph,
+  type ImageSource,
+} from './graph.js';
 
 export interface DecodedImageAsset {
   data: Float32Array;
@@ -39,6 +48,87 @@ function requireNode(project: PixelfProject, nodeId: string): ProjectNode {
   return node;
 }
 
+function numberParameter(node: ProjectNode, key: string): number {
+  const value = node.parameters[key];
+  if (typeof value !== 'number') throw new Error(`${node.id}.${key} must be numeric`);
+  return value;
+}
+
+function stringParameter(node: ProjectNode, key: string): string {
+  const value = node.parameters[key];
+  if (typeof value !== 'string') throw new Error(`${node.id}.${key} must be text`);
+  return value;
+}
+
+function operationEffect(node: ProcessorNode): Effect | null {
+  nodeRegistry.require(node.type);
+  switch (node.type) {
+    case 'process/opacity':
+      return null;
+    case 'process/crop':
+    case 'process/canvas-resize':
+      return {
+        height: numberParameter(node, 'height'),
+        kind: node.type === 'process/crop' ? 'crop' : 'canvas-resize',
+        width: numberParameter(node, 'width'),
+        x: numberParameter(node, 'x'),
+        y: numberParameter(node, 'y'),
+      };
+    case 'process/affine':
+      return {
+        kind: 'affine',
+        pivotX: numberParameter(node, 'pivotX'),
+        pivotY: numberParameter(node, 'pivotY'),
+        rotation: numberParameter(node, 'rotation'),
+        scaleX: numberParameter(node, 'scaleX'),
+        scaleY: numberParameter(node, 'scaleY'),
+        x: numberParameter(node, 'x'),
+        y: numberParameter(node, 'y'),
+      };
+    case 'process/exposure':
+      return { kind: 'exposure', stops: numberParameter(node, 'stops') };
+    case 'process/levels':
+      return {
+        gamma: numberParameter(node, 'gamma'),
+        inBlack: numberParameter(node, 'inBlack'),
+        inWhite: numberParameter(node, 'inWhite'),
+        kind: 'levels',
+        outBlack: numberParameter(node, 'outBlack'),
+        outWhite: numberParameter(node, 'outWhite'),
+      };
+    case 'process/white-balance':
+      return {
+        kind: 'white-balance',
+        temperature: numberParameter(node, 'temperature'),
+        tint: numberParameter(node, 'tint'),
+      };
+    case 'process/contrast':
+      return { amount: numberParameter(node, 'amount'), kind: 'contrast' };
+    case 'process/saturation':
+      return { amount: numberParameter(node, 'amount'), kind: 'saturation' };
+    case 'process/channel': {
+      const channel = stringParameter(node, 'channel');
+      if (!['alpha', 'blue', 'green', 'luma', 'red', 'rgba'].includes(channel)) {
+        throw new Error(`${node.id}.channel is unsupported`);
+      }
+      return {
+        channel: channel as Extract<Effect, { kind: 'channel' }>['channel'],
+        kind: 'channel',
+      };
+    }
+    case 'process/blur':
+      return { kind: 'blur', sigma: numberParameter(node, 'sigma') };
+    case 'process/sharpen':
+      return {
+        amount: numberParameter(node, 'amount'),
+        kind: 'sharpen',
+        radius: numberParameter(node, 'radius'),
+      };
+    default:
+      throw new Error(`No CPU projection exists for ${node.type}`);
+  }
+}
+
 function sourceForLayer(
   project: PixelfProject,
   root: ProjectNode,
@@ -52,13 +142,9 @@ function sourceForLayer(
     if (visited.has(node.id)) throw new Error(`Projection cycle includes ${node.id}`);
     visited.add(node.id);
     if (node.parameters.bypass !== true) {
-      if (node.type === 'process/opacity') {
-        const amount = node.parameters.amount;
-        if (typeof amount !== 'number') throw new Error(`${node.id}.amount must be numeric`);
-        opacity *= amount;
-      } else {
-        throw new Error(`No CPU projection exists for ${node.type}`);
-      }
+      const effect = operationEffect(node as ProcessorNode);
+      if (effect === null) opacity *= numberParameter(node, 'amount');
+      else effects.unshift(effect);
     }
     if (!('childId' in node) || node.childId === null) {
       throw new Error(`Processor ${node.id} has no source child`);
@@ -82,6 +168,42 @@ function sourceForLayer(
   };
 }
 
+function layerMask(
+  project: PixelfProject,
+  layerId: string,
+  target: TargetNode,
+): EntityMask | undefined {
+  const wire = project.wires.find(
+    candidate => candidate.to.nodeId === layerId && candidate.to.port === 'mask',
+  );
+  if (wire === undefined) return undefined;
+  const node = requireNode(project, wire.from.nodeId);
+  if (node.type !== 'source/mask') throw new Error(`${node.id} is not a supported mask source`);
+  const value = numberParameter(node, 'value');
+  const rotation = (numberParameter(node, 'rotation') * Math.PI) / 180;
+  const scaleX = numberParameter(node, 'scaleX');
+  const scaleY = numberParameter(node, 'scaleY');
+  const feather = numberParameter(node, 'feather');
+  return {
+    density: numberParameter(node, 'density'),
+    effects: feather > 0 ? [{ kind: 'blur', sigma: feather }] : [],
+    h: target.contract.height,
+    invert: node.parameters.invert === true,
+    matrix: [
+      Math.cos(rotation) * scaleX,
+      Math.sin(rotation) * scaleX,
+      -Math.sin(rotation) * scaleY,
+      Math.cos(rotation) * scaleY,
+      numberParameter(node, 'x'),
+      numberParameter(node, 'y'),
+    ],
+    source: solid(value, value, value),
+    w: target.contract.width,
+    x: 0,
+    y: 0,
+  };
+}
+
 export function projectTargetToGraph(
   project: PixelfProject,
   targetId: string,
@@ -97,12 +219,15 @@ export function projectTargetToGraph(
     const source = sourceForLayer(project, requireNode(project, layer.childId), decodedAssets);
     const layerOpacity = layer.parameters.opacity;
     if (typeof layerOpacity !== 'number') throw new Error(`${layer.id}.opacity must be numeric`);
+    const blendMode = layer.parameters.blendMode;
+    if (typeof blendMode !== 'string') throw new Error(`${layer.id}.blendMode must be text`);
     return {
-      blend: 'normal' as const,
+      blend: blendMode as BlendMode,
       effects: source.effects,
       h: target.contract.height,
       id: layer.id,
       opacity: layerOpacity * source.opacity,
+      mask: layerMask(project, layer.id, target),
       source: source.source,
       w: target.contract.width,
       x: 0,

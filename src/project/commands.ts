@@ -1,5 +1,6 @@
-import { cloneProject, findPrimaryParent } from './project.js';
+import { cloneProject, createOpaqueId, findPrimaryParent } from './project.js';
 import type {
+  ImageAsset,
   JsonValue,
   PixelfProject,
   ProjectNode,
@@ -16,6 +17,13 @@ export type ProjectCommand =
   | { contract: TargetContract; nodeId: string; type: 'set-target-contract' }
   | { type: 'connect'; wire: ProjectWire }
   | { type: 'disconnect'; wireId: string }
+  | {
+      asset: ImageAsset;
+      mode: 'new-asset' | 'replace-asset';
+      nodeId: string;
+      sourceId: string;
+      type: 'rasterize-node';
+    }
   | { commands: readonly ProjectCommand[]; type: 'batch' };
 
 function removeFromParent(project: PixelfProject, nodeId: string): void {
@@ -120,9 +128,96 @@ function applyMutable(project: PixelfProject, command: ProjectCommand): void {
       project.wires.splice(index, 1);
       return;
     }
+    case 'rasterize-node': {
+      const node = project.nodes[command.nodeId];
+      if (node === undefined) throw new Error(`Cannot rasterize missing node ${command.nodeId}`);
+      if (command.mode === 'replace-asset') {
+        if (node.type !== 'source/imported' || node.assetId === undefined) {
+          throw new Error('Replacing an asset requires an imported source node');
+        }
+        if (command.asset.id !== node.assetId) {
+          throw new Error('A replacement asset must retain the source asset ID');
+        }
+        project.assets[command.asset.id] = structuredClone(command.asset);
+        return;
+      }
+      if (node.type === 'target' || node.type === 'layer') {
+        throw new Error('Rasterize a layer child or operation, not its target or layer container');
+      }
+      if (project.nodes[command.sourceId] !== undefined) {
+        throw new Error(`Node ${command.sourceId} already exists`);
+      }
+      const parent = findPrimaryParent(project, node.id);
+      if (parent === null) throw new Error(`Rasterized node ${node.id} has no primary parent`);
+      const parentId = parent.node.id;
+      const index = parent.index;
+      removeFromParent(project, node.id);
+      const removed = descendants(project, node.id);
+      for (const removedId of removed) delete project.nodes[removedId];
+      project.wires = project.wires.filter(
+        wire => !removed.has(wire.from.nodeId) && !removed.has(wire.to.nodeId),
+      );
+      project.assets[command.asset.id] = structuredClone(command.asset);
+      project.nodes[command.sourceId] = {
+        assetId: command.asset.id,
+        id: command.sourceId,
+        name: `${node.name} (rasterized)`,
+        parameters: {},
+        type: 'source/imported',
+      };
+      attachToParent(project, command.sourceId, parentId, index);
+      return;
+    }
     case 'batch':
       for (const child of command.commands) applyMutable(project, child);
   }
+}
+
+export function duplicateSubtreeCommand(project: PixelfProject, nodeId: string): ProjectCommand {
+  const root = project.nodes[nodeId];
+  if (root === undefined) throw new Error(`Cannot duplicate missing node ${nodeId}`);
+  if (root.type === 'target') throw new Error('Duplicate target is not a branch operation');
+  const parent = findPrimaryParent(project, nodeId);
+  if (parent === null) throw new Error(`Cannot duplicate detached node ${nodeId}`);
+  const copiedIds = descendants(project, nodeId);
+  const replacements = new Map<string, string>();
+  for (const copiedId of copiedIds) replacements.set(copiedId, createOpaqueId('node'));
+  const commands: ProjectCommand[] = [];
+  for (const copiedId of copiedIds) {
+    const source = project.nodes[copiedId];
+    const replacementId = replacements.get(copiedId);
+    if (source === undefined || replacementId === undefined) continue;
+    const copy = structuredClone(source);
+    copy.id = replacementId;
+    copy.name = copiedId === nodeId ? `${copy.name} copy` : copy.name;
+    if (copy.type === 'target') {
+      copy.childIds = copy.childIds.map(childId => replacements.get(childId) ?? childId);
+    } else if ('childId' in copy && copy.childId !== null) {
+      copy.childId = replacements.get(copy.childId) ?? copy.childId;
+    }
+    commands.push({ node: copy, parentId: null, type: 'insert-node' });
+  }
+  for (const wire of project.wires) {
+    const toId = replacements.get(wire.to.nodeId);
+    if (toId === undefined) continue;
+    commands.push({
+      type: 'connect',
+      wire: {
+        from: { ...wire.from, nodeId: replacements.get(wire.from.nodeId) ?? wire.from.nodeId },
+        id: createOpaqueId('wire'),
+        to: { ...wire.to, nodeId: toId },
+      },
+    });
+  }
+  const newRootId = replacements.get(nodeId);
+  if (newRootId === undefined) throw new Error(`Cannot duplicate ${nodeId}`);
+  commands.push({
+    index: parent.index + 1,
+    nodeId: newRootId,
+    parentId: parent.node.id,
+    type: 'move-node',
+  });
+  return { commands, type: 'batch' };
 }
 
 export function applyProjectCommand(

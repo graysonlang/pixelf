@@ -7,13 +7,14 @@ The name is pronounced "pixel elf": a small tool that helps with pixels without 
 
 ## Status
 
-Pixelf is at its foundation stage.
-The repository now uses the same core stack as Amoire: TypeScript, `@graysonlang/esp`, Solid's fine-grained reactive primitives, and direct real-DOM bindings.
+Pixelf has a target-first project document, direct-DOM layer editor, deterministic tiled CPU compositor, and WebGPU presentation path.
+It uses the same core stack as Amoire: TypeScript, `@graysonlang/esp`, Solid's fine-grained reactive primitives, and direct real-DOM bindings.
 There is deliberately no JSX or TSX compilation and no Solid framework renderer.
 
-The starter application can select and preview a local image while exercising signal ownership, reactive derivation, effect cleanup, and object-URL disposal.
-It does not process or persist image data yet.
-[PLAN.md](PLAN.md) defines the vertical slices from this shell to a tiled WebGPU editor.
+The current processing vocabulary includes crop, canvas bounds, affine transform, opacity, exposure, levels, white balance, contrast, saturation, channel inspection, blur, sharpen, masks, and a focused set of linear-light blend modes.
+The operation registry drives insertion, property controls, validation, region behavior, CPU evaluation, GPU routing, and serialization.
+Operations not yet implemented as dedicated shaders are evaluated by the CPU oracle and uploaded through the WebGPU presentation path, preserving one visible result while GPU coverage grows.
+[PLAN.md](PLAN.md) defines the remaining vertical slices for large images, durable projects, export, and advanced wiring.
 
 ## Product direction
 
@@ -84,6 +85,10 @@ UI input -> command -> canonical project document
 
 Document, command, validation, and reference-compositor modules must remain usable in headless tests without importing Solid, the DOM, or live GPU objects.
 The GPU is a projection that can always be discarded and rebuilt after device loss.
+
+Rasterization is an explicit command boundary.
+It either creates a new asset and replaces the selected processing branch with an imported-source leaf, or replaces the bytes of an existing imported asset while retaining its asset ID.
+Undo retains the prior project and asset metadata; derived tiles for the old graph may be released after the command commits because undo can deterministically evaluate them again.
 
 ## Compositor lineage
 

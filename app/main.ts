@@ -11,8 +11,10 @@ import {
 import {
   createNode,
   createOpaqueId,
+  duplicateSubtreeCommand,
   EditorState,
   findPrimaryParent,
+  nodeRegistry,
   type LayerNode,
   type ProcessorNode,
   type SourceNode,
@@ -84,8 +86,10 @@ const dispose = createRoot(disposeRoot => {
   const undoButton = requireElement<HTMLButtonElement>('#undo-button');
   const redoButton = requireElement<HTMLButtonElement>('#redo-button');
   const addLayerButton = requireElement<HTMLButtonElement>('#add-layer-button');
+  const operationType = requireElement<HTMLSelectElement>('#operation-type');
   const addOperationButton = requireElement<HTMLButtonElement>('#add-operation-button');
   const addMaskButton = requireElement<HTMLButtonElement>('#add-mask-button');
+  const duplicateButton = requireElement<HTMLButtonElement>('#duplicate-button');
   const moveUpButton = requireElement<HTMLButtonElement>('#move-up-button');
   const moveDownButton = requireElement<HTMLButtonElement>('#move-down-button');
   const deleteButton = requireElement<HTMLButtonElement>('#delete-button');
@@ -118,6 +122,13 @@ const dispose = createRoot(disposeRoot => {
   let renderer: GpuImageRenderer | null = null;
   let selectionGeneration = 0;
   let panState: PanState | null = null;
+
+  for (const definition of nodeRegistry.all().filter(candidate => candidate.kind === 'processor')) {
+    const option = document.createElement('option');
+    option.value = definition.type;
+    option.textContent = definition.title;
+    operationType.append(option);
+  }
 
   const manager = new GpuDeviceManager({
     onContext: (context, generation) => {
@@ -257,7 +268,9 @@ const dispose = createRoot(disposeRoot => {
         ? selected.id
         : findPrimaryParent(editor.project, selected.id)?.node.id;
     if (wrappedId === null || parentId === undefined) return;
-    const operation = createNode('process/opacity', createOpaqueId('node')) as ProcessorNode;
+    const definition = nodeRegistry.require(operationType.value);
+    if (definition.kind !== 'processor') return;
+    const operation = createNode(definition.type, createOpaqueId('node')) as ProcessorNode;
     runCommand(() =>
       editor.dispatch(
         {
@@ -268,12 +281,31 @@ const dispose = createRoot(disposeRoot => {
           ],
           type: 'batch',
         },
-        { label: 'Add opacity' },
+        { label: `Add ${definition.title}` },
       ),
     );
     expanded.add(parentId);
     expanded.add(operation.id);
     selectNode(operation.id);
+  };
+
+  const duplicateNode = (): void => {
+    const editor = currentEditor();
+    const selectedId = selectedNodeId();
+    if (editor === null || selectedId === null) return;
+    const node = editor.project.nodes[selectedId];
+    if (
+      node === undefined ||
+      node.type === 'target' ||
+      findPrimaryParent(editor.project, node.id) === null
+    ) {
+      return;
+    }
+    runCommand(() =>
+      editor.dispatch(duplicateSubtreeCommand(editor.project, node.id), {
+        label: 'Duplicate branch',
+      }),
+    );
   };
 
   const addMask = (): void => {
@@ -387,6 +419,7 @@ const dispose = createRoot(disposeRoot => {
   addLayerButton.addEventListener('click', addLayer);
   addOperationButton.addEventListener('click', addOperation);
   addMaskButton.addEventListener('click', addMask);
+  duplicateButton.addEventListener('click', duplicateNode);
   moveUpButton.addEventListener('click', () => moveLayer(-1));
   moveDownButton.addEventListener('click', () => moveLayer(1));
   deleteButton.addEventListener('click', () => {
@@ -477,6 +510,12 @@ const dispose = createRoot(disposeRoot => {
       selectedNode === undefined ||
       selectedNode.type === 'target' ||
       selectedNode.type === 'source/mask';
+    operationType.disabled = addOperationButton.disabled;
+    duplicateButton.disabled =
+      editor === null ||
+      selectedNode === undefined ||
+      selectedNode.type === 'target' ||
+      findPrimaryParent(editor.project, selectedNode.id) === null;
     const selectedLayer = selectedId === null ? null : layerForNode(selectedId);
     addMaskButton.disabled =
       selectedLayer === null ||

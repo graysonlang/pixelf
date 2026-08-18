@@ -41,8 +41,13 @@
         <fieldset class="tree-actions">
           <legend class="visually-hidden">Layer actions</legend>
           <button id="add-layer-button" type="button" disabled>+ Layer</button>
-          <button id="add-operation-button" type="button" disabled>+ Opacity</button>
+          <label class="operation-picker">
+            <span class="visually-hidden">Operation type</span>
+            <select id="operation-type" aria-label="Operation type"></select>
+          </label>
+          <button id="add-operation-button" type="button" disabled>+ Operation</button>
           <button id="add-mask-button" type="button" disabled>+ Mask</button>
+          <button id="duplicate-button" type="button" disabled>Duplicate</button>
           <button id="move-up-button" type="button" title="Move layer up" disabled>Up</button>
           <button id="move-down-button" type="button" title="Move layer down" disabled>Down</button>
           <button id="delete-button" type="button" disabled>Delete</button>

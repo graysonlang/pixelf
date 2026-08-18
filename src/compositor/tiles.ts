@@ -48,6 +48,17 @@ export class TileCache {
     this.missCount = 0;
   }
 
+  releaseGraph(graph: Graph): number {
+    const prefix = `${graphHash(graph)}:`;
+    let released = 0;
+    for (const key of this.entries.keys()) {
+      if (!key.startsWith(prefix)) continue;
+      this.entries.delete(key);
+      released += 1;
+    }
+    return released;
+  }
+
   stats(): TileCacheStats {
     return { entries: this.entries.size, hits: this.hitCount, misses: this.missCount };
   }

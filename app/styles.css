@@ -209,6 +209,14 @@ button:disabled {
   padding: 0;
 }
 
+.operation-picker select {
+  background: var(--panel-raised);
+  color: var(--text);
+  font-size: 11px;
+  max-width: 110px;
+  padding: 6px;
+}
+
 .layer-tree {
   flex: 1;
   min-height: 120px;

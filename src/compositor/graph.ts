@@ -31,7 +31,77 @@ export interface LevelsEffect {
   outWhite: number;
 }
 
-export type Effect = BlurEffect | LevelsEffect;
+export interface ExposureEffect {
+  kind: 'exposure';
+  stops: number;
+}
+
+export interface WhiteBalanceEffect {
+  kind: 'white-balance';
+  temperature: number;
+  tint: number;
+}
+
+export interface ContrastEffect {
+  amount: number;
+  kind: 'contrast';
+}
+
+export interface SaturationEffect {
+  amount: number;
+  kind: 'saturation';
+}
+
+export interface ChannelEffect {
+  channel: 'alpha' | 'blue' | 'green' | 'luma' | 'red' | 'rgba';
+  kind: 'channel';
+}
+
+export interface CropEffect {
+  height: number;
+  kind: 'crop';
+  width: number;
+  x: number;
+  y: number;
+}
+
+export interface CanvasResizeEffect {
+  height: number;
+  kind: 'canvas-resize';
+  width: number;
+  x: number;
+  y: number;
+}
+
+export interface AffineEffect {
+  kind: 'affine';
+  pivotX: number;
+  pivotY: number;
+  rotation: number;
+  scaleX: number;
+  scaleY: number;
+  x: number;
+  y: number;
+}
+
+export interface SharpenEffect {
+  amount: number;
+  kind: 'sharpen';
+  radius: number;
+}
+
+export type Effect =
+  | AffineEffect
+  | BlurEffect
+  | CanvasResizeEffect
+  | ChannelEffect
+  | ContrastEffect
+  | CropEffect
+  | ExposureEffect
+  | LevelsEffect
+  | SaturationEffect
+  | SharpenEffect
+  | WhiteBalanceEffect;
 export type EntityMatrix = [number, number, number, number, number, number];
 
 export interface Entity {
@@ -41,6 +111,19 @@ export interface Entity {
   id: string;
   matrix?: EntityMatrix;
   opacity: number;
+  mask?: EntityMask;
+  source: Source;
+  w: number;
+  x: number;
+  y: number;
+}
+
+export interface EntityMask {
+  density: number;
+  effects: Effect[];
+  h: number;
+  invert: boolean;
+  matrix?: EntityMatrix;
   source: Source;
   w: number;
   x: number;
@@ -82,8 +165,38 @@ export function levels(options: Partial<Omit<LevelsEffect, 'kind'>> = {}): Level
   };
 }
 
+export function exposure(stops: number): ExposureEffect {
+  return { kind: 'exposure', stops };
+}
+
+export function contrast(amount: number): ContrastEffect {
+  return { amount, kind: 'contrast' };
+}
+
+export function saturation(amount: number): SaturationEffect {
+  return { amount, kind: 'saturation' };
+}
+
+export function sharpen(radius: number, amount: number): SharpenEffect {
+  return { amount, kind: 'sharpen', radius };
+}
+
 function mixText(text: string, mix: (value: number) => void): void {
   for (const character of text) mix(character.charCodeAt(0));
+}
+
+function mixSource(source: Source, mix: (value: number) => void): void {
+  if (source.kind === 'solid') {
+    mixText('solid', mix);
+    for (const value of [source.r, source.g, source.b, source.a]) mix(value * 1e6);
+    return;
+  }
+  mixText(`image:${source.width}:${source.height}:${source.revision}`, mix);
+}
+
+function mixEffect(effect: Effect, mix: (value: number) => void): void {
+  mixText(effect.kind, mix);
+  mixText(JSON.stringify(effect), mix);
 }
 
 export function graphHash(graph: Graph): string {
@@ -97,31 +210,23 @@ export function graphHash(graph: Graph): string {
     for (const value of [entity.x, entity.y, entity.w, entity.h, entity.opacity]) mix(value * 1e6);
     if (entity.matrix) for (const value of entity.matrix) mix(value * 1e6);
     mixText(entity.blend, mix);
-    if (entity.source.kind === 'solid') {
-      mixText('solid', mix);
-      for (const value of [entity.source.r, entity.source.g, entity.source.b, entity.source.a]) {
+    mixSource(entity.source, mix);
+    for (const effect of entity.effects) mixEffect(effect, mix);
+    if (entity.mask !== undefined) {
+      mixText('mask', mix);
+      for (const value of [
+        entity.mask.x,
+        entity.mask.y,
+        entity.mask.w,
+        entity.mask.h,
+        entity.mask.density,
+      ]) {
         mix(value * 1e6);
       }
-    } else {
-      mixText(
-        `image:${entity.source.width}:${entity.source.height}:${entity.source.revision}`,
-        mix,
-      );
-    }
-    for (const effect of entity.effects) {
-      mixText(effect.kind, mix);
-      if (effect.kind === 'blur') mix(effect.sigma * 1e6);
-      else {
-        for (const value of [
-          effect.inBlack,
-          effect.inWhite,
-          effect.gamma,
-          effect.outBlack,
-          effect.outWhite,
-        ]) {
-          mix(value * 1e6);
-        }
-      }
+      mix(entity.mask.invert ? 1 : 0);
+      if (entity.mask.matrix) for (const value of entity.mask.matrix) mix(value * 1e6);
+      mixSource(entity.mask.source, mix);
+      for (const effect of entity.mask.effects) mixEffect(effect, mix);
     }
   }
   return hash.toString(16).padStart(8, '0');

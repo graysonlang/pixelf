@@ -1,4 +1,5 @@
-import type { Entity, Graph } from '../compositor/graph.js';
+import { graphHash, image, type Entity, type Graph } from '../compositor/graph.js';
+import { renderRegion } from '../compositor/render.js';
 import type { GpuContext } from './device.js';
 import type { PresentTarget } from './presentation.js';
 import { alignTo, stripPaddedRows } from './readback.js';
@@ -87,6 +88,45 @@ function placement(entity: Entity): readonly [number, number, number, number, nu
   return entity.matrix ?? [1, 0, 0, 1, entity.x, entity.y];
 }
 
+export function gpuDirectRenderable(graph: Graph): boolean {
+  return graph.entities.every(
+    entity =>
+      entity.source.kind === 'image' &&
+      entity.effects.length === 0 &&
+      entity.mask === undefined &&
+      entity.blend === 'normal',
+  );
+}
+
+export function flattenGraphForGpu(graph: Graph, width: number, height: number): Graph {
+  if (gpuDirectRenderable(graph)) return graph;
+  const surface = renderRegion(graph, { h: height, w: width, x: 0, y: 0 }, 1);
+  const straight = new Float32Array(surface.data.length);
+  for (let offset = 0; offset < straight.length; offset += 4) {
+    const alpha = surface.data[offset + 3] ?? 0;
+    straight[offset] = alpha > 0 ? (surface.data[offset] ?? 0) / alpha : 0;
+    straight[offset + 1] = alpha > 0 ? (surface.data[offset + 1] ?? 0) / alpha : 0;
+    straight[offset + 2] = alpha > 0 ? (surface.data[offset + 2] ?? 0) / alpha : 0;
+    straight[offset + 3] = alpha;
+  }
+  const revision = graphHash(graph);
+  return {
+    entities: [
+      {
+        blend: 'normal',
+        effects: [],
+        h: height,
+        id: `flattened:${revision}`,
+        opacity: 1,
+        source: image(width, height, straight, revision),
+        w: width,
+        x: 0,
+        y: 0,
+      },
+    ],
+  };
+}
+
 export class GpuImageRenderer {
   private readonly pipelines = new Map<GPUTextureFormat, Promise<PipelineRecord>>();
   private readonly uniforms = new Map<string, GPUBuffer>();
@@ -123,7 +163,13 @@ export class GpuImageRenderer {
     const view = target.context
       .getCurrentTexture()
       .createView({ format: target.viewFormat, label: 'Pixelf presentation view' });
-    await this.renderToView(graph, view, target.viewFormat, width, height);
+    await this.renderToView(
+      flattenGraphForGpu(graph, width, height),
+      view,
+      target.viewFormat,
+      width,
+      height,
+    );
   }
 
   async renderToTexture(graph: Graph, width: number, height: number): Promise<GPUTexture> {
@@ -137,7 +183,7 @@ export class GpuImageRenderer {
         GPUTextureUsage.TEXTURE_BINDING,
     });
     await this.renderToView(
-      graph,
+      flattenGraphForGpu(graph, width, height),
       texture.createView({ format: 'rgba8unorm-srgb' }),
       'rgba8unorm-srgb',
       width,
