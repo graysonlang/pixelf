@@ -125,10 +125,15 @@ input {
 }
 
 .source-details,
+.gpu-status,
 .foundation-note {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.55;
+}
+
+.gpu-status {
+  color: var(--accent);
 }
 
 .target-contract {
@@ -215,6 +220,7 @@ input {
   width: 8px;
 }
 
+#gpu-preview,
 #image-preview {
   box-shadow: 0 16px 60px #0008;
   display: block;
@@ -223,6 +229,7 @@ input {
   object-fit: contain;
 }
 
+#gpu-preview[hidden],
 #image-preview[hidden],
 #empty-stage[hidden] {
   display: none;

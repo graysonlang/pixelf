@@ -107,6 +107,7 @@ Cache identity must include source and parameter revisions, target format, quali
 Color arithmetic and filtering happen in linear light with explicit premultiplied-alpha boundaries.
 Source decoding, working precision, display conversion, and export encoding remain separate steps.
 WebGPU is the primary execution backend, while a small CPU reference path provides deterministic tests and a correctness oracle for foundational operations.
+GPU readback conformance allows an absolute difference of at most two 8-bit encoded values per RGB channel and requires alpha to match byte-for-byte.
 
 The first implementation should favor correctness and observability over shader fusion.
 Optimization follows measured tile reuse, memory pressure, and pass cost rather than obscuring the document model.
