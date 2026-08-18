@@ -14,7 +14,8 @@ There is deliberately no JSX or TSX compilation and no Solid framework renderer.
 The current processing vocabulary includes crop, canvas bounds, affine transform, opacity, exposure, levels, white balance, contrast, saturation, channel inspection, blur, sharpen, masks, and a focused set of linear-light blend modes.
 The operation registry drives insertion, property controls, validation, region behavior, CPU evaluation, GPU routing, and serialization.
 Operations not yet implemented as dedicated shaders are evaluated by the CPU oracle and uploaded through the WebGPU presentation path, preserving one visible result while GPU coverage grows.
-[PLAN.md](PLAN.md) defines the remaining vertical slices for large images, durable projects, export, and advanced wiring.
+Viewport work planning limits preview evaluation to visible and prefetched tiles, splits work to the device texture limit, and rejects stale generations before they publish pixels.
+[PLAN.md](PLAN.md) defines the remaining vertical slices for durable projects, export, and advanced wiring.
 
 ## Product direction
 
@@ -108,6 +109,11 @@ Neither application model should be copied wholesale: Pixelf's target-first imag
 Preview, zoom, panning, thumbnails, and export should all request explicit pixel regions at explicit scales.
 Evaluation walks upstream to discover dependencies and expands requests by each operation's halo, so a blurred or resampled tile agrees with the same region rendered as part of the full image.
 Cache identity must include source and parameter revisions, target format, quality, scale, and tile coordinates.
+
+Derived tiles are cached per entity rather than per complete graph, so a localized layer edit can reuse unaffected branches.
+CPU working memory, decoded sources, derived tiles, and GPU textures have separate observable budgets.
+Foreground, refinement, thumbnail, and export work share a generation-aware scheduler; a newer preview generation cancels or rejects older results before presentation.
+Render metrics cover decode, evaluation, cache lookup, upload, command encoding, GPU execution, and readback.
 
 Color arithmetic and filtering happen in linear light with explicit premultiplied-alpha boundaries.
 Source decoding, working precision, display conversion, and export encoding remain separate steps.

@@ -36,5 +36,15 @@ export {
   type RenderedTile,
   type RenderQuality,
   type TileCacheStats,
+  type TileCacheUsage,
   type TileRequest,
 } from './tiles.js';
+export {
+  buildTileWorkPlan,
+  executeTileWorkPlan,
+  type EntityInputRequirement,
+  type PlannedTile,
+  type PlannedTileResult,
+  type TileWorkPlan,
+  type ViewportTileRequest,
+} from './work-plan.js';

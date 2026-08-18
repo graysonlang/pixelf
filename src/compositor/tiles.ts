@@ -1,6 +1,13 @@
 import { graphHash, type Graph } from './graph.js';
-import { renderRegion } from './render.js';
-import { cropSurface, makeSurface, readPremul, type Region, type Surface } from './surface.js';
+import { evalEntity } from './render.js';
+import {
+  blendOnto,
+  cropSurface,
+  makeSurface,
+  readPremul,
+  type Region,
+  type Surface,
+} from './surface.js';
 
 export const TILE_SIZE = 256;
 export type RenderQuality = 'draft' | 'final' | 'preview';
@@ -26,34 +33,69 @@ export interface TileCacheStats {
   misses: number;
 }
 
+export interface TileCacheUsage extends TileCacheStats {
+  budgetBytes: number;
+  bytes: number;
+  evictions: number;
+}
+
 export class TileCache {
-  private readonly entries = new Map<string, Surface>();
+  private readonly entries = new Map<string, { bytes: number; surface: Surface }>();
+  private byteCount = 0;
+  private evictionCount = 0;
   private hitCount = 0;
   private missCount = 0;
 
+  constructor(readonly budgetBytes = 256 * 1024 * 1024) {
+    if (!Number.isFinite(budgetBytes) || budgetBytes < 0) {
+      throw new Error('Tile cache budget must be a non-negative number');
+    }
+  }
+
   get(key: string): Surface | undefined {
-    const surface = this.entries.get(key);
-    if (surface === undefined) this.missCount += 1;
-    else this.hitCount += 1;
-    return surface;
+    const entry = this.entries.get(key);
+    if (entry === undefined) {
+      this.missCount += 1;
+      return undefined;
+    }
+    this.hitCount += 1;
+    this.entries.delete(key);
+    this.entries.set(key, entry);
+    return entry.surface;
   }
 
   set(key: string, surface: Surface): void {
-    this.entries.set(key, surface);
+    const existing = this.entries.get(key);
+    if (existing !== undefined) this.byteCount -= existing.bytes;
+    this.entries.delete(key);
+    const bytes = surface.data.byteLength;
+    this.entries.set(key, { bytes, surface });
+    this.byteCount += bytes;
+    while (this.byteCount > this.budgetBytes && this.entries.size > 1) {
+      const oldestKey = this.entries.keys().next().value;
+      if (oldestKey === undefined) break;
+      const removed = this.entries.get(oldestKey);
+      this.entries.delete(oldestKey);
+      this.byteCount -= removed?.bytes ?? 0;
+      this.evictionCount += 1;
+    }
   }
 
   clear(): void {
     this.entries.clear();
+    this.byteCount = 0;
+    this.evictionCount = 0;
     this.hitCount = 0;
     this.missCount = 0;
   }
 
   releaseGraph(graph: Graph): number {
-    const prefix = `${graphHash(graph)}:`;
+    const hashes = new Set(graph.entities.map(entity => graphHash({ entities: [entity] })));
     let released = 0;
-    for (const key of this.entries.keys()) {
-      if (!key.startsWith(prefix)) continue;
+    for (const [key, entry] of this.entries) {
+      if (![...hashes].some(hash => key.startsWith(`${hash}:`))) continue;
       this.entries.delete(key);
+      this.byteCount -= entry.bytes;
       released += 1;
     }
     return released;
@@ -61,6 +103,15 @@ export class TileCache {
 
   stats(): TileCacheStats {
     return { entries: this.entries.size, hits: this.hitCount, misses: this.missCount };
+  }
+
+  usage(): TileCacheUsage {
+    return {
+      ...this.stats(),
+      budgetBytes: this.budgetBytes,
+      bytes: this.byteCount,
+      evictions: this.evictionCount,
+    };
   }
 }
 
@@ -92,19 +143,28 @@ export function renderTiles(request: TileRequest, cache = new TileCache()): Rend
         tileX,
         tileY,
       );
-      let surface = cache.get(key);
-      if (surface === undefined) {
-        surface = renderRegion(
-          request.graph,
-          {
-            h: TILE_SIZE,
-            w: TILE_SIZE,
-            x: tileX * TILE_SIZE,
-            y: tileY * TILE_SIZE,
-          },
+      const tileRegion = {
+        h: TILE_SIZE,
+        w: TILE_SIZE,
+        x: tileX * TILE_SIZE,
+        y: tileY * TILE_SIZE,
+      };
+      const surface = makeSurface(tileRegion);
+      for (const entity of request.graph.entities) {
+        const entityKey = tileKey(
+          { entities: [entity] },
+          request.targetKey,
+          request.quality,
           request.scale,
+          tileX,
+          tileY,
         );
-        cache.set(key, surface);
+        let entitySurface = cache.get(entityKey);
+        if (entitySurface === undefined) {
+          entitySurface = evalEntity(entity, tileRegion, request.scale);
+          cache.set(entityKey, entitySurface);
+        }
+        blendOnto(surface, entitySurface, entity.blend);
       }
       output.push({ key, surface, tileX, tileY });
     }
