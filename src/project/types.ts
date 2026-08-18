@@ -1,0 +1,111 @@
+export const PIXELF_PROJECT_SCHEMA = 'pixelf.project';
+export const PIXELF_PROJECT_VERSION = 1;
+
+export type JsonPrimitive = boolean | number | string | null;
+export type JsonValue =
+  | JsonPrimitive
+  | readonly JsonValue[]
+  | { readonly [key: string]: JsonValue };
+
+export type ChannelLayout = 'gray' | 'gray-alpha' | 'rgb' | 'rgba';
+export type WorkingFormat = 'rgba8unorm' | 'rgba16float' | 'rgba32float';
+export type ProjectColorSpace = 'srgb' | 'display-p3';
+export type OutputFileFormat = 'png' | 'jpeg' | 'webp';
+export type OutputBitDepth = 8 | 16;
+export type AlphaPolicy = 'preserve' | 'opaque';
+
+export interface TargetContract {
+  alphaPolicy: AlphaPolicy;
+  channels: ChannelLayout;
+  colorSpace: ProjectColorSpace;
+  height: number;
+  outputBitDepth: OutputBitDepth;
+  outputFormat: OutputFileFormat;
+  width: number;
+  workingFormat: WorkingFormat;
+}
+
+export interface BaseAsset {
+  colorSpace: ProjectColorSpace;
+  contentHash: string;
+  height: number;
+  id: string;
+  kind: 'image';
+  mediaType: string;
+  name: string;
+  width: number;
+}
+
+export interface EmbeddedImageAsset extends BaseAsset {
+  bytesBase64: string;
+  storage: 'embedded';
+}
+
+export interface LinkedImageAsset extends BaseAsset {
+  fileName: string;
+  lastModified: number;
+  storage: 'linked';
+}
+
+export type ImageAsset = EmbeddedImageAsset | LinkedImageAsset;
+
+export interface BaseNode {
+  id: string;
+  name: string;
+  parameters: Record<string, JsonValue>;
+  type: string;
+}
+
+export interface TargetNode extends BaseNode {
+  childIds: string[];
+  contract: TargetContract;
+  type: 'target';
+}
+
+export interface LayerNode extends BaseNode {
+  childId: string | null;
+  type: 'layer';
+}
+
+export interface ProcessorNode extends BaseNode {
+  childId: string | null;
+  type: `process/${string}`;
+}
+
+export interface SourceNode extends BaseNode {
+  assetId?: string;
+  type: `source/${string}`;
+}
+
+export type ProjectNode = TargetNode | LayerNode | ProcessorNode | SourceNode;
+export type UnaryNode = LayerNode | ProcessorNode;
+
+export type PortKind = 'image' | 'mask' | 'scalar';
+
+export interface WireEndpoint {
+  nodeId: string;
+  port: string;
+}
+
+export interface ProjectWire {
+  from: WireEndpoint;
+  id: string;
+  to: WireEndpoint;
+}
+
+export interface PixelfProject {
+  assets: Record<string, ImageAsset>;
+  name: string;
+  nodes: Record<string, ProjectNode>;
+  projectId: string;
+  schema: typeof PIXELF_PROJECT_SCHEMA;
+  targetIds: string[];
+  version: typeof PIXELF_PROJECT_VERSION;
+  wires: ProjectWire[];
+}
+
+export type AssetAvailability = 'available' | 'embedded' | 'missing';
+
+export interface AssetResolverState {
+  availableContentHashes: ReadonlySet<string>;
+}

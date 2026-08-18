@@ -6,3 +6,5 @@ export const buildInfo = Object.freeze({
   version: __APP_VERSION__,
   commit: __COMMIT_SHA__,
 });
+
+export * from './project/index.js';
