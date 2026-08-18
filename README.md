@@ -1,154 +1,125 @@
-# repo-template
+# Pixelf
 
-The starting point for a new project: [`@graysonlang/esp`](https://github.com/graysonlang/esp) build tooling and VS Code integration, plus the repo support shape — agent guidance, TypeScript validation, a test harness, and CI — that every project ends up needing anyway.
+Pixelf is a lightweight image editor and processing workspace.
+The aim is to make capable image work approachable without inheriting the dense chrome and destructive workflows of traditional desktop editors or the narrow, irreversible paths of many simplified photo apps.
 
-## What this is
+The name is pronounced "pixel elf": a small tool that helps with pixels without hiding how the result was made.
 
-`esp` is a set of esbuild plugins and a build runner designed to streamline frontend development. This repo is the starting point for a new esp-based project, and doubles as a check that esp's example configuration and VS Code integration work correctly outside of the esp repo itself — i.e., as a real consumer would use it.
+## Status
 
-Beyond the build wiring it carries four things that are tedious to rebuild per project and prone to drifting apart when you do:
+Pixelf is at its foundation stage.
+The repository now uses the same core stack as Amoire: TypeScript, `@graysonlang/esp`, Solid's fine-grained reactive primitives, and direct real-DOM bindings.
+There is deliberately no JSX or TSX compilation and no Solid framework renderer.
 
-- [AGENTS.md](AGENTS.md) — the coding, markdown, and commit conventions AI assistants are held to
-- [tsconfig.json](tsconfig.json) + [types/](types/) — type validation over JS and TS alike, including declarations for the untyped things the bundler provides
-- [scripts/test.mjs](scripts/test.mjs) — a dependency-free test harness over `node --test`
-- [.github/workflows/ci.yml](.github/workflows/ci.yml) — the same four gates you run locally
+The starter application can select and preview a local image while exercising signal ownership, reactive derivation, effect cleanup, and object-URL disposal.
+It does not process or persist image data yet.
+[PLAN.md](PLAN.md) defines the vertical slices from this shell to a tiled WebGPU editor.
 
-Everything that can be a dependency still lives in esp; nothing above adds a runtime dependency.
+## Product direction
 
-## Using this as a template
+Pixelf should feel simple at first contact without putting the user on rails.
+Most edits should remain inspectable, reorderable, reusable, and reversible, and ordinary preview rendering should not rewrite source assets.
+This is the primary authoring model rather than an absolute prohibition: explicit bake, rasterize, replace, or destructive pixel operations are valid when they are clearer or materially more efficient.
+Those boundaries must be visible, scoped, and integrated with asset ownership and command history.
+The document should support returning to any layer or operation, changing it, and allowing only the affected downstream tiles to update.
 
-This repo is a GitHub template — click **Use this template** to start a new project from it, or clone it directly. There is no scaffolding CLI and no prompts; everything that can be a dependency lives in `esp`, so the checked-in surface is small enough to adjust by hand.
+The initial principles are:
 
-After creating your repo, edit [package.json](package.json):
+- Reversible by default: authored operations and source references are canonical for ordinary editing, while destructive actions are explicit and history-aware.
+- Target-first composition: the desired artifact owns its output contract rather than inheriting accidental properties from the last operation.
+- Layers for the common path, wiring for relationships that do not fit a strict stack.
+- Region-based evaluation: processors request only the upstream pixels and halos needed for the visible or exported region.
+- Accessible interaction: progressive disclosure, clear names, useful defaults, keyboard operation, and no requirement to understand shader terminology.
+- Local-first operation: opening, editing, saving, and exporting should not require an account or remote service.
+- Fidelity is explicit: color space, alpha semantics, resolution, precision, sampling, and export encoding are data rather than hidden renderer choices.
 
-- `name`, `version`, `description`, `homepage`, `bugs.url`, `repository.url` — point these at your project
-- keep `private: true` unless you actually intend to publish
+## Target-first layers and wiring
 
-Leave `config.esp_dev_cert_name` alone — it names the shared esp local development certificate used by the `https` scripts, not anything specific to this project.
+The primary authoring structure reads from result to source.
+A target asset is a root entity that declares destination width, height, bit depth or working precision, pixel format, color intent, and export policy.
+Its ordered child branches are layers, and each layer contains the upstream processors and sources that produce it.
+Evaluation travels in the opposite direction: sources produce pixels through their parent processors and layers until the root receives its final image.
 
-Then replace [app/](app/) and [src/](src/) with your own sources, updating `entryPoints` in [scripts/build.mjs](scripts/build.mjs) to match. The VS Code workspace file is [main.code-workspace](main.code-workspace) — deliberately generic, so there is nothing to rename.
-
-Two more files want a look before you start:
-
-- [AGENTS.md](AGENTS.md) — replace the **Project** section with what your project is. Everything under **Hard rules** is meant to carry across projects unchanged.
-- [test/build-info.test.js](test/build-info.test.js) — an example test that also pins the template's only export. Delete it once you have tests of your own; `npm test` fails on an empty `test/` rather than passing vacuously, which is deliberate.
-
-Ports are derived from the absolute path of `scripts/build.mjs`, so every clone and worktree gets its own http/https/debug ports and two of them never collide — there is nothing to configure. Run `npm run ports` to see the ones for your checkout.
-
-## Output directory convention
-
-Two output directories, with fixed meanings across esp-based projects:
-
-- **`www/`** — the built web content: the demo/app page, what the dev server serves and what deploys to GitHub Pages. This is what `scripts/build.mjs` emits, and it is never published to npm.
-- **`dist/`** — the source distribution: a packaged library bundle plus type declarations, pointed at by `main`/`types`/`exports` and listed in `files`. Emitted by a separate `scripts/dist.mjs` using esbuild and `tsc` directly, not by esp's runner.
-
-This template only produces `www/`, since it is an app rather than a library. `dist/` is gitignored anyway so that adding a library build later needs no other changes — the two never contend for the same directory.
-
-## GitHub Pages
-
-[.github/workflows/pages.yml](.github/workflows/pages.yml) builds `www/` and deploys it to GitHub Pages, but it is **off by default** — a repo created from this template will not try to publish, and will not fail CI, until you ask it to.
-
-To publish, first point Pages at Actions once: **Settings → Pages → Build and deployment → Source → GitHub Actions**. The default there is branch-based, which this workflow cannot deploy to.
-
-Then either publish on demand — **Actions → Deploy to GitHub Pages → Run workflow** — or deploy on every push to `main` by adding an Actions variable (**Settings → Secrets and variables → Actions → Variables → New repository variable**):
-
-| Name | Value |
-| --- | --- |
-| `ENABLE_PAGES` | `true` |
-
-Without the variable, pushes skip the job — a neutral result rather than a failed run. Manual runs work either way.
-
-## Build info
-
-[scripts/build.mjs](scripts/build.mjs) substitutes two constants at build time via esbuild's `define`: `__APP_VERSION__` (from `package.json`) and `__COMMIT_SHA__` (`git rev-parse --short HEAD`, falling back to `GITHUB_SHA` for detached CI checkouts, then `unknown`). [src/index.js](src/index.js) reads them and re-exports them as a frozen `buildInfo` object, so nothing outside that module touches the raw globals:
-
-```js
-import { buildInfo } from './src/index.js';
-console.info(`${buildInfo.version} (${buildInfo.commit})`);
+```text
+Target asset: 2400 x 1600, RGBA, working precision, output encoding
+|-- Layer: subject
+|   `-- Levels
+|       `-- Imported image
+`-- Layer: atmosphere
+    `-- Blur
+        `-- Generated texture
 ```
 
-Because these are compile-time substitutions rather than runtime lookups, there is no `package.json` read and no `child_process` in the shipped bundle.
+Nesting makes the primary image path readable and gives every operation an obvious result context.
+Wires complement the tree for secondary inputs such as masks, adjustment controls, shared sources, and multi-input composites.
+They must not create a second hidden ownership model: the target tree owns composition and ordering, while wires express declared data dependencies.
+Cycles are rejected before evaluation.
 
-The substitution map lives in [scripts/defines.mjs](scripts/defines.mjs) rather than inline in the build, because the test runner bundles `src/` too and needs the identical map — a test bundle without it throws `ReferenceError` the first time anything reads `buildInfo`.
+This model is intentionally not a flat Photoshop-style layer list and not an unrestricted node canvas.
+The goal is a re-entrant hybrid where ordinary work stays legible as layers and advanced relationships remain possible when they are useful.
 
-## Verification
+## Architecture
 
-Four gates, cheapest first. [.github/workflows/ci.yml](.github/workflows/ci.yml) runs the same four under the same names, and `npm run check` chains them locally:
+A versioned project document is the source of truth.
+It stores stable node and asset IDs, target contracts, child ordering, parameters, wires, and durable layout choices.
+Selection, hover, open panels, view zoom, GPU handles, decoded pixels, cached tiles, and undo stacks are editor or runtime state and are not serialized as project meaning.
 
-```sh
-npm run typecheck   # tsc --noEmit
-npm run lint        # biome check .
-npm test            # bundle tests, then node --test
-npm run build       # esbuild, via esp's runner
+Commands are the authored mutation boundary and establish undo and redo units.
+Solid projects document and editor state into small reactive DOM updates.
+The evaluator projects document plus an explicit region and quality request into deterministic image work.
+The WebGPU runtime owns device resources and execution but never becomes the save format.
+
+```text
+UI input -> command -> canonical project document
+                         |              |
+                         v              v
+                   reactive view   region evaluator
+                                         |
+                                         v
+                                tile work plan/cache
+                                         |
+                                         v
+                                  WebGPU or export
 ```
 
-### Linting and formatting
+Document, command, validation, and reference-compositor modules must remain usable in headless tests without importing Solid, the DOM, or live GPU objects.
+The GPU is a projection that can always be discarded and rebuilt after device loss.
 
-[biome.jsonc](biome.jsonc) covers both, replacing ESLint and `@stylistic/eslint-plugin` — 2 installed packages instead of ~75. Beyond the size difference it buys two things:
+## Compositor lineage
 
-- **TypeScript is actually linted.** ESLint silently skipped `.ts` files here, so a TypeScript file passed `npm run lint` without being looked at. Closing that under ESLint needs `typescript-eslint`; under Biome it is the default.
-- **Correctness rules, not just formatting.** The old config was `@stylistic` only, which checks layout and nothing else.
+`../mixaic/src/compositor/` is the starting implementation source for Pixelf's rendering core.
+Its useful contracts already include pure graph-to-pixels evaluation, backward input-region propagation for effect halos, isolated tile rendering and caching, affine placement, premultiplied linear compositing, alpha-safe mip sampling, blend modes, WebGPU acquisition and presentation, upload paths, and budgeted resource pooling.
 
-`npm run lint:fix` applies formatting and safe fixes. `lineWidth` is 100 rather than Biome's default 80, chosen from the line-length distribution across these projects.
+Pixelf will adapt that code into an internal compositor boundary rather than importing a sibling checkout at runtime.
+The CPU path should remain the deterministic reference while the WebGPU path grows against shared conformance fixtures.
+Pixelf-specific target contracts, nested layer semantics, persistence, and UI stay outside the low-level compositor.
 
-One exclusion matters: `.vscode/launch_template.json` is not valid JSON — it holds `{{debug}}` placeholders that esp substitutes when rendering `launch.json` — so Biome must not try to parse it. Every esp-based repo has this file, so the exclusion belongs in every biome.jsonc.
+Amoire is the reference for Solid reactive ownership, direct DOM construction, commands, and the separation between documents and GPU projections.
+Filfre is a source of practical image-effect, graph, schema-driven property, and animation ideas.
+Neither application model should be copied wholesale: Pixelf's target-first image document is its own contract.
 
-The one rule with no Biome equivalent is `space-before-function-paren`, whose anonymous/named/asyncArrow split Biome's formatter does not model.
+## Tiling and fidelity
 
-### Type validation
+Preview, zoom, panning, thumbnails, and export should all request explicit pixel regions at explicit scales.
+Evaluation walks upstream to discover dependencies and expands requests by each operation's halo, so a blurred or resampled tile agrees with the same region rendered as part of the full image.
+Cache identity must include source and parameter revisions, target format, quality, scale, and tile coordinates.
 
-[tsconfig.json](tsconfig.json) is `strict`, `noEmit`, and — the part that matters for a JS-first template — `allowJs` + `checkJs`. Plain `.js` files are typechecked from inference and JSDoc, so the gate is real before a single `.ts` file exists, and adding one changes nothing about the setup.
+Color arithmetic and filtering happen in linear light with explicit premultiplied-alpha boundaries.
+Source decoding, working precision, display conversion, and export encoding remain separate steps.
+WebGPU is the primary execution backend, while a small CPU reference path provides deterministic tests and a correctness oracle for foundational operations.
 
-That only works if the type system can see what the bundler injects, which is what [types/](types/) is for:
+The first implementation should favor correctness and observability over shader fusion.
+Optimization follows measured tile reuse, memory pressure, and pass cost rather than obscuring the document model.
 
-- [types/globals.d.ts](types/globals.d.ts) — the `define` constants (`__APP_VERSION__`, `__COMMIT_SHA__`) and the `*.html` asset-import shape. Add a block here for any new `loader` entry in the build, or typecheck will not find it.
-- [types/esp.d.ts](types/esp.d.ts) — esp ships plain JS with no declarations, so this describes the subpaths the template imports. Without it, `checkJs` reports every esp import as an implicit `any`. Delete it if esp ever ships its own types.
+## Development
 
-**Known gap:** ESLint does not lint `.ts` files here — it silently skips them rather than erroring, so a TypeScript file passes `npm run lint` without being looked at. Closing that means adding `typescript-eslint`. Typechecking does cover `.ts`, so this is a style-and-correctness-rules gap, not a type-safety one.
+Install dependencies with `npm install` and use the checked-in VS Code workspace for the normal esp build and debug flow.
 
-### Testing
+`npm run check` runs type checking, linting, tests, and the production build.
 
-[scripts/test.mjs](scripts/test.mjs) globs `test/**/*.test.{js,mjs,ts,mts}`, bundles each entry with esbuild into the gitignored `dist-tests/`, then runs `node --test` over the output. No test framework, no test dependency — [`node:test`](https://nodejs.org/api/test.html) and `node:assert` are the whole surface.
+The planned renderer requires WebGPU and a secure browser context.
+Localhost served through the esp development workflow satisfies the secure-context requirement.
 
-The bundling step is what earns its keep. Node's built-in type stripping cannot resolve TypeScript's `.js` import specifiers back to the `.ts` files they name, so `node --test` on its own breaks as soon as a test imports typed source. esbuild's resolver maps `.js` to `.ts` and inlines the graph, so one code path covers both languages. It also means tests resolve `src/` exactly the way the real build does — a test cannot pass against an import shape the bundler would reject. Real dependencies stay external, and inline source maps plus `--enable-source-maps` keep failures pointing at your line rather than the bundled one.
+## License
 
-## Structure
-
-- [scripts/build.mjs](scripts/build.mjs) — the build script, which wires up esp's `runBuild` runner with project-specific esbuild options (entry points, plugins, output directory, etc.)
-- [scripts/defines.mjs](scripts/defines.mjs) — the build-time constant map, shared by the build and the test runner
-- [scripts/test.mjs](scripts/test.mjs) — the test runner (bundle, then `node --test`)
-- [app/main.js](app/main.js) — the app entry point
-- [src/index.js](src/index.js) — the library entry point, exporting `buildInfo` (see below)
-- [test/](test/) — tests, discovered as `**/*.test.{js,mjs,ts,mts}`
-- [types/](types/) — ambient declarations for the untyped surfaces the build relies on
-- [AGENTS.md](AGENTS.md) — conventions for AI coding assistants; the hard rules are meant to travel between projects unchanged
-- [.editorconfig](.editorconfig) — the same indentation and whitespace rules at the editor level, so hand edits match too
-- [.vscode/extensions.json](.vscode/extensions.json) — recommended extensions for this workspace
-- [.vscode/tasks.json](.vscode/tasks.json) — VS Code tasks that invoke the `vscode:build` and `vscode:debug` npm scripts, with a custom problem matcher to surface esbuild errors and warnings inline in the editor
-- [.vscode/launch_template.json](.vscode/launch_template.json) — source of truth for the VS Code launch configurations that attach Chrome to the dev server with source maps, using the debug tasks as `preLaunchTask`. The runner renders it to `.vscode/launch.json` (gitignored, since the ports are per-checkout) on `npm install` and on every serve/watch; render it by hand with `npm run sync:launch`
-
-## Usage
-
-Install dependencies:
-
-```sh
-npm install
-```
-
-**Build** (one-shot, minified):
-
-```sh
-npm run build
-```
-
-**Dev server** (watch mode, source maps, auto-launches browser):
-
-```sh
-npm run dev
-```
-
-**VS Code** — open the workspace (`main.code-workspace`), then use the default build task (`Cmd+Shift+B`) to build, or launch "Debug in Chrome" from the Run and Debug panel to start the dev server and attach the debugger.
-
-## VS Code integration notes
-
-The tasks in [.vscode/tasks.json](.vscode/tasks.json) use a `background` problem matcher that watches for the `[esbuild-ready]` sentinel line emitted by esp's dev server, which tells VS Code when the initial build is complete and the browser can be launched. The "Kill debug server" task tears down the watch process when the debug session ends.
+MIT - see [LICENSE.md](LICENSE.md).

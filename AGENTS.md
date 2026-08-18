@@ -2,13 +2,21 @@
 
 How AI coding assistants (Claude, Codex, etc.) work in this repo. This file is about *how to work*; what the project *is* belongs in [README.md](README.md) and `docs/`.
 
-Replace the Project section below when you use this template. Everything under Hard rules is intended to carry across projects unchanged.
-
 ## Project
 
-<!-- Replace: one paragraph on what this is, plus pointers to the docs an agent should read before writing code. -->
+Pixelf is a lightweight, accessible image editor built around a primarily non-destructive target-first layer tree and a tiled WebGPU compositor.
+Target assets are the roots of compositions and declare destination resolution, bit depth, pixel format, and color intent; layers, sources, masks, and processing operations are upstream child nodes whose pixels flow back toward those roots.
 
-This is a template repo built on [`@graysonlang/esp`](https://github.com/graysonlang/esp) — an esbuild plugin set and build runner. The checked-in surface is deliberately small; anything that can be a dependency lives in esp.
+The application uses Solid's reactive core for signals, derivations, effects, and disposal, with TypeScript and real DOM APIs for the view.
+Do not introduce JSX or TSX, a JSX transform, the Solid compiler, Babel, or a framework renderer.
+Keep canonical document and compositor modules independent of Solid and the DOM so they remain deterministic and headless-testable.
+Prefer reversible authored operations, but do not make non-destructive behavior an absolute constraint.
+Destructive, bake, rasterize, or replace operations must be explicit in the document or command history, visibly labeled in the UI, and precise about asset ownership and undo behavior.
+
+Read [README.md](README.md) and [PLAN.md](PLAN.md) before changing document semantics, the target-first tree, layer or wire behavior, tiling, color handling, or the WebGPU boundary.
+The compositor in `../mixaic/src/compositor/` is the implementation reference for region evaluation, tile halos and caching, premultiplied linear color, alpha-safe sampling, and GPU resource ownership.
+Adapt it behind a Pixelf-owned internal contract with focused conformance tests; do not create runtime imports across sibling repositories or copy host-specific Mixaic application state.
+Use `../amoire` as the reference for the JSX-free Solid and command-driven application structure, and `../filfre` as a reference for image-effect vocabulary and graph authoring concepts.
 
 ## Hard rules
 

@@ -7,6 +7,7 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
+    "types": ["node", "@webgpu/types"],
     "allowJs": true,
     "checkJs": true,
     "verbatimModuleSyntax": true,

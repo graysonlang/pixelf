@@ -3,17 +3,52 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>main</title>
-  <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgo=" />
-  <style>
-    body {
-      background: #111;
-      color: #ccc;
-      font-family: system-ui, sans-serif;
-      margin: 32px;
-    }
-  </style>
+  <meta name="theme-color" content="#14140f">
+  <title>Pixelf</title>
   <script src="./main.js" type="module"></script>
 </head>
-<body></body>
+<body>
+  <main class="app-shell">
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">P</span>
+        <div>
+          <strong>Pixelf</strong>
+          <span class="brand-subtitle">Image workshop</span>
+        </div>
+      </div>
+      <label class="open-button" for="image-input">
+        Open image
+        <input id="image-input" type="file" accept="image/*">
+      </label>
+    </header>
+
+    <section class="workspace" aria-label="Image workspace">
+      <aside class="layers-panel">
+        <p class="eyebrow">Target</p>
+        <h1 id="source-name">Untitled image</h1>
+        <p id="source-details" class="source-details">No source selected</p>
+        <div class="target-contract">
+          <span>Resolution</span>
+          <strong>From source</strong>
+          <span>Working format</span>
+          <strong>Not configured</strong>
+        </div>
+        <p class="foundation-note">
+          The first foundation slice is active.
+          Processing nodes, layers, and WebGPU tiles arrive in the planned vertical slices.
+        </p>
+      </aside>
+
+      <section class="stage" aria-label="Image preview">
+        <div id="empty-stage" class="empty-stage">
+          <div class="elf-pixel" aria-hidden="true"></div>
+          <h2>Give the pixel elf something to work with</h2>
+          <p>Choose a local image to verify the reactive application shell.</p>
+        </div>
+        <img id="image-preview" alt="Selected source preview" hidden>
+      </section>
+    </section>
+  </main>
+</body>
 </html>

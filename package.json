@@ -1,16 +1,20 @@
 {
-  "name": "@graysonlang/repo-template",
+  "name": "@graysonlang/pixelf",
   "version": "0.1.0",
   "private": true,
-  "description": "Project template for @graysonlang/esp, with VS Code build and debug configuration, TypeScript validation, and a test harness",
-  "keywords": [],
-  "homepage": "https://github.com/graysonlang/repo-template#readme",
+  "description": "A lightweight WebGPU image editor with target-first layers and tiled processing",
+  "keywords": [
+    "image-editor",
+    "solid-js",
+    "webgpu"
+  ],
+  "homepage": "https://github.com/graysonlang/pixelf#readme",
   "bugs": {
-    "url": "https://github.com/graysonlang/repo-template/issues"
+    "url": "https://github.com/graysonlang/pixelf/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/graysonlang/repo-template.git"
+    "url": "git+https://github.com/graysonlang/pixelf.git"
   },
   "license": "MIT",
   "author": "Grayson Lang",
@@ -41,7 +45,11 @@
     "@biomejs/biome": "^2.5.0",
     "@graysonlang/esp": "^2.2.0",
     "@types/node": "^24.0.0",
+    "@webgpu/types": "^0.1.71",
     "esbuild": "^0.28.0",
     "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "solid-js": "^1.9.15"
   }
 }

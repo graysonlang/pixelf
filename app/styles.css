@@ -1,0 +1,252 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-synthesis: none;
+  --background: #14140f;
+  --panel: #1c1c16;
+  --panel-raised: #25251d;
+  --line: #3c3c2d;
+  --text: #f3f1de;
+  --muted: #aaa891;
+  --accent: #d4f45d;
+  --accent-ink: #1c2500;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--background);
+  color: var(--text);
+  margin: 0;
+  min-width: 320px;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100dvh;
+}
+
+.app-header {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 18px;
+}
+
+.brand {
+  align-items: center;
+  display: flex;
+  gap: 11px;
+}
+
+.brand-mark {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 7px 3px 7px 3px;
+  color: var(--accent-ink);
+  display: flex;
+  font-family: ui-monospace, monospace;
+  font-weight: 900;
+  height: 34px;
+  justify-content: center;
+  image-rendering: pixelated;
+  width: 34px;
+}
+
+.brand div {
+  display: grid;
+}
+
+.brand strong {
+  font-size: 17px;
+}
+
+.brand-subtitle {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.open-button {
+  background: var(--accent);
+  border-radius: 7px;
+  color: var(--accent-ink);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 750;
+  padding: 9px 13px;
+}
+
+.open-button:hover {
+  filter: brightness(1.08);
+}
+
+.open-button input {
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+  min-height: 0;
+}
+
+.layers-panel {
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  padding: 24px 20px;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  margin: 0 0 7px;
+  text-transform: uppercase;
+}
+
+.layers-panel h1 {
+  font-size: 19px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.source-details,
+.foundation-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.target-contract {
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  margin-top: 24px;
+  padding: 13px;
+}
+
+.target-contract span {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  margin-top: 5px;
+  text-transform: uppercase;
+}
+
+.target-contract strong {
+  font-size: 13px;
+}
+
+.foundation-note {
+  border-top: 1px solid var(--line);
+  margin-top: 24px;
+  padding-top: 18px;
+}
+
+.stage {
+  align-items: center;
+  background-color: #20201a;
+  background-image:
+    linear-gradient(45deg, #282820 25%, transparent 25%),
+    linear-gradient(-45deg, #282820 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #282820 75%),
+    linear-gradient(-45deg, transparent 75%, #282820 75%);
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  background-size: 16px 16px;
+  display: flex;
+  justify-content: center;
+  min-height: 0;
+  overflow: auto;
+  padding: 32px;
+}
+
+.empty-stage {
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  max-width: 430px;
+  padding: 34px;
+  text-align: center;
+}
+
+.empty-stage h2 {
+  font-size: 19px;
+  margin: 18px 0 7px;
+}
+
+.empty-stage p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.elf-pixel {
+  background: var(--accent);
+  box-shadow:
+    9px 0 var(--accent),
+    18px 0 var(--accent),
+    0 9px var(--accent),
+    18px 9px var(--accent),
+    0 18px var(--accent),
+    9px 18px var(--accent),
+    18px 18px var(--accent);
+  height: 8px;
+  margin: 0 auto;
+  width: 8px;
+}
+
+#image-preview {
+  box-shadow: 0 16px 60px #0008;
+  display: block;
+  max-height: calc(100dvh - 132px);
+  max-width: 100%;
+  object-fit: contain;
+}
+
+#image-preview[hidden],
+#empty-stage[hidden] {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .layers-panel {
+    border-bottom: 1px solid var(--line);
+    border-right: 0;
+    padding: 16px 18px;
+  }
+
+  .target-contract,
+  .foundation-note {
+    display: none;
+  }
+
+  .stage {
+    min-height: 60dvh;
+    padding: 18px;
+  }
+}
