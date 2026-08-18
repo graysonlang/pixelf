@@ -83,6 +83,28 @@ button:disabled {
   padding: 14px 18px;
 }
 
+.file-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: flex-end;
+}
+
+.metadata-picker {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 11px;
+  gap: 5px;
+}
+
+.metadata-picker select {
+  background: var(--panel-raised);
+  color: var(--text);
+  padding: 6px;
+}
+
 .brand {
   align-items: center;
   display: flex;

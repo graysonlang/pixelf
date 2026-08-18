@@ -7,6 +7,18 @@ export {
 export { EditorState } from './editor-state.js';
 export { nodeRegistry, type NodeDefinition, type ParameterDefinition } from './registry.js';
 export {
+  NamedProjectSession,
+  openProjectFile,
+  ProjectRecoveryStore,
+  relinkMissingAsset,
+  saveProjectFile,
+  type ProjectSaveReceipt,
+  type ProjectTextDestination,
+  type ProjectTextSource,
+  type RecoveryStorage,
+  type RelinkCandidate,
+} from './persistence.js';
+export {
   cloneProject,
   createEmptyProject,
   createImportedProject,

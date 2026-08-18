@@ -18,10 +18,22 @@
           <span class="brand-subtitle">Image workshop</span>
         </div>
       </div>
-      <label class="open-button" for="image-input">
-        Open image
-        <input id="image-input" type="file" accept="image/*">
-      </label>
+      <div class="file-actions">
+        <label class="open-button" for="image-input">
+          Open image
+          <input id="image-input" type="file" accept="image/*">
+        </label>
+        <button id="save-project-button" type="button" disabled>Save project</button>
+        <label class="metadata-picker">
+          <span>Metadata</span>
+          <select id="metadata-policy">
+            <option value="discard">Discard</option>
+            <option value="preserve">Preserve</option>
+            <option value="rewrite">Rewrite</option>
+          </select>
+        </label>
+        <button id="export-button" type="button" disabled>Export target</button>
+      </div>
     </header>
 
     <section class="workspace" aria-label="Image workspace">

@@ -3,6 +3,12 @@ import { buildInfo } from '../src/index.js';
 import { decodeImageFile, type DecodedProjectImage } from '../src/browser/decode-image.js';
 import { projectTargetToGraph } from '../src/compositor/index.js';
 import {
+  artifactBytes,
+  exportTargetPng,
+  exportTargetWithBrowserEncoder,
+  type MetadataPolicy,
+} from '../src/export/index.js';
+import {
   attachCanvas,
   GpuDeviceManager,
   GpuImageRenderer,
@@ -15,6 +21,7 @@ import {
   EditorState,
   findPrimaryParent,
   nodeRegistry,
+  serializeProject,
   type LayerNode,
   type ProcessorNode,
   type SourceNode,
@@ -70,8 +77,20 @@ function normalizedContract(contract: TargetContract): TargetContract {
   return contract;
 }
 
+function download(data: BlobPart, mimeType: string, fileName: string): void {
+  const url = URL.createObjectURL(new Blob([data], { type: mimeType }));
+  const anchor = document.createElement('a');
+  anchor.download = fileName;
+  anchor.href = url;
+  anchor.click();
+  queueMicrotask(() => URL.revokeObjectURL(url));
+}
+
 const dispose = createRoot(disposeRoot => {
   const input = requireElement<HTMLInputElement>('#image-input');
+  const saveProjectButton = requireElement<HTMLButtonElement>('#save-project-button');
+  const exportButton = requireElement<HTMLButtonElement>('#export-button');
+  const metadataPolicy = requireElement<HTMLSelectElement>('#metadata-policy');
   const preview = requireElement<HTMLImageElement>('#image-preview');
   const canvas = requireElement<HTMLCanvasElement>('#gpu-preview');
   const empty = requireElement<HTMLElement>('#empty-stage');
@@ -404,10 +423,79 @@ const dispose = createRoot(disposeRoot => {
     }
   };
 
+  const saveProject = (): void => {
+    const editor = currentEditor();
+    if (editor === null) return;
+    const source = serializeProject(editor.project);
+    download(source, 'application/json', `${editor.project.name || 'untitled'}.pixelf`);
+    localStorage.removeItem(`pixelf:recovery:${editor.project.projectId}`);
+    editor.markSaved();
+    refreshProject();
+  };
+
+  const exportTarget = async (): Promise<void> => {
+    const selected = selectedImage();
+    const targetId = selected?.editor.project.targetIds[0];
+    if (selected === null || selected === undefined || targetId === undefined) return;
+    try {
+      const projection = projectTargetToGraph(
+        selected.editor.project,
+        targetId,
+        new Map([[selected.asset.id, selected.decoded]]),
+      );
+      const policy = metadataPolicy.value as MetadataPolicy;
+      const contract = projection.target.contract;
+      const artifact =
+        contract.outputFormat === 'png'
+          ? exportTargetPng(projection.graph, contract, { metadataPolicy: policy })
+          : await exportTargetWithBrowserEncoder(
+              projection.graph,
+              contract,
+              {
+                encode: async (rgba, width, height, options) => {
+                  const exportCanvas = document.createElement('canvas');
+                  exportCanvas.width = width;
+                  exportCanvas.height = height;
+                  const context = exportCanvas.getContext('2d', {
+                    colorSpace: options.colorSpace,
+                  });
+                  if (context === null) throw new Error('The browser export canvas is unavailable');
+                  const pixels = new ImageData(new Uint8ClampedArray(rgba), width, height, {
+                    colorSpace: options.colorSpace,
+                  });
+                  context.putImageData(pixels, 0, 0);
+                  const blob = await new Promise<Blob>((resolve, reject) => {
+                    exportCanvas.toBlob(
+                      result =>
+                        result === null
+                          ? reject(new Error('Browser export failed'))
+                          : resolve(result),
+                      options.mimeType,
+                      0.92,
+                    );
+                  });
+                  return new Uint8Array(await blob.arrayBuffer());
+                },
+              },
+              { metadataPolicy: policy },
+            );
+      const baseName = selected.file.name.replace(/\.[^.]+$/, '') || 'pixelf-export';
+      download(
+        artifactBytes(artifact) as BlobPart,
+        artifact.mimeType,
+        `${baseName}.${artifact.extension}`,
+      );
+    } catch (error) {
+      reportError(error);
+    }
+  };
+
   const onInputChange = (): void => {
     void selectImage();
   };
   input.addEventListener('change', onInputChange);
+  saveProjectButton.addEventListener('click', saveProject);
+  exportButton.addEventListener('click', () => void exportTarget());
   undoButton.addEventListener('click', () => {
     currentEditor()?.undo();
     refreshProject();
@@ -501,6 +589,9 @@ const dispose = createRoot(disposeRoot => {
     sourceName.textContent = selected?.file.name ?? 'Untitled image';
     sourceDetails.textContent = details();
     const enabled = editor !== null;
+    saveProjectButton.disabled = !enabled;
+    exportButton.disabled = !enabled;
+    metadataPolicy.disabled = !enabled;
     addLayerButton.disabled = !enabled;
     undoButton.disabled = !editor?.canUndo;
     redoButton.disabled = !editor?.canRedo;
@@ -546,6 +637,10 @@ const dispose = createRoot(disposeRoot => {
       );
       return;
     }
+    localStorage.setItem(
+      `pixelf:recovery:${editor.project.projectId}`,
+      serializeProject(editor.project),
+    );
     if (selectedId !== null && editor.project.nodes[selectedId] === undefined) {
       const fallback = editor.project.targetIds[0] ?? null;
       setSelectedNodeId(fallback);

@@ -15,7 +15,8 @@ The current processing vocabulary includes crop, canvas bounds, affine transform
 The operation registry drives insertion, property controls, validation, region behavior, CPU evaluation, GPU routing, and serialization.
 Operations not yet implemented as dedicated shaders are evaluated by the CPU oracle and uploaded through the WebGPU presentation path, preserving one visible result while GPU coverage grows.
 Viewport work planning limits preview evaluation to visible and prefetched tiles, splits work to the device texture limit, and rejects stale generations before they publish pixels.
-[PLAN.md](PLAN.md) defines the remaining vertical slices for durable projects, export, and advanced wiring.
+Named project persistence, separate recovery storage, missing-asset relinking, and target-driven PNG, JPEG, and WebP export are available through explicit contracts.
+[PLAN.md](PLAN.md) defines the remaining vertical slice for advanced wiring and extensibility.
 
 ## Product direction
 
@@ -90,6 +91,27 @@ The GPU is a projection that can always be discarded and rebuilt after device lo
 Rasterization is an explicit command boundary.
 It either creates a new asset and replaces the selected processing branch with an imported-source leaf, or replaces the bytes of an existing imported asset while retaining its asset ID.
 Undo retains the prior project and asset metadata; derived tiles for the old graph may be released after the command commits because undo can deterministically evaluate them again.
+
+## Projects, assets, and recovery
+
+Pixelf project files are canonical UTF-8 JSON with a `.pixelf` extension.
+Named saves write only to a destination the user explicitly selected.
+Recovery snapshots use a separate project-ID key and restoring one changes the in-memory session only; it cannot overwrite a named file until the user invokes save.
+
+Imported browser files are linked by default so a small project file does not silently duplicate large source assets.
+The project stores the content hash, dimensions, media type, and last known file identity.
+Relinking requires the same content hash and dimensions; choosing different pixels is an explicit asset replacement or rasterization command.
+Embedded assets remain supported when portability is more important than project size, and their encoded bytes live in the project document by deliberate choice.
+
+## Export
+
+Export always evaluates the authored target contract, never the current viewport or canvas backing size.
+The native PNG writer supports 8-bit and 16-bit output, grayscale and RGB channel layouts, preserved alpha or explicit compositing against black, sRGB labeling, and Display P3 `cICP` labeling.
+It renders horizontal source tiles into one scanline at a time and emits bounded uncompressed deflate blocks, avoiding a full-resolution JavaScript pixel intermediate.
+
+JPEG and WebP use a supplied browser raster encoder, are explicitly limited to 8-bit output, and declare alpha behavior before encoding.
+Because ordinary browser encoders are not streamable, Pixelf applies a pixel limit and directs oversized work to PNG instead of allocating an unbounded full-frame buffer.
+Metadata policy is a visible export choice: discard, preserve supplied fields, or rewrite them.
 
 ## Compositor lineage
 

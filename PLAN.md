@@ -12,7 +12,7 @@ It should be updated when a phase materially changes direction or is completed.
 - [x] Phase 4 - Target-first layer editor
 - [x] Phase 5 - Reversible processing vocabulary
 - [x] Phase 6 - Demand-driven tiles and large images
-- [ ] Phase 7 - Durable projects and faithful export
+- [x] Phase 7 - Durable projects and faithful export
 - [ ] Phase 8 - Advanced wiring and extensibility
 
 ## Working rules
