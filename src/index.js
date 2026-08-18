@@ -8,3 +8,4 @@ export const buildInfo = Object.freeze({
 });
 
 export * from './project/index.js';
+export * from './compositor/index.js';

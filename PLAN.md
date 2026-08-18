@@ -7,7 +7,7 @@ It should be updated when a phase materially changes direction or is completed.
 
 - [x] Phase 0 - Project and reactive foundation
 - [x] Phase 1 - Canonical target-first document
-- [ ] Phase 2 - Tiled CPU reference compositor
+- [x] Phase 2 - Tiled CPU reference compositor
 - [ ] Phase 3 - First WebGPU image path
 - [ ] Phase 4 - Target-first layer editor
 - [ ] Phase 5 - Reversible processing vocabulary
