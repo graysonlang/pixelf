@@ -26,31 +26,63 @@
 
     <section class="workspace" aria-label="Image workspace">
       <aside class="layers-panel">
-        <p class="eyebrow">Target</p>
-        <h1 id="source-name">Untitled image</h1>
-        <p id="source-details" class="source-details">No source selected</p>
-        <p id="gpu-status" class="gpu-status" role="status">Checking WebGPU...</p>
-        <div class="target-contract">
-          <span>Resolution</span>
-          <strong>From source</strong>
-          <span>Working format</span>
-          <strong>Not configured</strong>
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Composition</p>
+            <h1 id="source-name">Untitled image</h1>
+            <p id="source-details" class="source-details">No source selected</p>
+          </div>
+          <fieldset class="history-actions">
+            <legend class="visually-hidden">History</legend>
+            <button id="undo-button" type="button" title="Undo" disabled>Undo</button>
+            <button id="redo-button" type="button" title="Redo" disabled>Redo</button>
+          </fieldset>
         </div>
-        <p class="foundation-note">
-          The first foundation slice is active.
-          Processing nodes, layers, and WebGPU tiles arrive in the planned vertical slices.
-        </p>
+        <fieldset class="tree-actions">
+          <legend class="visually-hidden">Layer actions</legend>
+          <button id="add-layer-button" type="button" disabled>+ Layer</button>
+          <button id="add-operation-button" type="button" disabled>+ Opacity</button>
+          <button id="add-mask-button" type="button" disabled>+ Mask</button>
+          <button id="move-up-button" type="button" title="Move layer up" disabled>Up</button>
+          <button id="move-down-button" type="button" title="Move layer down" disabled>Down</button>
+          <button id="delete-button" type="button" disabled>Delete</button>
+        </fieldset>
+        <div id="layer-tree" class="layer-tree" role="tree" aria-label="Target-first layers"></div>
+        <p id="gpu-status" class="gpu-status" role="status">Checking WebGPU...</p>
       </aside>
 
-      <section class="stage" aria-label="Image preview">
-        <div id="empty-stage" class="empty-stage">
-          <div class="elf-pixel" aria-hidden="true"></div>
-          <h2>Give the pixel elf something to work with</h2>
-          <p>Choose a local image to verify the reactive application shell.</p>
-        </div>
-        <canvas id="gpu-preview" aria-label="WebGPU image preview" hidden></canvas>
-        <img id="image-preview" alt="Selected source preview" hidden>
+      <section class="stage-column">
+        <fieldset class="stage-toolbar">
+          <legend class="visually-hidden">Preview controls</legend>
+          <button id="fit-button" type="button">Fit</button>
+          <button id="actual-size-button" type="button">100%</button>
+          <button id="zoom-out-button" type="button" aria-label="Zoom out">-</button>
+          <output id="zoom-output" aria-live="polite">100%</output>
+          <button id="zoom-in-button" type="button" aria-label="Zoom in">+</button>
+          <button id="pan-left-button" type="button" aria-label="Pan left">Left</button>
+          <button id="pan-right-button" type="button" aria-label="Pan right">Right</button>
+          <button id="pan-up-button" type="button" aria-label="Pan up">Up</button>
+          <button id="pan-down-button" type="button" aria-label="Pan down">Down</button>
+          <button id="pixel-grid-button" type="button" aria-pressed="false">Pixel grid</button>
+          <button id="transparency-button" type="button" aria-pressed="true">Transparency</button>
+          <button id="compare-button" type="button">Hold to compare</button>
+        </fieldset>
+        <section id="stage" class="stage" aria-label="Image preview">
+          <div id="stage-content" class="stage-content">
+            <div id="empty-stage" class="empty-stage">
+              <div class="elf-pixel" aria-hidden="true"></div>
+              <h2>Give the pixel elf something to work with</h2>
+              <p>Open a local image to create a target and its first source layer.</p>
+            </div>
+            <canvas id="gpu-preview" aria-label="Processed WebGPU preview" hidden></canvas>
+            <img id="image-preview" alt="Original source preview" hidden>
+          </div>
+        </section>
       </section>
+
+      <aside id="properties-panel" class="properties-panel" aria-label="Properties">
+        <p class="properties-empty">Select a target, layer, operation, or source to inspect it.</p>
+      </aside>
     </section>
   </main>
 </body>
