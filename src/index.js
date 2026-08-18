@@ -12,3 +12,4 @@ export * from './compositor/index.js';
 export * from './gpu/index.js';
 export * from './runtime/index.js';
 export * from './export/index.js';
+export * from './advanced/index.js';

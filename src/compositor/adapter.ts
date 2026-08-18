@@ -2,6 +2,8 @@ import { nodeRegistry } from '../project/registry.js';
 import type { PixelfProject, ProcessorNode, ProjectNode, TargetNode } from '../project/types.js';
 import { validateProject } from '../project/validation.js';
 import {
+  checker,
+  graphHash,
   image,
   solid,
   type BlendMode,
@@ -10,6 +12,7 @@ import {
   type Graph,
   type ImageSource,
 } from './graph.js';
+import { renderRegion } from './render.js';
 
 export interface DecodedImageAsset {
   data: Float32Array;
@@ -64,7 +67,10 @@ function operationEffect(node: ProcessorNode): Effect | null {
   nodeRegistry.require(node.type);
   switch (node.type) {
     case 'process/opacity':
+    case 'process/adjustment-group':
       return null;
+    case 'process/composite':
+      throw new Error('Composite effects require a secondary input projection');
     case 'process/crop':
     case 'process/canvas-resize':
       return {
@@ -133,23 +139,66 @@ function sourceForLayer(
   project: PixelfProject,
   root: ProjectNode,
   decodedAssets: DecodedAssetStore,
+  target: TargetNode,
+  visited = new Set<string>(),
 ): { effects: Effect[]; opacity: number; source: ImageSource } {
   const effects: Effect[] = [];
   let opacity = 1;
   let node = root;
-  const visited = new Set<string>();
   while (node.type.startsWith('process/')) {
     if (visited.has(node.id)) throw new Error(`Projection cycle includes ${node.id}`);
     visited.add(node.id);
     if (node.parameters.bypass !== true) {
-      const effect = operationEffect(node as ProcessorNode);
-      if (effect === null) opacity *= numberParameter(node, 'amount');
-      else effects.unshift(effect);
+      if (node.type === 'process/composite') {
+        const wire = project.wires.find(
+          candidate => candidate.to.nodeId === node.id && candidate.to.port === 'secondary',
+        );
+        if (wire === undefined) throw new Error(`Composite ${node.id} has no secondary image`);
+        const secondary = sourceForLayer(
+          project,
+          requireNode(project, wire.from.nodeId),
+          decodedAssets,
+          target,
+          new Set(visited),
+        );
+        effects.unshift({
+          blend: stringParameter(node, 'blendMode') as BlendMode,
+          height: target.contract.height,
+          kind: 'composite',
+          opacity: numberParameter(node, 'opacity'),
+          source: flattenBranch(secondary, target),
+          width: target.contract.width,
+        });
+      } else {
+        const effect = operationEffect(node as ProcessorNode);
+        if (effect === null) opacity *= numberParameter(node, 'amount');
+        else effects.unshift(effect);
+      }
     }
     if (!('childId' in node) || node.childId === null) {
       throw new Error(`Processor ${node.id} has no source child`);
     }
     node = requireNode(project, node.childId);
+  }
+  if (node.type === 'source/shared') {
+    if (visited.has(node.id)) throw new Error(`Projection cycle includes ${node.id}`);
+    visited.add(node.id);
+    const wire = project.wires.find(
+      candidate => candidate.to.nodeId === node.id && candidate.to.port === 'input',
+    );
+    if (wire === undefined) throw new Error(`Shared image ${node.id} has no image input`);
+    const shared = sourceForLayer(
+      project,
+      requireNode(project, wire.from.nodeId),
+      decodedAssets,
+      target,
+      visited,
+    );
+    return {
+      effects: [...shared.effects, ...effects],
+      opacity: opacity * shared.opacity,
+      source: shared.source,
+    };
   }
   if (node.type !== 'source/imported' || node.assetId === undefined) {
     throw new Error(`Layer source ${node.id} is not a decoded imported image`);
@@ -168,6 +217,41 @@ function sourceForLayer(
   };
 }
 
+function flattenBranch(
+  branch: { effects: Effect[]; opacity: number; source: ImageSource },
+  target: TargetNode,
+): ImageSource {
+  const graph: Graph = {
+    entities: [
+      {
+        blend: 'normal',
+        effects: branch.effects,
+        h: target.contract.height,
+        id: 'shared-secondary',
+        opacity: branch.opacity,
+        source: branch.source,
+        w: target.contract.width,
+        x: 0,
+        y: 0,
+      },
+    ],
+  };
+  const surface = renderRegion(
+    graph,
+    { h: target.contract.height, w: target.contract.width, x: 0, y: 0 },
+    1,
+  );
+  const straight = new Float32Array(surface.data.length);
+  for (let offset = 0; offset < straight.length; offset += 4) {
+    const alpha = surface.data[offset + 3] ?? 0;
+    straight[offset] = alpha > 0 ? (surface.data[offset] ?? 0) / alpha : 0;
+    straight[offset + 1] = alpha > 0 ? (surface.data[offset + 1] ?? 0) / alpha : 0;
+    straight[offset + 2] = alpha > 0 ? (surface.data[offset + 2] ?? 0) / alpha : 0;
+    straight[offset + 3] = alpha;
+  }
+  return image(target.contract.width, target.contract.height, straight, graphHash(graph));
+}
+
 function layerMask(
   project: PixelfProject,
   layerId: string,
@@ -178,8 +262,9 @@ function layerMask(
   );
   if (wire === undefined) return undefined;
   const node = requireNode(project, wire.from.nodeId);
-  if (node.type !== 'source/mask') throw new Error(`${node.id} is not a supported mask source`);
-  const value = numberParameter(node, 'value');
+  if (node.type !== 'source/mask' && node.type !== 'source/checker-mask') {
+    throw new Error(`${node.id} is not a supported mask source`);
+  }
   const rotation = (numberParameter(node, 'rotation') * Math.PI) / 180;
   const scaleX = numberParameter(node, 'scaleX');
   const scaleY = numberParameter(node, 'scaleY');
@@ -197,7 +282,20 @@ function layerMask(
       numberParameter(node, 'x'),
       numberParameter(node, 'y'),
     ],
-    source: solid(value, value, value),
+    source:
+      node.type === 'source/mask'
+        ? solid(
+            numberParameter(node, 'value'),
+            numberParameter(node, 'value'),
+            numberParameter(node, 'value'),
+          )
+        : checker(
+            numberParameter(node, 'size'),
+            numberParameter(node, 'first'),
+            numberParameter(node, 'second'),
+            numberParameter(node, 'offsetX'),
+            numberParameter(node, 'offsetY'),
+          ),
     w: target.contract.width,
     x: 0,
     y: 0,
@@ -216,7 +314,12 @@ export function projectTargetToGraph(
     const layer = requireNode(project, layerId);
     if (layer.type !== 'layer') throw new Error(`${layerId} is not a layer`);
     if (layer.childId === null) throw new Error(`Layer ${layerId} has no source child`);
-    const source = sourceForLayer(project, requireNode(project, layer.childId), decodedAssets);
+    const source = sourceForLayer(
+      project,
+      requireNode(project, layer.childId),
+      decodedAssets,
+      target,
+    );
     const layerOpacity = layer.parameters.opacity;
     if (typeof layerOpacity !== 'number') throw new Error(`${layer.id}.opacity must be numeric`);
     const blendMode = layer.parameters.blendMode;

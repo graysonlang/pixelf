@@ -62,6 +62,14 @@ export function rasterSource(entity: Entity, region: Region, scale: number): Sur
         sampled[1] = entity.source.g * entity.source.a;
         sampled[2] = entity.source.b * entity.source.a;
         sampled[3] = entity.source.a;
+      } else if (entity.source.kind === 'checker') {
+        const checkerX = Math.floor((localX + entity.source.offsetX) / entity.source.size);
+        const checkerY = Math.floor((localY + entity.source.offsetY) / entity.source.size);
+        const value = (checkerX + checkerY) % 2 === 0 ? entity.source.first : entity.source.second;
+        sampled[0] = value;
+        sampled[1] = value;
+        sampled[2] = value;
+        sampled[3] = 1;
       } else {
         const u = (localX / entity.w) * entity.source.width;
         const v = (localY / entity.h) * entity.source.height;

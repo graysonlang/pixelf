@@ -13,7 +13,7 @@ It should be updated when a phase materially changes direction or is completed.
 - [x] Phase 5 - Reversible processing vocabulary
 - [x] Phase 6 - Demand-driven tiles and large images
 - [x] Phase 7 - Durable projects and faithful export
-- [ ] Phase 8 - Advanced wiring and extensibility
+- [x] Phase 8 - Advanced wiring and extensibility
 
 ## Working rules
 

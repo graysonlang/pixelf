@@ -24,6 +24,7 @@ import {
   serializeProject,
   type LayerNode,
   type ProcessorNode,
+  type ProjectCommand,
   type SourceNode,
   type TargetContract,
 } from '../src/project/index.js';
@@ -290,14 +291,36 @@ const dispose = createRoot(disposeRoot => {
     const definition = nodeRegistry.require(operationType.value);
     if (definition.kind !== 'processor') return;
     const operation = createNode(definition.type, createOpaqueId('node')) as ProcessorNode;
+    const commands: ProjectCommand[] = [{ node: operation, parentId: null, type: 'insert-node' }];
+    if (operation.type === 'process/composite') {
+      const image = selectedImage();
+      if (image === null) return;
+      const secondary = createNode(
+        'source/imported',
+        createOpaqueId('node'),
+        `${image.file.name} secondary`,
+      ) as SourceNode;
+      secondary.assetId = image.asset.id;
+      commands.push(
+        { node: secondary, parentId: null, type: 'insert-node' },
+        {
+          type: 'connect',
+          wire: {
+            from: { nodeId: secondary.id, port: 'image' },
+            id: createOpaqueId('wire'),
+            to: { nodeId: operation.id, port: 'secondary' },
+          },
+        },
+      );
+    }
+    commands.push(
+      { index: 0, nodeId: wrappedId, parentId: operation.id, type: 'move-node' },
+      { index: 0, nodeId: operation.id, parentId, type: 'move-node' },
+    );
     runCommand(() =>
       editor.dispatch(
         {
-          commands: [
-            { node: operation, parentId: null, type: 'insert-node' },
-            { index: 0, nodeId: wrappedId, parentId: operation.id, type: 'move-node' },
-            { index: 0, nodeId: operation.id, parentId, type: 'move-node' },
-          ],
+          commands,
           type: 'batch',
         },
         { label: `Add ${definition.title}` },

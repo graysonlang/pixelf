@@ -16,7 +16,8 @@ The operation registry drives insertion, property controls, validation, region b
 Operations not yet implemented as dedicated shaders are evaluated by the CPU oracle and uploaded through the WebGPU presentation path, preserving one visible result while GPU coverage grows.
 Viewport work planning limits preview evaluation to visible and prefetched tiles, splits work to the device texture limit, and rejects stale generations before they publish pixels.
 Named project persistence, separate recovery storage, missing-asset relinking, and target-driven PNG, JPEG, and WebP export are available through explicit contracts.
-[PLAN.md](PLAN.md) defines the remaining vertical slice for advanced wiring and extensibility.
+Shared image branches, typed two-input composites, procedural masks, scoped adjustment groups, derived image scopes, and bounded iterative work extend the same target-first model without replacing it with an unrestricted graph.
+[PLAN.md](PLAN.md) records the completed implementation sequence and the deliberately deferred product areas.
 
 ## Product direction
 
@@ -60,6 +61,16 @@ Cycles are rejected before evaluation.
 
 This model is intentionally not a flat Photoshop-style layer list and not an unrestricted node canvas.
 The goal is a re-entrant hybrid where ordinary work stays legible as layers and advanced relationships remain possible when they are useful.
+
+Shared images remain source leaves in the owning layer branch and expose their dependency as a typed wire below that leaf.
+Their serialized cache lifetime is target, project, or editor session; cache identity includes reachable nodes, wires, and source assets plus the selected lifetime owner.
+Two-input composites use the same declared-wire model for a secondary image, while procedural checker masks remain visible mask dependencies.
+Adjustment groups are named unary scope boundaries, so the basic layer workflow and keyboard tree navigation remain unchanged.
+
+Histograms, channel distributions, alpha coverage, and vectorscope samples are derived from rendered surfaces and never enter the project document.
+Iterative or persistent GPU operations must first produce a bounded plan with explicit dimensions, iteration count, workgroup count, ping-pong memory, and cancellation.
+Scalar or animation wiring is not serialized yet because Pixelf has not defined a time and export contract.
+Third-party plugins and a shared compositor package remain deferred until another in-repo consumer proves a stable boundary.
 
 ## Architecture
 

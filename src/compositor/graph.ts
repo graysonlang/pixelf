@@ -14,7 +14,16 @@ export interface ImageSource {
   width: number;
 }
 
-export type Source = ImageSource | SolidSource;
+export interface CheckerSource {
+  first: number;
+  kind: 'checker';
+  offsetX: number;
+  offsetY: number;
+  second: number;
+  size: number;
+}
+
+export type Source = CheckerSource | ImageSource | SolidSource;
 export type BlendMode = 'add' | 'darken' | 'lighten' | 'multiply' | 'normal' | 'overlay' | 'screen';
 
 export interface BlurEffect {
@@ -90,11 +99,21 @@ export interface SharpenEffect {
   radius: number;
 }
 
+export interface CompositeEffect {
+  blend: BlendMode;
+  height: number;
+  kind: 'composite';
+  opacity: number;
+  source: ImageSource;
+  width: number;
+}
+
 export type Effect =
   | AffineEffect
   | BlurEffect
   | CanvasResizeEffect
   | ChannelEffect
+  | CompositeEffect
   | ContrastEffect
   | CropEffect
   | ExposureEffect
@@ -150,6 +169,16 @@ export function image(
   return { data, height, kind: 'image', revision, width };
 }
 
+export function checker(
+  size: number,
+  first = 0,
+  second = 1,
+  offsetX = 0,
+  offsetY = 0,
+): CheckerSource {
+  return { first, kind: 'checker', offsetX, offsetY, second, size };
+}
+
 export function blur(sigma: number): BlurEffect {
   return { kind: 'blur', sigma };
 }
@@ -186,6 +215,19 @@ function mixText(text: string, mix: (value: number) => void): void {
 }
 
 function mixSource(source: Source, mix: (value: number) => void): void {
+  if (source.kind === 'checker') {
+    mixText('checker', mix);
+    for (const value of [
+      source.size,
+      source.first,
+      source.second,
+      source.offsetX,
+      source.offsetY,
+    ]) {
+      mix(value * 1e6);
+    }
+    return;
+  }
   if (source.kind === 'solid') {
     mixText('solid', mix);
     for (const value of [source.r, source.g, source.b, source.a]) mix(value * 1e6);
@@ -196,6 +238,12 @@ function mixSource(source: Source, mix: (value: number) => void): void {
 
 function mixEffect(effect: Effect, mix: (value: number) => void): void {
   mixText(effect.kind, mix);
+  if (effect.kind === 'composite') {
+    mixText(effect.blend, mix);
+    for (const value of [effect.opacity, effect.width, effect.height]) mix(value * 1e6);
+    mixSource(effect.source, mix);
+    return;
+  }
   mixText(JSON.stringify(effect), mix);
 }
 

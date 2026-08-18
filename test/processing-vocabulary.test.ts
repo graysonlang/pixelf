@@ -97,6 +97,8 @@ describe('reversible processing vocabulary', () => {
         'process/channel',
         'process/blur',
         'process/sharpen',
+        'process/composite',
+        'process/adjustment-group',
       ],
     );
     for (const definition of processors) {
@@ -197,6 +199,7 @@ describe('reversible processing vocabulary', () => {
         definition.type,
         `node-${definition.type.replace('/', '-')}`,
       ) as ProcessorNode;
+      if (processor.type === 'process/composite') processor.parameters.bypass = true;
       processor.childId = layer.childId;
       layer.childId = processor.id;
       project.nodes[processor.id] = processor;

@@ -2,11 +2,13 @@ export { projectTargetToGraph, type DecodedAssetStore, type DecodedImageAsset } 
 export { applyEffect, effectHalo, effectInputRegion } from './effects.js';
 export {
   blur,
+  checker,
   graphHash,
   image,
   levels,
   solid,
   type BlendMode,
+  type CheckerSource,
   type Effect,
   type Entity,
   type EntityMatrix,

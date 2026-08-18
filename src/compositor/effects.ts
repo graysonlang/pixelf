@@ -2,6 +2,7 @@ import type {
   AffineEffect,
   BlurEffect,
   ChannelEffect,
+  CompositeEffect,
   ContrastEffect,
   Effect,
   ExposureEffect,
@@ -10,7 +11,9 @@ import type {
   SharpenEffect,
   WhiteBalanceEffect,
 } from './graph.js';
+import { rasterSource } from './source.js';
 import {
+  blendOnto,
   cropSurface,
   expandRegion,
   makeSurface,
@@ -216,6 +219,32 @@ function applyChannel(effect: ChannelEffect, input: Surface, output: Region): Su
   });
 }
 
+function applyComposite(
+  effect: CompositeEffect,
+  input: Surface,
+  outputRegion: Region,
+  scale: number,
+): Surface {
+  const output = cropSurface(input, outputRegion);
+  const secondary = rasterSource(
+    {
+      blend: effect.blend,
+      effects: [],
+      h: effect.height,
+      id: 'composite-secondary',
+      opacity: effect.opacity,
+      source: effect.source,
+      w: effect.width,
+      x: 0,
+      y: 0,
+    },
+    outputRegion,
+    scale,
+  );
+  blendOnto(output, secondary, effect.blend);
+  return output;
+}
+
 function applyBounds(
   input: Surface,
   outputRegion: Region,
@@ -308,6 +337,8 @@ export function applyEffect(
       return applyBounds(input, outputRegion, effect, scale);
     case 'channel':
       return applyChannel(effect, input, outputRegion);
+    case 'composite':
+      return applyComposite(effect, input, outputRegion, scale);
     case 'contrast':
       return applyContrast(effect, input, outputRegion);
     case 'exposure':
