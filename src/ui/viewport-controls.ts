@@ -89,6 +89,10 @@ export function pixelGridShortcut(key: ZoomKey): boolean {
   return (key.metaKey || key.ctrlKey) && !key.altKey && !key.shiftKey && key.code === 'Quote';
 }
 
+export function originalPreviewShortcut(key: ZoomKey): boolean {
+  return !key.altKey && !key.ctrlKey && !key.metaKey && !key.shiftKey && key.code === 'Backslash';
+}
+
 export function zoomShortcut(key: ZoomKey): ZoomShortcut | null {
   if (key.altKey || key.ctrlKey || key.metaKey) return null;
   if (key.shiftKey && (key.code === 'Digit1' || key.code === 'Digit9')) return 'fit';

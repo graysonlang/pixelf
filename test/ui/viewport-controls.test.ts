@@ -5,6 +5,7 @@ import {
   clampZoom,
   fitZoom,
   initialImageZoom,
+  originalPreviewShortcut,
   panByWheel,
   pixelGridShortcut,
   zoomShortcut,
@@ -36,6 +37,12 @@ test("pixel grid shortcut maps Command+' and its control-key equivalent", () => 
   assert.equal(pixelGridShortcut(key({ code: 'Quote', metaKey: true })), true);
   assert.equal(pixelGridShortcut(key({ code: 'Quote', ctrlKey: true })), true);
   assert.equal(pixelGridShortcut(key({ code: 'Quote', metaKey: true, shiftKey: true })), false);
+});
+
+test('original preview shortcut maps an unmodified backslash', () => {
+  assert.equal(originalPreviewShortcut(key({ code: 'Backslash', key: '\\' })), true);
+  assert.equal(originalPreviewShortcut(key({ code: 'Backslash', metaKey: true })), false);
+  assert.equal(originalPreviewShortcut(key({ code: 'Backslash', shiftKey: true })), false);
 });
 
 test('anchoredZoom preserves the stage point under the gesture anchor', () => {

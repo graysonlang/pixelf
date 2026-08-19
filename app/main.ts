@@ -52,6 +52,7 @@ import {
   clampZoom,
   fitZoom,
   initialImageZoom,
+  originalPreviewShortcut,
   panByWheel,
   pixelGridShortcut,
   zoomShortcut,
@@ -162,8 +163,6 @@ const dispose = createRoot(disposeRoot => {
   );
   const canvasBackgroundColorRow = requireElement<HTMLElement>('#canvas-background-color-row');
   const canvasBackgroundColorInput = requireElement<HTMLInputElement>('#canvas-background-color');
-  const compareButton = requireElement<HTMLButtonElement>('#compare-button');
-
   const preferences = loadPreferences(localStorage);
   const primaryShortcut = (key: string): string => primaryShortcutLabel(navigator.platform, key);
   const [selectedImage, setSelectedImage] = createSignal<SelectedImage | null>(null);
@@ -177,7 +176,7 @@ const dispose = createRoot(disposeRoot => {
   const [panX, setPanX] = createSignal(0);
   const [panY, setPanY] = createSignal(0);
   const [pixelGrid, setPixelGrid] = createSignal(false);
-  const [comparing, setComparing] = createSignal(false);
+  const [showingOriginal, setShowingOriginal] = createSignal(false);
   const [theme, setTheme] = createSignal<ThemePreference>(preferences.theme);
   const expanded = new Set<string>();
   let renderer: GpuImageRenderer | null = null;
@@ -485,6 +484,7 @@ const dispose = createRoot(disposeRoot => {
       expanded.clear();
       for (const nodeId of Object.keys(decoded.project.nodes)) expanded.add(nodeId);
       setSelectedImage({ ...decoded, editor, file, url: URL.createObjectURL(file) });
+      setShowingOriginal(false);
       setSelectedNodeId(targetId);
       if (targetId !== null) editor.select([targetId]);
       setProjectGeneration(current => current + 1);
@@ -588,6 +588,9 @@ const dispose = createRoot(disposeRoot => {
   };
   const togglePixelGrid = (): void => {
     setPixelGrid(value => !value);
+  };
+  const toggleOriginalPreview = (): void => {
+    if (selectedImage() !== null) setShowingOriginal(value => !value);
   };
   const currentCanvasBackground = (): CanvasBackground => {
     const editor = currentEditor();
@@ -736,6 +739,14 @@ const dispose = createRoot(disposeRoot => {
       keywords: ['view', 'preview'],
       label: 'Zoom out',
       run: zoomOut,
+    },
+    {
+      enabled: () => selectedImage() !== null,
+      id: 'original-preview',
+      keywords: ['before', 'after', 'compare', 'source', 'view'],
+      label: 'Toggle original / edited',
+      run: toggleOriginalPreview,
+      shortcut: '\\',
     },
     {
       id: 'pixel-grid',
@@ -1122,6 +1133,11 @@ const dispose = createRoot(disposeRoot => {
       togglePixelGrid();
       return;
     }
+    if (originalPreviewShortcut(event)) {
+      event.preventDefault();
+      if (!event.repeat) toggleOriginalPreview();
+      return;
+    }
     if (
       event.shiftKey &&
       !event.altKey &&
@@ -1186,18 +1202,6 @@ const dispose = createRoot(disposeRoot => {
   deleteButton.addEventListener('click', deleteSelected);
   fitButton.addEventListener('click', onFitButtonClick);
   actualSizeButton.addEventListener('click', onActualSizeButtonClick);
-  const setCompare = (active: boolean): void => {
-    setComparing(active);
-  };
-  compareButton.addEventListener('pointerdown', () => setCompare(true));
-  compareButton.addEventListener('pointerup', () => setCompare(false));
-  compareButton.addEventListener('pointercancel', () => setCompare(false));
-  compareButton.addEventListener('keydown', event => {
-    if (event.key === ' ' || event.key === 'Enter') setCompare(true);
-  });
-  compareButton.addEventListener('keyup', event => {
-    if (event.key === ' ' || event.key === 'Enter') setCompare(false);
-  });
   stage.addEventListener('wheel', onStageWheel, { passive: false });
   stage.addEventListener('pointerdown', event => {
     if (event.button !== 0) return;
@@ -1424,10 +1428,11 @@ const dispose = createRoot(disposeRoot => {
     const activePresentation = ++presentationGeneration;
     const selected = selectedImage();
     const mode = gpuMode();
-    const compare = comparing();
+    const original = showingOriginal();
     projectGeneration();
     deviceGeneration();
     if (selected === null) {
+      stage.setAttribute('aria-label', 'Image preview');
       preview.hidden = true;
       canvas.hidden = true;
       preview.removeAttribute('src');
@@ -1436,7 +1441,8 @@ const dispose = createRoot(disposeRoot => {
     preview.src = selected.url;
     preview.style.maxHeight = 'none';
     preview.style.maxWidth = 'none';
-    if (compare || mode !== 'ready' || manager.current === null || renderer === null) {
+    stage.setAttribute('aria-label', original ? 'Original image preview' : 'Edited image preview');
+    if (original || mode !== 'ready' || manager.current === null || renderer === null) {
       canvas.hidden = true;
       preview.hidden = false;
       return;

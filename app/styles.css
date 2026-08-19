@@ -619,10 +619,6 @@ button:disabled {
   width: 44px;
 }
 
-.compare-button {
-  width: 100%;
-}
-
 .properties-empty {
   color: var(--muted);
   font-size: 12px;
