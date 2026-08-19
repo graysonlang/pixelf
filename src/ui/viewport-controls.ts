@@ -27,6 +27,35 @@ export function clampZoom(value: number): number {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
 }
 
+export function fitZoom(
+  contentWidth: number,
+  contentHeight: number,
+  availableWidth: number,
+  availableHeight: number,
+  allowUpscale = true,
+): number {
+  if (contentWidth <= 0 || contentHeight <= 0) return 1;
+  const fitted = Math.min(availableWidth / contentWidth, availableHeight / contentHeight);
+  return clampZoom(allowUpscale ? fitted : Math.min(1, fitted));
+}
+
+export function initialImageZoom(
+  contentWidth: number,
+  contentHeight: number,
+  viewportWidth: number,
+  viewportHeight: number,
+  fitInset = 48,
+): number {
+  if (contentWidth <= viewportWidth && contentHeight <= viewportHeight) return 1;
+  return fitZoom(
+    contentWidth,
+    contentHeight,
+    Math.max(1, viewportWidth - fitInset),
+    Math.max(1, viewportHeight - fitInset),
+    false,
+  );
+}
+
 export function anchoredZoom(
   previousZoom: number,
   nextZoom: number,

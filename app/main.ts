@@ -31,7 +31,21 @@ import {
 } from '../src/project/index.js';
 import { filterActions, isActionEnabled, type QuickAction } from '../src/ui/actions.js';
 import { renderProjectTree, renderProperties } from '../src/ui/editor-view.js';
-import { anchoredZoom, clampZoom, panByWheel, zoomShortcut } from '../src/ui/viewport-controls.js';
+import { primaryShortcutLabel } from '../src/ui/platform.js';
+import {
+  isThemePreference,
+  loadPreferences,
+  savePreferences,
+  type ThemePreference,
+} from '../src/ui/preferences.js';
+import {
+  anchoredZoom,
+  clampZoom,
+  fitZoom,
+  initialImageZoom,
+  panByWheel,
+  zoomShortcut,
+} from '../src/ui/viewport-controls.js';
 import indexPath from './index.html';
 import './styles.css';
 
@@ -97,9 +111,16 @@ const dispose = createRoot(disposeRoot => {
   const zoomMenu = requireElement<HTMLElement>('#zoom-menu');
   const zoomInput = requireElement<HTMLInputElement>('#zoom-input');
   const quickActionsButton = requireElement<HTMLButtonElement>('#quick-actions-button');
+  const quickActionsShortcut = requireElement<HTMLElement>('#quick-actions-shortcut');
   const quickActionsOverlay = requireElement<HTMLElement>('#quick-actions-overlay');
   const quickActionsInput = requireElement<HTMLInputElement>('#quick-actions-input');
   const quickActionsResults = requireElement<HTMLElement>('#quick-actions-results');
+  const settingsShortcut = requireElement<HTMLElement>('#settings-shortcut');
+  const settingsOverlay = requireElement<HTMLElement>('#settings-overlay');
+  const settingsCloseButton = requireElement<HTMLButtonElement>('#settings-close-button');
+  const themeInputs = Array.from(
+    settingsOverlay.querySelectorAll<HTMLInputElement>('input[name="settings-theme"]'),
+  );
   const input = requireElement<HTMLInputElement>('#image-input');
   const saveProjectButton = requireElement<HTMLButtonElement>('#save-project-button');
   const exportButton = requireElement<HTMLButtonElement>('#export-button');
@@ -129,6 +150,8 @@ const dispose = createRoot(disposeRoot => {
   const transparencyButton = requireElement<HTMLButtonElement>('#transparency-button');
   const compareButton = requireElement<HTMLButtonElement>('#compare-button');
 
+  const preferences = loadPreferences(localStorage);
+  const primaryShortcut = (key: string): string => primaryShortcutLabel(navigator.platform, key);
   const [selectedImage, setSelectedImage] = createSignal<SelectedImage | null>(null);
   const [selectedNodeId, setSelectedNodeId] = createSignal<string | null>(null);
   const [projectGeneration, setProjectGeneration] = createSignal(0);
@@ -142,12 +165,16 @@ const dispose = createRoot(disposeRoot => {
   const [pixelGrid, setPixelGrid] = createSignal(false);
   const [transparency, setTransparency] = createSignal(true);
   const [comparing, setComparing] = createSignal(false);
+  const [theme, setTheme] = createSignal<ThemePreference>(preferences.theme);
   const expanded = new Set<string>();
   let renderer: GpuImageRenderer | null = null;
   let selectionGeneration = 0;
   let presentationGeneration = 0;
   let dragDepth = 0;
   let panState: PanState | null = null;
+
+  quickActionsShortcut.textContent = primaryShortcut('/');
+  settingsShortcut.textContent = primaryShortcut(',');
 
   for (const definition of nodeRegistry.all().filter(candidate => candidate.kind === 'processor')) {
     const option = document.createElement('option');
@@ -414,9 +441,20 @@ const dispose = createRoot(disposeRoot => {
     if (selected === null) return;
     const availableWidth = Math.max(1, stage.clientWidth - 48);
     const availableHeight = Math.max(1, stage.clientHeight - 48);
+    setZoom(fitZoom(selected.asset.width, selected.asset.height, availableWidth, availableHeight));
+    setPanX(0);
+    setPanY(0);
+  };
+
+  const placeInitialImage = (): void => {
+    const selected = selectedImage();
+    if (selected === null) return;
     setZoom(
-      clampZoom(
-        Math.min(availableWidth / selected.asset.width, availableHeight / selected.asset.height),
+      initialImageZoom(
+        selected.asset.width,
+        selected.asset.height,
+        stage.clientWidth,
+        stage.clientHeight,
       ),
     );
     setPanX(0);
@@ -438,7 +476,7 @@ const dispose = createRoot(disposeRoot => {
       if (targetId !== null) editor.select([targetId]);
       setProjectGeneration(current => current + 1);
       setTreeGeneration(current => current + 1);
-      requestAnimationFrame(fitStage);
+      requestAnimationFrame(placeInitialImage);
       setGpuMessage('');
     } catch (error) {
       if (generation === selectionGeneration) reportError(error);
@@ -568,6 +606,13 @@ const dispose = createRoot(disposeRoot => {
       keywords: ['file', 'download', 'render'],
       label: 'Export target',
       run: exportTarget,
+    },
+    {
+      id: 'settings',
+      keywords: ['preferences', 'appearance', 'theme'],
+      label: 'Settings...',
+      run: () => openSettings(),
+      shortcut: primaryShortcut(','),
     },
     {
       enabled: () => currentEditor()?.canUndo ?? false,
@@ -777,6 +822,23 @@ const dispose = createRoot(disposeRoot => {
     quickActionsOverlay.classList.add('open');
     requestAnimationFrame(() => quickActionsInput.focus());
   };
+  function closeSettings(restoreFocus = false): void {
+    if (!settingsOverlay.classList.contains('open')) return;
+    settingsOverlay.classList.remove('open');
+    settingsOverlay.setAttribute('aria-hidden', 'true');
+    settingsOverlay.inert = true;
+    if (restoreFocus) menuButton.focus();
+  }
+  function openSettings(): void {
+    closeQuickActions();
+    setMenuOpen(false);
+    setZoomMenuOpen(false);
+    for (const themeInput of themeInputs) themeInput.checked = themeInput.value === theme();
+    settingsOverlay.inert = false;
+    settingsOverlay.setAttribute('aria-hidden', 'false');
+    settingsOverlay.classList.add('open');
+    requestAnimationFrame(() => themeInputs.find(themeInput => themeInput.checked)?.focus());
+  }
   const moveQuickActionFocus = (direction: -1 | 1): void => {
     if (filteredQuickActions.length === 0) return;
     let next = quickActionFocus;
@@ -956,6 +1018,15 @@ const dispose = createRoot(disposeRoot => {
   const onQuickActionsOverlayPointerDown = (event: PointerEvent): void => {
     if (event.target === quickActionsOverlay) closeQuickActions(true);
   };
+  const onSettingsOverlayPointerDown = (event: PointerEvent): void => {
+    if (event.target === settingsOverlay) closeSettings(true);
+  };
+  const onSettingsCloseButtonClick = (): void => closeSettings(true);
+  const onSettingsChange = (event: Event): void => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || input.name !== 'settings-theme') return;
+    if (input.checked && isThemePreference(input.value)) setTheme(input.value);
+  };
   const onDocumentPointerDown = (event: PointerEvent): void => {
     const target = event.target as Node;
     if (!appMenu.hidden && !appMenu.contains(target) && !menuButton.contains(target)) {
@@ -966,10 +1037,22 @@ const dispose = createRoot(disposeRoot => {
     }
   };
   const onDocumentKeyDown = (event: KeyboardEvent): void => {
+    if (settingsOverlay.classList.contains('open')) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeSettings(true);
+      }
+      return;
+    }
     if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key === '/') {
       event.preventDefault();
       if (quickActionsOverlay.classList.contains('open')) closeQuickActions(true);
       else openQuickActions();
+      return;
+    }
+    if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key === ',') {
+      event.preventDefault();
+      openSettings();
       return;
     }
     if (event.key === 'Escape') {
@@ -1037,6 +1120,9 @@ const dispose = createRoot(disposeRoot => {
   quickActionsInput.addEventListener('input', onQuickActionsInput);
   quickActionsInput.addEventListener('keydown', onQuickActionsInputKeyDown);
   quickActionsOverlay.addEventListener('pointerdown', onQuickActionsOverlayPointerDown);
+  settingsCloseButton.addEventListener('click', onSettingsCloseButtonClick);
+  settingsOverlay.addEventListener('change', onSettingsChange);
+  settingsOverlay.addEventListener('pointerdown', onSettingsOverlayPointerDown);
   document.addEventListener('pointerdown', onDocumentPointerDown);
   document.addEventListener('keydown', onDocumentKeyDown);
   addLayerButton.addEventListener('click', addLayer);
@@ -1112,6 +1198,9 @@ const dispose = createRoot(disposeRoot => {
     quickActionsInput.removeEventListener('input', onQuickActionsInput);
     quickActionsInput.removeEventListener('keydown', onQuickActionsInputKeyDown);
     quickActionsOverlay.removeEventListener('pointerdown', onQuickActionsOverlayPointerDown);
+    settingsCloseButton.removeEventListener('click', onSettingsCloseButtonClick);
+    settingsOverlay.removeEventListener('change', onSettingsChange);
+    settingsOverlay.removeEventListener('pointerdown', onSettingsOverlayPointerDown);
     document.removeEventListener('pointerdown', onDocumentPointerDown);
     document.removeEventListener('keydown', onDocumentKeyDown);
     stage.removeEventListener('wheel', onStageWheel);
@@ -1119,6 +1208,13 @@ const dispose = createRoot(disposeRoot => {
   onCleanup(() => {
     renderer?.dispose();
     manager.dispose();
+  });
+
+  createEffect(() => {
+    const selectedTheme = theme();
+    document.documentElement.dataset.theme = selectedTheme;
+    for (const themeInput of themeInputs) themeInput.checked = themeInput.value === selectedTheme;
+    savePreferences(localStorage, { theme: selectedTheme });
   });
 
   createEffect(() => {

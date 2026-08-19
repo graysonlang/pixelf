@@ -31,15 +31,19 @@
         <span>Export target</span>
       </button>
       <div class="menu-separator" aria-hidden="true"></div>
+      <button class="menu-item" type="button" data-action="settings">
+        <span>Settings...</span>
+        <kbd id="settings-shortcut">Command+,</kbd>
+      </button>
       <button id="quick-actions-button" class="menu-item" type="button">
         <span>Quick actions...</span>
-        <kbd>Cmd/Ctrl+/</kbd>
+        <kbd id="quick-actions-shortcut">Command+/</kbd>
       </button>
     </nav>
     <section id="zoom-menu" class="zoom-menu" aria-label="Zoom" hidden>
       <button id="fit-button" class="zoom-menu-item" type="button">
         <span>Zoom to fit</span>
-        <kbd>Shift+1 / Shift+9</kbd>
+        <kbd>Shift+1</kbd>
       </button>
       <button id="actual-size-button" class="zoom-menu-item" type="button">
         <span>Zoom to 100%</span>
@@ -145,6 +149,39 @@
         spellcheck="false"
       >
       <div id="quick-actions-results" class="quick-actions-results"></div>
+    </section>
+  </div>
+
+  <div id="settings-overlay" class="settings-overlay" aria-hidden="true" inert>
+    <section class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <header class="settings-heading">
+        <h2 id="settings-title">Settings</h2>
+        <button id="settings-close-button" class="settings-close-button" type="button" aria-label="Close settings">
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+            <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"></path>
+          </svg>
+        </button>
+      </header>
+      <div class="settings-body">
+        <fieldset class="settings-group">
+          <legend>Appearance</legend>
+          <label class="settings-row">
+            <input type="radio" name="settings-theme" value="auto">
+            <span>System</span>
+          </label>
+          <label class="settings-row">
+            <input type="radio" name="settings-theme" value="light">
+            <span>Light</span>
+          </label>
+          <label class="settings-row">
+            <input type="radio" name="settings-theme" value="dark">
+            <span>Dark</span>
+          </label>
+          <p class="settings-note">
+            System follows the appearance selected in your operating system or browser.
+          </p>
+        </fieldset>
+      </div>
     </section>
   </div>
 </body>
