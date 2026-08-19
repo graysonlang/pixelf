@@ -281,10 +281,7 @@ export function renderProperties(
 ): void {
   const node = nodeId === null ? undefined : project.nodes[nodeId];
   if (node === undefined) {
-    const empty = document.createElement('p');
-    empty.className = 'properties-empty';
-    empty.textContent = 'Select a target, layer, operation, or source to inspect it.';
-    container.replaceChildren(empty);
+    container.replaceChildren();
     return;
   }
   const fragment = document.createDocumentFragment();
