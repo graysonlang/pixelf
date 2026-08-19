@@ -23,6 +23,10 @@ export interface ViewportPan {
   panY: number;
 }
 
+export function actualSizeViewport(panX: number, panY: number): AnchoredZoom {
+  return { panX, panY, zoom: 1 };
+}
+
 export function clampZoom(value: number): number {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
 }

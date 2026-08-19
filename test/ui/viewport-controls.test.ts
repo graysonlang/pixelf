@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  actualSizeViewport,
   anchoredZoom,
   clampZoom,
   fitZoom,
@@ -50,6 +51,14 @@ test('anchoredZoom preserves the stage point under the gesture anchor', () => {
     panX: -80,
     panY: -50,
     zoom: 2,
+  });
+});
+
+test('actualSizeViewport changes only the scale', () => {
+  assert.deepEqual(actualSizeViewport(48, -27), {
+    panX: 48,
+    panY: -27,
+    zoom: 1,
   });
 });
 

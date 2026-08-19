@@ -48,6 +48,7 @@ import {
   type ThemePreference,
 } from '../src/ui/preferences.js';
 import {
+  actualSizeViewport,
   anchoredZoom,
   clampZoom,
   fitZoom,
@@ -575,10 +576,11 @@ const dispose = createRoot(disposeRoot => {
     const nodeId = selectedNodeId();
     if (nodeId !== null) deleteNode(nodeId);
   };
-  const resetZoom = (): void => {
-    setZoom(1);
-    setPanX(0);
-    setPanY(0);
+  const setActualSize = (): void => {
+    const viewport = actualSizeViewport(panX(), panY());
+    setZoom(viewport.zoom);
+    setPanX(viewport.panX);
+    setPanY(viewport.panY);
   };
   const zoomOut = (): void => {
     setZoom(value => clampZoom(value / 1.25));
@@ -726,7 +728,7 @@ const dispose = createRoot(disposeRoot => {
       id: 'actual-size',
       keywords: ['zoom', 'view', '100 percent'],
       label: 'Preview at 100%',
-      run: resetZoom,
+      run: setActualSize,
     },
     {
       id: 'zoom-in',
@@ -951,7 +953,7 @@ const dispose = createRoot(disposeRoot => {
     setZoomMenuOpen(false, true);
   };
   const onActualSizeButtonClick = (): void => {
-    resetZoom();
+    setActualSize();
     setZoomMenuOpen(false, true);
   };
   const onZoomInput = (): void => applyCustomZoom();
@@ -1154,7 +1156,7 @@ const dispose = createRoot(disposeRoot => {
     if (shortcut === null) return;
     event.preventDefault();
     if (shortcut === 'fit') fitStage();
-    else if (shortcut === 'reset') resetZoom();
+    else if (shortcut === 'reset') setActualSize();
     else if (shortcut === 'in') zoomIn();
     else zoomOut();
   };
