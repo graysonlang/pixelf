@@ -19,6 +19,11 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+}
+
 .visually-hidden {
   clip: rect(0 0 0 0);
   clip-path: inset(50%);
@@ -34,6 +39,7 @@ body {
   color: var(--text);
   margin: 0;
   min-width: 320px;
+  overflow: hidden;
 }
 
 button,
@@ -74,20 +80,10 @@ button:disabled {
 }
 
 .app-shell {
-  display: grid;
-  grid-template-rows: 48px 1fr;
-  min-height: 100dvh;
-}
-
-.app-header {
-  align-items: center;
-  background: rgba(11, 14, 16, 0.96);
-  border-bottom: 1px solid var(--line);
-  display: flex;
-  box-shadow: 0 5px 24px rgba(0, 0, 0, 0.2);
-  padding: 8px 12px;
   position: relative;
-  z-index: 20;
+  height: 100%;
+  overflow: hidden;
+  width: 100%;
 }
 
 .menu-button {
@@ -108,11 +104,11 @@ button:disabled {
   border: 1px solid var(--line-strong);
   border-radius: 7px;
   box-shadow: 0 12px 34px var(--shadow);
-  left: 12px;
+  left: 14px;
   min-width: 230px;
   padding: 6px;
-  position: absolute;
-  top: 41px;
+  position: fixed;
+  top: 101px;
   z-index: 40;
 }
 
@@ -162,18 +158,31 @@ button:disabled {
 }
 
 .workspace {
-  display: grid;
-  grid-template-columns: minmax(260px, 310px) minmax(0, 1fr) minmax(240px, 290px);
+  height: 100%;
   min-height: 0;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
 }
 
 .layers-panel {
-  background: var(--panel);
-  border-right: 1px solid var(--line);
+  backdrop-filter: blur(18px) saturate(120%);
+  background: rgba(18, 22, 25, 0.94);
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
+  box-shadow: 0 18px 50px var(--shadow);
   display: flex;
   flex-direction: column;
+  left: 14px;
+  max-height: calc(100% - 71px);
+  max-width: calc(100% - 28px);
   min-height: 0;
-  padding: 16px;
+  overflow: hidden;
+  padding: 12px;
+  position: absolute;
+  top: 57px;
+  width: 290px;
+  z-index: 20;
 }
 
 .panel-heading h1 {
@@ -198,9 +207,9 @@ button:disabled {
 
 .panel-heading {
   align-items: start;
-  display: flex;
+  display: grid;
   gap: 10px;
-  justify-content: space-between;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
 }
 
 .history-actions {
@@ -235,8 +244,8 @@ button:disabled {
 }
 
 .layer-tree {
-  flex: 1;
-  min-height: 120px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -294,7 +303,10 @@ button:disabled {
 .stage-column {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  inset: 0;
+  min-height: 0;
   min-width: 0;
+  position: absolute;
 }
 
 .stage-toolbar {
@@ -381,8 +393,8 @@ button:disabled {
   box-shadow: 0 16px 60px var(--shadow);
   display: block;
   height: auto;
-  max-height: calc(100dvh - 150px);
-  max-width: calc(100vw - 600px);
+  max-height: calc(100dvh - 92px);
+  max-width: calc(100vw - 48px);
   object-fit: contain;
   user-select: none;
 }
@@ -393,11 +405,21 @@ button:disabled {
 }
 
 .properties-panel {
-  background: var(--panel);
-  border-left: 1px solid var(--line);
+  backdrop-filter: blur(18px) saturate(120%);
+  background: rgba(18, 22, 25, 0.94);
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
+  box-shadow: 0 18px 50px var(--shadow);
+  max-height: calc(100% - 71px);
+  max-width: calc(100% - 28px);
   min-height: 0;
   overflow: auto;
-  padding: 16px;
+  padding: 12px;
+  position: absolute;
+  right: 14px;
+  top: 57px;
+  width: 280px;
+  z-index: 20;
 }
 
 .properties-heading {
@@ -539,34 +561,25 @@ button:disabled {
 }
 
 @media (max-width: 920px) {
-  .workspace {
-    grid-template-columns: minmax(230px, 280px) minmax(0, 1fr);
+  .layers-panel {
+    width: 250px;
   }
 
   .properties-panel {
-    display: none;
-  }
-
-  #gpu-preview,
-  #image-preview {
-    max-width: calc(100vw - 320px);
+    width: 250px;
   }
 }
 
 @media (max-width: 650px) {
-  .workspace {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(190px, 34dvh) minmax(0, 1fr);
-  }
-
   .layers-panel {
-    border-bottom: 1px solid var(--line);
-    border-right: 0;
+    max-height: calc(50% - 36px);
+    width: min(250px, calc(100% - 28px));
   }
 
-  #gpu-preview,
-  #image-preview {
-    max-height: 55dvh;
-    max-width: 92vw;
+  .properties-panel {
+    bottom: 14px;
+    max-height: calc(50% - 36px);
+    top: auto;
+    width: min(250px, calc(100% - 28px));
   }
 }

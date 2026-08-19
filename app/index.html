@@ -10,56 +10,54 @@
 </head>
 <body>
   <main class="app-shell">
-    <header class="app-header">
-      <button
-        id="menu-button"
-        class="menu-button"
-        type="button"
-        aria-label="Main menu"
-        aria-controls="app-menu"
-        aria-expanded="false"
-      >
-        <svg class="menu-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"></path>
-        </svg>
+    <input id="image-input" class="visually-hidden" type="file" accept="image/*">
+    <nav id="app-menu" class="app-menu" aria-label="Main menu" hidden>
+      <button class="menu-item" type="button" data-action="open-image">
+        <span>Open image...</span>
       </button>
-      <input id="image-input" class="visually-hidden" type="file" accept="image/*">
-      <nav id="app-menu" class="app-menu" aria-label="Main menu" hidden>
-        <button class="menu-item" type="button" data-action="open-image">
-          <span>Open image...</span>
-        </button>
-        <button id="save-project-button" class="menu-item" type="button" data-action="save-project" disabled>
-          <span>Save project</span>
-        </button>
-        <label class="menu-select">
-          <span>Export metadata</span>
-          <select id="metadata-policy">
-            <option value="discard">Discard</option>
-            <option value="preserve">Preserve</option>
-            <option value="rewrite">Rewrite</option>
-          </select>
-        </label>
-        <button id="export-button" class="menu-item" type="button" data-action="export-target" disabled>
-          <span>Export target</span>
-        </button>
-        <div class="menu-separator" aria-hidden="true"></div>
-        <button class="menu-item" type="button" data-action="undo" disabled>
-          <span>Undo</span>
-        </button>
-        <button class="menu-item" type="button" data-action="redo" disabled>
-          <span>Redo</span>
-        </button>
-        <div class="menu-separator" aria-hidden="true"></div>
-        <button id="quick-actions-button" class="menu-item" type="button">
-          <span>Quick actions...</span>
-          <kbd>Cmd/Ctrl+/</kbd>
-        </button>
-      </nav>
-    </header>
+      <button id="save-project-button" class="menu-item" type="button" data-action="save-project" disabled>
+        <span>Save project</span>
+      </button>
+      <label class="menu-select">
+        <span>Export metadata</span>
+        <select id="metadata-policy">
+          <option value="discard">Discard</option>
+          <option value="preserve">Preserve</option>
+          <option value="rewrite">Rewrite</option>
+        </select>
+      </label>
+      <button id="export-button" class="menu-item" type="button" data-action="export-target" disabled>
+        <span>Export target</span>
+      </button>
+      <div class="menu-separator" aria-hidden="true"></div>
+      <button class="menu-item" type="button" data-action="undo" disabled>
+        <span>Undo</span>
+      </button>
+      <button class="menu-item" type="button" data-action="redo" disabled>
+        <span>Redo</span>
+      </button>
+      <div class="menu-separator" aria-hidden="true"></div>
+      <button id="quick-actions-button" class="menu-item" type="button">
+        <span>Quick actions...</span>
+        <kbd>Cmd/Ctrl+/</kbd>
+      </button>
+    </nav>
 
     <section class="workspace" aria-label="Image workspace">
       <aside class="layers-panel">
         <div class="panel-heading">
+          <button
+            id="menu-button"
+            class="menu-button"
+            type="button"
+            aria-label="Main menu"
+            aria-controls="app-menu"
+            aria-expanded="false"
+          >
+            <svg class="menu-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"></path>
+            </svg>
+          </button>
           <div>
             <h1 id="source-name">Untitled image</h1>
             <p id="source-details" class="source-details">No source selected</p>

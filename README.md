@@ -35,6 +35,7 @@ The initial principles are:
 - Layers for the common path, wiring for relationships that do not fit a strict stack.
 - Region-based evaluation: processors request only the upstream pixels and halos needed for the visible or exported region.
 - Accessible interaction: progressive disclosure, clear names, useful defaults, keyboard operation, and no requirement to understand shader terminology.
+- Sparse workspace chrome: the preview owns the window while structure and property panels float at content height and scroll internally only when bounded by the viewport.
 - Local-first operation: opening, editing, saving, and exporting should not require an account or remote service.
 - Fidelity is explicit: color space, alpha semantics, resolution, precision, sampling, and export encoding are data rather than hidden renderer choices.
 
@@ -136,6 +137,7 @@ Pixelf-specific target contracts, nested layer semantics, persistence, and UI st
 
 Amoire is the reference for Solid reactive ownership, direct DOM construction, commands, and the separation between documents and GPU projections.
 Filfre is a source of practical image-effect, graph, schema-driven property, and animation ideas.
+Place3D is the reference for sparse workspace geometry: content-sized panels float over the primary viewport instead of reserving permanent side columns.
 Neither application model should be copied wholesale: Pixelf's target-first image document is its own contract.
 
 ## Tiling and fidelity
