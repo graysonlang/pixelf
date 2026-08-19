@@ -476,6 +476,10 @@ button:disabled {
   margin: 3px 0 0;
 }
 
+.canvas-properties .properties-heading h2 {
+  font-size: 13px;
+}
+
 .canvas-properties[hidden],
 .selection-properties[hidden] {
   display: none;

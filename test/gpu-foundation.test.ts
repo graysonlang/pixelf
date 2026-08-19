@@ -7,6 +7,7 @@ import {
   alignTo,
   compareGpuBytesToReference,
   GpuDeviceManager,
+  GpuImageRenderer,
   premultipliedSrgbMipLevels,
   ResourcePool,
   srgbViewFormat,
@@ -105,6 +106,68 @@ describe('WebGPU foundation', () => {
     assert.equal(srgbChannelToLinear(0), 0);
     assert.ok(Math.abs(srgbChannelToLinear(0.04045) - 0.0031308) < 1e-7);
     assert.equal(srgbChannelToLinear(1), 1);
+  });
+
+  it('waits for the pipeline before acquiring a presentation texture', async () => {
+    const shaderStageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'GPUShaderStage');
+    Object.defineProperty(globalThis, 'GPUShaderStage', {
+      configurable: true,
+      value: { FRAGMENT: 2, VERTEX: 1 },
+    });
+    const events: string[] = [];
+    const pass = {
+      end: () => {},
+      setPipeline: () => {},
+    };
+    const device = {
+      createBindGroupLayout: () => ({}),
+      createCommandEncoder: () => ({
+        beginRenderPass: () => pass,
+        finish: () => ({}),
+      }),
+      createPipelineLayout: () => ({}),
+      createRenderPipeline: () => ({}),
+      createSampler: () => ({}),
+      createShaderModule: () => ({
+        getCompilationInfo: async () => {
+          events.push('pipeline-ready');
+          return { messages: [] };
+        },
+      }),
+      limits: { minUniformBufferOffsetAlignment: 256 },
+    } as unknown as GPUDevice;
+    const renderer = new GpuImageRenderer({
+      adapter: {} as GPUAdapter,
+      device,
+      preferredCanvasFormat: 'bgra8unorm',
+      queue: {
+        onSubmittedWorkDone: async () => {},
+        submit: () => events.push('submitted'),
+      } as unknown as GPUQueue,
+    });
+    const target = {
+      canvas: {} as HTMLCanvasElement,
+      colorSpace: 'srgb' as const,
+      context: {
+        getCurrentTexture: () => {
+          events.push('texture-acquired');
+          return { createView: () => ({}) };
+        },
+      } as unknown as GPUCanvasContext,
+      format: 'bgra8unorm' as GPUTextureFormat,
+      viewFormat: 'bgra8unorm-srgb' as GPUTextureFormat,
+    };
+    try {
+      await renderer.present({ entities: [] }, target, 1, 1);
+      assert.deepEqual(events, ['pipeline-ready', 'texture-acquired', 'submitted']);
+    } finally {
+      renderer.dispose();
+      if (shaderStageDescriptor === undefined) {
+        Reflect.deleteProperty(globalThis, 'GPUShaderStage');
+      } else {
+        Object.defineProperty(globalThis, 'GPUShaderStage', shaderStageDescriptor);
+      }
+    }
   });
 
   it('reacquires a device after loss and advances the projection generation', async () => {

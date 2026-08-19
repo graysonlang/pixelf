@@ -160,19 +160,17 @@ export class GpuImageRenderer {
   }
 
   async present(graph: Graph, target: PresentTarget, width: number, height: number): Promise<void> {
+    const flattened = flattenGraphForGpu(graph, width, height);
+    const pipeline = await this.pipelineFor(target.viewFormat);
     const view = target.context
       .getCurrentTexture()
       .createView({ format: target.viewFormat, label: 'Pixelf presentation view' });
-    await this.renderToView(
-      flattenGraphForGpu(graph, width, height),
-      view,
-      target.viewFormat,
-      width,
-      height,
-    );
+    this.renderToView(flattened, view, pipeline, width, height);
   }
 
   async renderToTexture(graph: Graph, width: number, height: number): Promise<GPUTexture> {
+    const flattened = flattenGraphForGpu(graph, width, height);
+    const pipeline = await this.pipelineFor('rgba8unorm-srgb');
     const texture = this.gpu.device.createTexture({
       format: 'rgba8unorm-srgb',
       label: 'Pixelf readback target',
@@ -182,10 +180,10 @@ export class GpuImageRenderer {
         GPUTextureUsage.RENDER_ATTACHMENT |
         GPUTextureUsage.TEXTURE_BINDING,
     });
-    await this.renderToView(
-      flattenGraphForGpu(graph, width, height),
+    this.renderToView(
+      flattened,
       texture.createView({ format: 'rgba8unorm-srgb' }),
-      'rgba8unorm-srgb',
+      pipeline,
       width,
       height,
     );
@@ -221,14 +219,13 @@ export class GpuImageRenderer {
     this.pipelines.clear();
   }
 
-  private async renderToView(
+  private renderToView(
     graph: Graph,
     view: GPUTextureView,
-    format: GPUTextureFormat,
+    record: PipelineRecord,
     width: number,
     height: number,
-  ): Promise<void> {
-    const record = await this.pipelineFor(format);
+  ): void {
     const encoder = this.gpu.device.createCommandEncoder({ label: 'Pixelf image encoder' });
     const pass = encoder.beginRenderPass({
       colorAttachments: [

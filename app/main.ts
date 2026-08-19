@@ -145,6 +145,7 @@ const dispose = createRoot(disposeRoot => {
   const expanded = new Set<string>();
   let renderer: GpuImageRenderer | null = null;
   let selectionGeneration = 0;
+  let presentationGeneration = 0;
   let dragDepth = 0;
   let panState: PanState | null = null;
 
@@ -552,6 +553,7 @@ const dispose = createRoot(disposeRoot => {
       keywords: ['file', 'import'],
       label: 'Open image...',
       run: () => input.click(),
+      shortcut: 'Shift+O',
     },
     {
       enabled: () => currentEditor() !== null,
@@ -982,6 +984,18 @@ const dispose = createRoot(disposeRoot => {
     ) {
       return;
     }
+    if (
+      event.shiftKey &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      event.code === 'KeyO'
+    ) {
+      event.preventDefault();
+      setMenuOpen(false);
+      input.click();
+      return;
+    }
     const shortcut = zoomShortcut(event);
     if (shortcut === null) return;
     event.preventDefault();
@@ -1225,6 +1239,7 @@ const dispose = createRoot(disposeRoot => {
   });
 
   createEffect(() => {
+    const activePresentation = ++presentationGeneration;
     const selected = selectedImage();
     const mode = gpuMode();
     const compare = comparing();
@@ -1265,8 +1280,8 @@ const dispose = createRoot(disposeRoot => {
       );
       canvas.style.maxHeight = 'none';
       canvas.style.maxWidth = 'none';
-      canvas.hidden = false;
-      preview.hidden = true;
+      canvas.hidden = true;
+      preview.hidden = false;
       const activeRenderer = renderer;
       void activeRenderer
         .present(
@@ -1275,8 +1290,16 @@ const dispose = createRoot(disposeRoot => {
           projection.target.contract.width,
           projection.target.contract.height,
         )
-        .then(() => setGpuMessage(''))
+        .then(() => {
+          if (activePresentation !== presentationGeneration || activeRenderer !== renderer) {
+            return;
+          }
+          canvas.hidden = false;
+          preview.hidden = true;
+          setGpuMessage('');
+        })
         .catch(error => {
+          if (activePresentation !== presentationGeneration) return;
           canvas.hidden = true;
           preview.hidden = false;
           reportError(error);
