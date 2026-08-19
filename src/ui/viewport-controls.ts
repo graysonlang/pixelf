@@ -18,6 +18,11 @@ export interface AnchoredZoom {
   zoom: number;
 }
 
+export interface ViewportPan {
+  panX: number;
+  panY: number;
+}
+
 export function clampZoom(value: number): number {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
 }
@@ -36,6 +41,18 @@ export function anchoredZoom(
     panX: anchorX - (anchorX - panX) * ratio,
     panY: anchorY - (anchorY - panY) * ratio,
     zoom,
+  };
+}
+
+export function panByWheel(
+  panX: number,
+  panY: number,
+  deltaX: number,
+  deltaY: number,
+): ViewportPan {
+  return {
+    panX: panX - deltaX,
+    panY: panY - deltaY,
   };
 }
 

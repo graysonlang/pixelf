@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   anchoredZoom,
   clampZoom,
+  panByWheel,
   zoomShortcut,
   type ZoomKey,
 } from '../../src/ui/viewport-controls.js';
@@ -33,6 +34,13 @@ test('anchoredZoom preserves the stage point under the gesture anchor', () => {
     panX: -80,
     panY: -50,
     zoom: 2,
+  });
+});
+
+test('panByWheel translates opposite the trackpad scroll delta', () => {
+  assert.deepEqual(panByWheel(20, -10, 6, -4), {
+    panX: 14,
+    panY: -6,
   });
 });
 

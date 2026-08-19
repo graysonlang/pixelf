@@ -22,6 +22,7 @@
 html,
 body {
   height: 100%;
+  overscroll-behavior: none;
 }
 
 .visually-hidden {
@@ -386,6 +387,7 @@ button:disabled {
   cursor: grab;
   min-height: 0;
   overflow: hidden;
+  overscroll-behavior: none;
   position: relative;
   touch-action: none;
   transition: box-shadow 120ms ease;

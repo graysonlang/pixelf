@@ -31,7 +31,7 @@ import {
 } from '../src/project/index.js';
 import { filterActions, isActionEnabled, type QuickAction } from '../src/ui/actions.js';
 import { renderProjectTree, renderProperties } from '../src/ui/editor-view.js';
-import { anchoredZoom, clampZoom, zoomShortcut } from '../src/ui/viewport-controls.js';
+import { anchoredZoom, clampZoom, panByWheel, zoomShortcut } from '../src/ui/viewport-controls.js';
 import indexPath from './index.html';
 import './styles.css';
 
@@ -878,8 +878,14 @@ const dispose = createRoot(disposeRoot => {
     if (!zoomMenu.hidden) setZoomMenuOpen(true);
   };
   const onStageWheel = (event: WheelEvent): void => {
-    if (!event.ctrlKey || selectedImage() === null) return;
     event.preventDefault();
+    if (selectedImage() === null) return;
+    if (!event.ctrlKey) {
+      const result = panByWheel(panX(), panY(), event.deltaX, event.deltaY);
+      setPanX(result.panX);
+      setPanY(result.panY);
+      return;
+    }
     const bounds = stage.getBoundingClientRect();
     const anchorX = event.clientX - bounds.left - bounds.width / 2;
     const anchorY = event.clientY - bounds.top - bounds.height / 2;
