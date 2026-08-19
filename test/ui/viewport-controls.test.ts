@@ -25,13 +25,21 @@ function key(changes: Partial<ZoomKey>): ZoomKey {
   };
 }
 
-test('zoom shortcuts map both fit keys, reset, plus, and minus', () => {
+test('zoom shortcuts map fit, actual size, and physical plus and minus keys', () => {
   assert.equal(zoomShortcut(key({ code: 'Digit1', shiftKey: true })), 'fit');
   assert.equal(zoomShortcut(key({ code: 'Digit9', shiftKey: true })), 'fit');
   assert.equal(zoomShortcut(key({ code: 'Digit0', shiftKey: true })), 'reset');
-  assert.equal(zoomShortcut(key({ key: '+' })), 'in');
-  assert.equal(zoomShortcut(key({ key: '-' })), 'out');
-  assert.equal(zoomShortcut(key({ key: '+', metaKey: true })), null);
+  for (const modifiers of [
+    {},
+    { shiftKey: true },
+    { metaKey: true },
+    { metaKey: true, shiftKey: true },
+  ]) {
+    assert.equal(zoomShortcut(key({ code: 'Equal', ...modifiers })), 'in');
+    assert.equal(zoomShortcut(key({ code: 'Minus', ...modifiers })), 'out');
+  }
+  assert.equal(zoomShortcut(key({ code: 'Equal', ctrlKey: true })), null);
+  assert.equal(zoomShortcut(key({ altKey: true, code: 'Minus' })), null);
 });
 
 test("pixel grid shortcut maps Command+' and its control-key equivalent", () => {

@@ -98,10 +98,12 @@ export function originalPreviewShortcut(key: ZoomKey): boolean {
 }
 
 export function zoomShortcut(key: ZoomKey): ZoomShortcut | null {
-  if (key.altKey || key.ctrlKey || key.metaKey) return null;
-  if (key.shiftKey && (key.code === 'Digit1' || key.code === 'Digit9')) return 'fit';
-  if (key.shiftKey && key.code === 'Digit0') return 'reset';
-  if (key.key === '+' || key.code === 'NumpadAdd') return 'in';
-  if (key.key === '-' || key.code === 'NumpadSubtract') return 'out';
+  if (key.altKey || key.ctrlKey) return null;
+  if (!key.metaKey && key.shiftKey && (key.code === 'Digit1' || key.code === 'Digit9')) {
+    return 'fit';
+  }
+  if (!key.metaKey && key.shiftKey && key.code === 'Digit0') return 'reset';
+  if (key.code === 'Equal' || key.code === 'NumpadAdd') return 'in';
+  if (key.code === 'Minus' || key.code === 'NumpadSubtract') return 'out';
   return null;
 }
