@@ -116,6 +116,65 @@ button:disabled {
   display: none;
 }
 
+.zoom-menu {
+  background: var(--panel-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  box-shadow: 0 12px 34px var(--shadow);
+  padding: 6px;
+  position: fixed;
+  width: 240px;
+  z-index: 40;
+}
+
+.zoom-menu[hidden] {
+  display: none;
+}
+
+.zoom-menu-item {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  display: flex;
+  font-size: 12px;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 7px 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.zoom-menu-item kbd {
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 9px;
+}
+
+.zoom-custom {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  display: flex;
+  font-size: 11px;
+  justify-content: space-between;
+  margin-top: 5px;
+  padding: 8px;
+}
+
+.zoom-input-wrap {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+}
+
+#zoom-input {
+  background: var(--panel);
+  color: var(--text);
+  padding: 5px 6px;
+  text-align: right;
+  width: 72px;
+}
+
 .menu-item {
   align-items: center;
   background: transparent;
@@ -191,6 +250,16 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.source-identity[hidden] {
+  display: none;
+}
+
+.zoom-menu-button {
+  font-size: 11px;
+  min-width: 52px;
+  padding: 6px 8px;
+}
+
 .source-details,
 .gpu-status {
   border-top: 1px solid var(--line);
@@ -209,7 +278,7 @@ button:disabled {
   align-items: start;
   display: grid;
   gap: 10px;
-  grid-template-columns: 32px minmax(0, 1fr);
+  grid-template-columns: 32px minmax(0, 1fr) auto;
 }
 
 .tree-actions button,
@@ -429,14 +498,6 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-}
-
-.canvas-view-controls output {
-  align-content: center;
-  color: var(--muted);
-  font-size: 11px;
-  min-width: 44px;
-  text-align: center;
 }
 
 .canvas-view-options button[aria-pressed="true"] {

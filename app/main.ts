@@ -31,6 +31,7 @@ import {
 } from '../src/project/index.js';
 import { filterActions, isActionEnabled, type QuickAction } from '../src/ui/actions.js';
 import { renderProjectTree, renderProperties } from '../src/ui/editor-view.js';
+import { anchoredZoom, clampZoom, zoomShortcut } from '../src/ui/viewport-controls.js';
 import indexPath from './index.html';
 import './styles.css';
 
@@ -91,6 +92,10 @@ const dispose = createRoot(disposeRoot => {
   const appShell = requireElement<HTMLElement>('.app-shell');
   const menuButton = requireElement<HTMLButtonElement>('#menu-button');
   const appMenu = requireElement<HTMLElement>('#app-menu');
+  const zoomMenuButton = requireElement<HTMLButtonElement>('#zoom-menu-button');
+  const zoomMenuLabel = requireElement<HTMLElement>('#zoom-menu-label');
+  const zoomMenu = requireElement<HTMLElement>('#zoom-menu');
+  const zoomInput = requireElement<HTMLInputElement>('#zoom-input');
   const quickActionsButton = requireElement<HTMLButtonElement>('#quick-actions-button');
   const quickActionsOverlay = requireElement<HTMLElement>('#quick-actions-overlay');
   const quickActionsInput = requireElement<HTMLInputElement>('#quick-actions-input');
@@ -101,6 +106,7 @@ const dispose = createRoot(disposeRoot => {
   const metadataPolicy = requireElement<HTMLSelectElement>('#metadata-policy');
   const preview = requireElement<HTMLImageElement>('#image-preview');
   const canvas = requireElement<HTMLCanvasElement>('#gpu-preview');
+  const sourceIdentity = requireElement<HTMLElement>('#source-identity');
   const sourceName = requireElement<HTMLElement>('#source-name');
   const sourceDetails = requireElement<HTMLElement>('#source-details');
   const gpuStatus = requireElement<HTMLElement>('#gpu-status');
@@ -109,7 +115,6 @@ const dispose = createRoot(disposeRoot => {
   const selectionProperties = requireElement<HTMLElement>('#selection-properties');
   const stage = requireElement<HTMLElement>('#stage');
   const stageContent = requireElement<HTMLElement>('#stage-content');
-  const zoomOutput = requireElement<HTMLOutputElement>('#zoom-output');
   const addLayerButton = requireElement<HTMLButtonElement>('#add-layer-button');
   const operationType = requireElement<HTMLSelectElement>('#operation-type');
   const addOperationButton = requireElement<HTMLButtonElement>('#add-operation-button');
@@ -120,12 +125,6 @@ const dispose = createRoot(disposeRoot => {
   const deleteButton = requireElement<HTMLButtonElement>('#delete-button');
   const fitButton = requireElement<HTMLButtonElement>('#fit-button');
   const actualSizeButton = requireElement<HTMLButtonElement>('#actual-size-button');
-  const zoomOutButton = requireElement<HTMLButtonElement>('#zoom-out-button');
-  const zoomInButton = requireElement<HTMLButtonElement>('#zoom-in-button');
-  const panLeftButton = requireElement<HTMLButtonElement>('#pan-left-button');
-  const panRightButton = requireElement<HTMLButtonElement>('#pan-right-button');
-  const panUpButton = requireElement<HTMLButtonElement>('#pan-up-button');
-  const panDownButton = requireElement<HTMLButtonElement>('#pan-down-button');
   const pixelGridButton = requireElement<HTMLButtonElement>('#pixel-grid-button');
   const transparencyButton = requireElement<HTMLButtonElement>('#transparency-button');
   const compareButton = requireElement<HTMLButtonElement>('#compare-button');
@@ -172,7 +171,7 @@ const dispose = createRoot(disposeRoot => {
 
   const details = createMemo(() => {
     const selected = selectedImage();
-    if (selected === null) return 'No source selected';
+    if (selected === null) return '';
     const size = new Intl.NumberFormat('en-US', {
       maximumFractionDigits: 1,
       style: 'unit',
@@ -415,13 +414,8 @@ const dispose = createRoot(disposeRoot => {
     const availableWidth = Math.max(1, stage.clientWidth - 48);
     const availableHeight = Math.max(1, stage.clientHeight - 48);
     setZoom(
-      Math.max(
-        0.01,
-        Math.min(
-          16,
-          availableWidth / selected.asset.width,
-          availableHeight / selected.asset.height,
-        ),
+      clampZoom(
+        Math.min(availableWidth / selected.asset.width, availableHeight / selected.asset.height),
       ),
     );
     setPanX(0);
@@ -535,10 +529,10 @@ const dispose = createRoot(disposeRoot => {
     setPanY(0);
   };
   const zoomOut = (): void => {
-    setZoom(value => Math.max(0.01, value / 1.25));
+    setZoom(value => clampZoom(value / 1.25));
   };
   const zoomIn = (): void => {
-    setZoom(value => Math.min(16, value * 1.25));
+    setZoom(value => clampZoom(value * 1.25));
   };
   const togglePixelGrid = (): void => {
     setPixelGrid(value => !value);
@@ -688,7 +682,20 @@ const dispose = createRoot(disposeRoot => {
   let filteredQuickActions: readonly QuickAction[] = actions;
   let quickActionFocus = 0;
 
+  const setZoomMenuOpen = (open: boolean, restoreFocus = false): void => {
+    if (open) {
+      const buttonBounds = zoomMenuButton.getBoundingClientRect();
+      const menuWidth = 240;
+      zoomMenu.style.left = `${Math.max(8, Math.min(window.innerWidth - menuWidth - 8, buttonBounds.right - menuWidth))}px`;
+      zoomMenu.style.top = `${buttonBounds.bottom + 6}px`;
+      zoomInput.value = String(Math.round(zoom() * 100));
+    }
+    zoomMenu.hidden = !open;
+    zoomMenuButton.setAttribute('aria-expanded', String(open));
+    if (!open && restoreFocus) zoomMenuButton.focus();
+  };
   const setMenuOpen = (open: boolean, focusFirst = false): void => {
+    if (open) setZoomMenuOpen(false);
     appMenu.hidden = !open;
     menuButton.setAttribute('aria-expanded', String(open));
     if (open && focusFirst) {
@@ -712,6 +719,7 @@ const dispose = createRoot(disposeRoot => {
     if (!isActionEnabled(action)) return;
     closeQuickActions();
     setMenuOpen(false);
+    setZoomMenuOpen(false);
     try {
       void Promise.resolve(action.run()).catch(reportError);
     } catch (error) {
@@ -759,6 +767,7 @@ const dispose = createRoot(disposeRoot => {
   }
   const openQuickActions = (): void => {
     setMenuOpen(false);
+    setZoomMenuOpen(false);
     quickActionsInput.value = '';
     renderQuickActions('');
     quickActionsOverlay.inert = false;
@@ -823,6 +832,67 @@ const dispose = createRoot(disposeRoot => {
     }
     void openImage(file);
   };
+  const applyCustomZoom = (): void => {
+    const percentage = zoomInput.valueAsNumber;
+    if (!Number.isFinite(percentage)) return;
+    setZoom(clampZoom(percentage / 100));
+  };
+  const onZoomMenuButtonClick = (): void => {
+    setMenuOpen(false);
+    setZoomMenuOpen(zoomMenu.hidden);
+  };
+  const onZoomMenuButtonKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== 'ArrowDown') return;
+    event.preventDefault();
+    setMenuOpen(false);
+    setZoomMenuOpen(true);
+    fitButton.focus();
+  };
+  const onFitButtonClick = (): void => {
+    fitStage();
+    setZoomMenuOpen(false, true);
+  };
+  const onActualSizeButtonClick = (): void => {
+    resetZoom();
+    setZoomMenuOpen(false, true);
+  };
+  const onZoomInput = (): void => applyCustomZoom();
+  const onZoomInputChange = (): void => {
+    applyCustomZoom();
+    zoomInput.value = String(Math.round(zoom() * 100));
+  };
+  const onZoomInputKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      applyCustomZoom();
+      setZoomMenuOpen(false, true);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      setZoomMenuOpen(false, true);
+    }
+  };
+  const onWindowResize = (): void => {
+    if (!zoomMenu.hidden) setZoomMenuOpen(true);
+  };
+  const onStageWheel = (event: WheelEvent): void => {
+    if (!event.ctrlKey || selectedImage() === null) return;
+    event.preventDefault();
+    const bounds = stage.getBoundingClientRect();
+    const anchorX = event.clientX - bounds.left - bounds.width / 2;
+    const anchorY = event.clientY - bounds.top - bounds.height / 2;
+    const result = anchoredZoom(
+      zoom(),
+      zoom() * Math.exp(-event.deltaY * 0.01),
+      panX(),
+      panY(),
+      anchorX,
+      anchorY,
+    );
+    setZoom(result.zoom);
+    setPanX(result.panX);
+    setPanY(result.panY);
+  };
   const onMenuButtonClick = (): void => {
     syncMenuActions();
     setMenuOpen(appMenu.hidden);
@@ -879,14 +949,13 @@ const dispose = createRoot(disposeRoot => {
     if (event.target === quickActionsOverlay) closeQuickActions(true);
   };
   const onDocumentPointerDown = (event: PointerEvent): void => {
-    if (
-      appMenu.hidden ||
-      appMenu.contains(event.target as Node) ||
-      menuButton.contains(event.target as Node)
-    ) {
-      return;
+    const target = event.target as Node;
+    if (!appMenu.hidden && !appMenu.contains(target) && !menuButton.contains(target)) {
+      setMenuOpen(false);
     }
-    setMenuOpen(false);
+    if (!zoomMenu.hidden && !zoomMenu.contains(target) && !zoomMenuButton.contains(target)) {
+      setZoomMenuOpen(false);
+    }
   };
   const onDocumentKeyDown = (event: KeyboardEvent): void => {
     if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key === '/') {
@@ -895,9 +964,37 @@ const dispose = createRoot(disposeRoot => {
       else openQuickActions();
       return;
     }
-    if (event.key === 'Escape' && !appMenu.hidden) {
-      setMenuOpen(false);
-      menuButton.focus();
+    if (event.key === 'Escape') {
+      if (!appMenu.hidden) {
+        setMenuOpen(false);
+        menuButton.focus();
+      }
+      if (!zoomMenu.hidden) setZoomMenuOpen(false, true);
+      return;
+    }
+    if (quickActionsOverlay.classList.contains('open')) return;
+    const target = event.target;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement ||
+      (target instanceof HTMLElement && target.isContentEditable)
+    ) {
+      return;
+    }
+    const shortcut = zoomShortcut(event);
+    if (shortcut === null) return;
+    event.preventDefault();
+    if (shortcut === 'fit') fitStage();
+    else if (shortcut === 'reset') resetZoom();
+    else if (shortcut === 'in') zoomIn();
+    else zoomOut();
+  };
+  const onZoomMenuKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      setZoomMenuOpen(false, true);
     }
   };
   input.addEventListener('change', onInputChange);
@@ -907,6 +1004,13 @@ const dispose = createRoot(disposeRoot => {
   appShell.addEventListener('drop', onDrop);
   menuButton.addEventListener('click', onMenuButtonClick);
   menuButton.addEventListener('keydown', onMenuButtonKeyDown);
+  zoomMenuButton.addEventListener('click', onZoomMenuButtonClick);
+  zoomMenuButton.addEventListener('keydown', onZoomMenuButtonKeyDown);
+  zoomMenu.addEventListener('keydown', onZoomMenuKeyDown);
+  zoomInput.addEventListener('input', onZoomInput);
+  zoomInput.addEventListener('change', onZoomInputChange);
+  zoomInput.addEventListener('keydown', onZoomInputKeyDown);
+  window.addEventListener('resize', onWindowResize);
   appMenu.addEventListener('click', onAppMenuClick);
   appMenu.addEventListener('keydown', onAppMenuKeyDown);
   quickActionsButton.addEventListener('click', onQuickActionsButtonClick);
@@ -922,14 +1026,8 @@ const dispose = createRoot(disposeRoot => {
   moveUpButton.addEventListener('click', () => moveLayer(-1));
   moveDownButton.addEventListener('click', () => moveLayer(1));
   deleteButton.addEventListener('click', deleteSelected);
-  fitButton.addEventListener('click', fitStage);
-  actualSizeButton.addEventListener('click', resetZoom);
-  zoomOutButton.addEventListener('click', zoomOut);
-  zoomInButton.addEventListener('click', zoomIn);
-  panLeftButton.addEventListener('click', () => setPanX(value => value - 20));
-  panRightButton.addEventListener('click', () => setPanX(value => value + 20));
-  panUpButton.addEventListener('click', () => setPanY(value => value - 20));
-  panDownButton.addEventListener('click', () => setPanY(value => value + 20));
+  fitButton.addEventListener('click', onFitButtonClick);
+  actualSizeButton.addEventListener('click', onActualSizeButtonClick);
   pixelGridButton.addEventListener('click', togglePixelGrid);
   transparencyButton.addEventListener('click', toggleTransparency);
   const setCompare = (active: boolean): void => {
@@ -944,6 +1042,7 @@ const dispose = createRoot(disposeRoot => {
   compareButton.addEventListener('keyup', event => {
     if (event.key === ' ' || event.key === 'Enter') setCompare(false);
   });
+  stage.addEventListener('wheel', onStageWheel, { passive: false });
   stage.addEventListener('pointerdown', event => {
     if (event.button !== 0) return;
     currentEditor()?.select([]);
@@ -980,6 +1079,13 @@ const dispose = createRoot(disposeRoot => {
     appShell.removeEventListener('drop', onDrop);
     menuButton.removeEventListener('click', onMenuButtonClick);
     menuButton.removeEventListener('keydown', onMenuButtonKeyDown);
+    zoomMenuButton.removeEventListener('click', onZoomMenuButtonClick);
+    zoomMenuButton.removeEventListener('keydown', onZoomMenuButtonKeyDown);
+    zoomMenu.removeEventListener('keydown', onZoomMenuKeyDown);
+    zoomInput.removeEventListener('input', onZoomInput);
+    zoomInput.removeEventListener('change', onZoomInputChange);
+    zoomInput.removeEventListener('keydown', onZoomInputKeyDown);
+    window.removeEventListener('resize', onWindowResize);
     appMenu.removeEventListener('click', onAppMenuClick);
     appMenu.removeEventListener('keydown', onAppMenuKeyDown);
     quickActionsButton.removeEventListener('click', onQuickActionsButtonClick);
@@ -988,6 +1094,7 @@ const dispose = createRoot(disposeRoot => {
     quickActionsOverlay.removeEventListener('pointerdown', onQuickActionsOverlayPointerDown);
     document.removeEventListener('pointerdown', onDocumentPointerDown);
     document.removeEventListener('keydown', onDocumentKeyDown);
+    stage.removeEventListener('wheel', onStageWheel);
   });
   onCleanup(() => {
     renderer?.dispose();
@@ -1011,7 +1118,8 @@ const dispose = createRoot(disposeRoot => {
     treeGeneration();
     const selectedId = selectedNodeId();
     const editor = selected?.editor ?? null;
-    sourceName.textContent = selected?.file.name ?? 'Untitled image';
+    sourceIdentity.hidden = selected === null;
+    sourceName.textContent = selected?.file.name ?? '';
     sourceDetails.textContent = details();
     const canvasSelected = selectedId === null;
     canvasProperties.hidden = !canvasSelected;
@@ -1106,7 +1214,10 @@ const dispose = createRoot(disposeRoot => {
     const x = panX();
     const y = panY();
     stageContent.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
-    zoomOutput.value = `${Math.round(scale * 100)}%`;
+    const percentage = Math.round(scale * 100);
+    zoomMenuLabel.textContent = `${percentage}%`;
+    zoomMenuButton.setAttribute('aria-label', `Zoom options, ${percentage}%`);
+    if (document.activeElement !== zoomInput) zoomInput.value = String(percentage);
     stage.classList.toggle('pixel-grid', pixelGrid());
     pixelGridButton.setAttribute('aria-pressed', String(pixelGrid()));
     stage.classList.toggle('solid-background', !transparency());

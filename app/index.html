@@ -35,6 +35,23 @@
         <kbd>Cmd/Ctrl+/</kbd>
       </button>
     </nav>
+    <section id="zoom-menu" class="zoom-menu" aria-label="Zoom" hidden>
+      <button id="fit-button" class="zoom-menu-item" type="button">
+        <span>Zoom to fit</span>
+        <kbd>Shift+1 / Shift+9</kbd>
+      </button>
+      <button id="actual-size-button" class="zoom-menu-item" type="button">
+        <span>Zoom to 100%</span>
+        <kbd>Shift+0</kbd>
+      </button>
+      <label class="zoom-custom">
+        <span>Custom</span>
+        <span class="zoom-input-wrap">
+          <input id="zoom-input" type="number" min="1" max="1600" step="1" value="100" aria-label="Custom zoom percentage">
+          <span aria-hidden="true">%</span>
+        </span>
+      </label>
+    </section>
 
     <section class="workspace" aria-label="Image workspace">
       <aside class="layers-panel">
@@ -51,10 +68,21 @@
               <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"></path>
             </svg>
           </button>
-          <div>
-            <h1 id="source-name">Untitled image</h1>
-            <p id="source-details" class="source-details">No source selected</p>
+          <div id="source-identity" class="source-identity" hidden>
+            <!-- biome-ignore lint/a11y/useHeadingContent: populated before the active image identity is shown -->
+            <h1 id="source-name"></h1>
+            <p id="source-details" class="source-details"></p>
           </div>
+          <button
+            id="zoom-menu-button"
+            class="zoom-menu-button"
+            type="button"
+            aria-label="Zoom options"
+            aria-controls="zoom-menu"
+            aria-expanded="false"
+          >
+            <span id="zoom-menu-label">100%</span>
+          </button>
         </div>
         <fieldset class="tree-actions">
           <legend class="visually-hidden">Layer actions</legend>
@@ -90,25 +118,6 @@
           </div>
           <fieldset class="canvas-view-options">
             <legend class="visually-hidden">Canvas view options</legend>
-            <div class="canvas-view-row">
-              <span class="property-label">Zoom</span>
-              <div class="canvas-view-controls">
-                <button id="fit-button" type="button">Fit</button>
-                <button id="actual-size-button" type="button">100%</button>
-                <button id="zoom-out-button" type="button" aria-label="Zoom out">-</button>
-                <output id="zoom-output" aria-live="polite">100%</output>
-                <button id="zoom-in-button" type="button" aria-label="Zoom in">+</button>
-              </div>
-            </div>
-            <div class="canvas-view-row">
-              <span class="property-label">Pan</span>
-              <div class="canvas-view-controls">
-                <button id="pan-left-button" type="button" aria-label="Pan left">Left</button>
-                <button id="pan-right-button" type="button" aria-label="Pan right">Right</button>
-                <button id="pan-up-button" type="button" aria-label="Pan up">Up</button>
-                <button id="pan-down-button" type="button" aria-label="Pan down">Down</button>
-              </div>
-            </div>
             <div class="canvas-view-row">
               <span class="property-label">Display</span>
               <div class="canvas-view-controls">
