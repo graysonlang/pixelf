@@ -1,6 +1,7 @@
 import { createEffect, createMemo, createRoot, createSignal, onCleanup } from 'solid-js';
 import { buildInfo } from '../src/index.js';
 import { decodeImageFile, type DecodedProjectImage } from '../src/browser/decode-image.js';
+import { firstImageFile, isFileDrag } from '../src/browser/drop-image.js';
 import { projectTargetToGraph } from '../src/compositor/index.js';
 import {
   artifactBytes,
@@ -88,13 +89,13 @@ function download(data: BlobPart, mimeType: string, fileName: string): void {
 }
 
 const dispose = createRoot(disposeRoot => {
+  const appShell = requireElement<HTMLElement>('.app-shell');
   const input = requireElement<HTMLInputElement>('#image-input');
   const saveProjectButton = requireElement<HTMLButtonElement>('#save-project-button');
   const exportButton = requireElement<HTMLButtonElement>('#export-button');
   const metadataPolicy = requireElement<HTMLSelectElement>('#metadata-policy');
   const preview = requireElement<HTMLImageElement>('#image-preview');
   const canvas = requireElement<HTMLCanvasElement>('#gpu-preview');
-  const empty = requireElement<HTMLElement>('#empty-stage');
   const sourceName = requireElement<HTMLElement>('#source-name');
   const sourceDetails = requireElement<HTMLElement>('#source-details');
   const gpuStatus = requireElement<HTMLElement>('#gpu-status');
@@ -141,6 +142,7 @@ const dispose = createRoot(disposeRoot => {
   const expanded = new Set<string>();
   let renderer: GpuImageRenderer | null = null;
   let selectionGeneration = 0;
+  let dragDepth = 0;
   let panState: PanState | null = null;
 
   for (const definition of nodeRegistry.all().filter(candidate => candidate.kind === 'processor')) {
@@ -422,9 +424,7 @@ const dispose = createRoot(disposeRoot => {
     setPanY(0);
   };
 
-  const selectImage = async (): Promise<void> => {
-    const file = input.files?.[0];
-    if (file === undefined) return;
+  const openImage = async (file: File): Promise<void> => {
     const generation = ++selectionGeneration;
     setGpuMessage(`Decoding ${file.name}...`);
     try {
@@ -514,9 +514,54 @@ const dispose = createRoot(disposeRoot => {
   };
 
   const onInputChange = (): void => {
-    void selectImage();
+    const file = input.files?.[0];
+    input.value = '';
+    if (file !== undefined) void openImage(file);
+  };
+  const resetDropTarget = (): void => {
+    dragDepth = 0;
+    appShell.classList.remove('drop-target');
+  };
+  const onDragEnter = (event: DragEvent): void => {
+    if (!isFileDrag(event.dataTransfer?.types ?? [])) return;
+    event.preventDefault();
+    dragDepth += 1;
+    appShell.classList.add('drop-target');
+    setGpuMessage('Drop image to open');
+  };
+  const onDragOver = (event: DragEvent): void => {
+    if (!isFileDrag(event.dataTransfer?.types ?? [])) return;
+    event.preventDefault();
+    if (event.dataTransfer !== null) event.dataTransfer.dropEffect = 'copy';
+  };
+  const onDragLeave = (event: DragEvent): void => {
+    if (!isFileDrag(event.dataTransfer?.types ?? []) && dragDepth === 0) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth > 0) return;
+    appShell.classList.remove('drop-target');
+    setGpuMessage(selectedImage() === null ? 'Drop an image anywhere to open it' : 'Source ready');
+  };
+  const onDrop = (event: DragEvent): void => {
+    if (
+      !isFileDrag(event.dataTransfer?.types ?? []) &&
+      (event.dataTransfer?.files.length ?? 0) === 0
+    ) {
+      return;
+    }
+    event.preventDefault();
+    resetDropTarget();
+    const file = firstImageFile(event.dataTransfer?.files ?? []);
+    if (file === null) {
+      setGpuMessage('The dropped files do not include a supported image');
+      return;
+    }
+    void openImage(file);
   };
   input.addEventListener('change', onInputChange);
+  appShell.addEventListener('dragenter', onDragEnter);
+  appShell.addEventListener('dragover', onDragOver);
+  appShell.addEventListener('dragleave', onDragLeave);
+  appShell.addEventListener('drop', onDrop);
   saveProjectButton.addEventListener('click', saveProject);
   exportButton.addEventListener('click', () => void exportTarget());
   undoButton.addEventListener('click', () => {
@@ -588,7 +633,13 @@ const dispose = createRoot(disposeRoot => {
   stage.addEventListener('pointerup', stopPan);
   stage.addEventListener('pointercancel', stopPan);
 
-  onCleanup(() => input.removeEventListener('change', onInputChange));
+  onCleanup(() => {
+    input.removeEventListener('change', onInputChange);
+    appShell.removeEventListener('dragenter', onDragEnter);
+    appShell.removeEventListener('dragover', onDragOver);
+    appShell.removeEventListener('dragleave', onDragLeave);
+    appShell.removeEventListener('drop', onDrop);
+  });
   onCleanup(() => {
     renderer?.dispose();
     manager.dispose();
@@ -712,7 +763,6 @@ const dispose = createRoot(disposeRoot => {
     const compare = comparing();
     projectGeneration();
     deviceGeneration();
-    empty.hidden = selected !== null;
     if (selected === null) {
       preview.hidden = true;
       canvas.hidden = true;

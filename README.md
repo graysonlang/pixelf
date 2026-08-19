@@ -12,6 +12,7 @@ It uses the same core stack as Amoire: TypeScript, `@graysonlang/esp`, Solid's f
 There is deliberately no JSX or TSX compilation and no Solid framework renderer.
 
 The current processing vocabulary includes crop, canvas bounds, affine transform, opacity, exposure, levels, white balance, contrast, saturation, channel inspection, blur, sharpen, masks, and a focused set of linear-light blend modes.
+Images can be opened with the file picker or dropped anywhere on the application workspace.
 The operation registry drives insertion, property controls, validation, region behavior, CPU evaluation, GPU routing, and serialization.
 Operations not yet implemented as dedicated shaders are evaluated by the CPU oracle and uploaded through the WebGPU presentation path, preserving one visible result while GPU coverage grows.
 Viewport work planning limits preview evaluation to visible and prefetched tiles, splits work to the device texture limit, and rejects stale generations before they publish pixels.
