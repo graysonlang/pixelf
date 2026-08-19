@@ -228,18 +228,18 @@ button:disabled {
   backdrop-filter: blur(18px) saturate(120%);
   background: rgba(18, 22, 25, 0.94);
   border: 1px solid var(--line-strong);
-  border-radius: 11px;
+  border-radius: 0 0 11px;
   box-shadow: 0 18px 50px var(--shadow);
   display: flex;
   flex-direction: column;
-  left: 14px;
-  max-height: calc(100% - 28px);
-  max-width: calc(100% - 28px);
+  left: 0;
+  max-height: 100%;
+  max-width: 100%;
   min-height: 0;
   overflow: hidden;
   padding: 12px;
   position: absolute;
-  top: 14px;
+  top: 0;
   width: 290px;
   z-index: 20;
 }
@@ -444,16 +444,16 @@ button:disabled {
   backdrop-filter: blur(18px) saturate(120%);
   background: rgba(18, 22, 25, 0.94);
   border: 1px solid var(--line-strong);
-  border-radius: 11px;
+  border-radius: 0 0 0 11px;
   box-shadow: 0 18px 50px var(--shadow);
-  max-height: calc(100% - 28px);
-  max-width: calc(100% - 28px);
+  max-height: 100%;
+  max-width: 100%;
   min-height: 0;
   overflow: auto;
   padding: 12px;
   position: absolute;
-  right: 14px;
-  top: 14px;
+  right: 0;
+  top: 0;
   width: 280px;
   z-index: 20;
 }
@@ -646,14 +646,15 @@ button:disabled {
 
 @media (max-width: 650px) {
   .layers-panel {
-    max-height: calc(50% - 21px);
-    width: min(250px, calc(100% - 28px));
+    max-height: 50%;
+    width: min(250px, 100%);
   }
 
   .properties-panel {
-    bottom: 14px;
-    max-height: calc(50% - 21px);
+    border-radius: 11px 0 0;
+    bottom: 0;
+    max-height: 50%;
     top: auto;
-    width: min(250px, calc(100% - 28px));
+    width: min(250px, 100%);
   }
 }
