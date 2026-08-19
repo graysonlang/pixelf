@@ -105,12 +105,11 @@ const dispose = createRoot(disposeRoot => {
   const sourceDetails = requireElement<HTMLElement>('#source-details');
   const gpuStatus = requireElement<HTMLElement>('#gpu-status');
   const layerTree = requireElement<HTMLElement>('#layer-tree');
-  const propertiesPanel = requireElement<HTMLElement>('#properties-panel');
+  const canvasProperties = requireElement<HTMLElement>('#canvas-properties');
+  const selectionProperties = requireElement<HTMLElement>('#selection-properties');
   const stage = requireElement<HTMLElement>('#stage');
   const stageContent = requireElement<HTMLElement>('#stage-content');
   const zoomOutput = requireElement<HTMLOutputElement>('#zoom-output');
-  const undoButton = requireElement<HTMLButtonElement>('#undo-button');
-  const redoButton = requireElement<HTMLButtonElement>('#redo-button');
   const addLayerButton = requireElement<HTMLButtonElement>('#add-layer-button');
   const operationType = requireElement<HTMLSelectElement>('#operation-type');
   const addOperationButton = requireElement<HTMLButtonElement>('#add-operation-button');
@@ -916,8 +915,6 @@ const dispose = createRoot(disposeRoot => {
   quickActionsOverlay.addEventListener('pointerdown', onQuickActionsOverlayPointerDown);
   document.addEventListener('pointerdown', onDocumentPointerDown);
   document.addEventListener('keydown', onDocumentKeyDown);
-  undoButton.addEventListener('click', undo);
-  redoButton.addEventListener('click', redo);
   addLayerButton.addEventListener('click', addLayer);
   addOperationButton.addEventListener('click', addOperation);
   addMaskButton.addEventListener('click', addMask);
@@ -948,7 +945,10 @@ const dispose = createRoot(disposeRoot => {
     if (event.key === ' ' || event.key === 'Enter') setCompare(false);
   });
   stage.addEventListener('pointerdown', event => {
-    if (event.button !== 0 || selectedImage() === null) return;
+    if (event.button !== 0) return;
+    currentEditor()?.select([]);
+    setSelectedNodeId(null);
+    if (selectedImage() === null) return;
     panState = {
       pointerId: event.pointerId,
       startPanX: panX(),
@@ -1013,13 +1013,14 @@ const dispose = createRoot(disposeRoot => {
     const editor = selected?.editor ?? null;
     sourceName.textContent = selected?.file.name ?? 'Untitled image';
     sourceDetails.textContent = details();
+    const canvasSelected = selectedId === null;
+    canvasProperties.hidden = !canvasSelected;
+    selectionProperties.hidden = canvasSelected;
     const enabled = editor !== null;
     saveProjectButton.disabled = !enabled;
     exportButton.disabled = !enabled;
     metadataPolicy.disabled = !enabled;
     addLayerButton.disabled = !enabled;
-    undoButton.disabled = !editor?.canUndo;
-    redoButton.disabled = !editor?.canRedo;
     deleteButton.disabled = selectedId === null;
     const selectedNode = selectedId === null ? undefined : editor?.project.nodes[selectedId];
     addOperationButton.disabled =
@@ -1047,7 +1048,7 @@ const dispose = createRoot(disposeRoot => {
     if (editor === null) {
       layerTree.replaceChildren();
       renderProperties(
-        propertiesPanel,
+        selectionProperties,
         {
           assets: {},
           name: '',
@@ -1082,7 +1083,7 @@ const dispose = createRoot(disposeRoot => {
       onToggle: toggleNode,
       selectedNodeId: selectedId,
     });
-    renderProperties(propertiesPanel, editor.project, selectedId, {
+    renderProperties(selectionProperties, editor.project, selectedId, {
       onParameter: (nodeId, key, value) =>
         runCommand(() =>
           editor.dispatch(

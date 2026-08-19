@@ -30,13 +30,6 @@
         <span>Export target</span>
       </button>
       <div class="menu-separator" aria-hidden="true"></div>
-      <button class="menu-item" type="button" data-action="undo" disabled>
-        <span>Undo</span>
-      </button>
-      <button class="menu-item" type="button" data-action="redo" disabled>
-        <span>Redo</span>
-      </button>
-      <div class="menu-separator" aria-hidden="true"></div>
       <button id="quick-actions-button" class="menu-item" type="button">
         <span>Quick actions...</span>
         <kbd>Cmd/Ctrl+/</kbd>
@@ -62,11 +55,6 @@
             <h1 id="source-name">Untitled image</h1>
             <p id="source-details" class="source-details">No source selected</p>
           </div>
-          <fieldset class="history-actions">
-            <legend class="visually-hidden">History</legend>
-            <button id="undo-button" type="button" title="Undo" disabled>Undo</button>
-            <button id="redo-button" type="button" title="Redo" disabled>Redo</button>
-          </fieldset>
         </div>
         <fieldset class="tree-actions">
           <legend class="visually-hidden">Layer actions</legend>
@@ -87,21 +75,6 @@
       </aside>
 
       <section class="stage-column">
-        <fieldset class="stage-toolbar">
-          <legend class="visually-hidden">Preview controls</legend>
-          <button id="fit-button" type="button">Fit</button>
-          <button id="actual-size-button" type="button">100%</button>
-          <button id="zoom-out-button" type="button" aria-label="Zoom out">-</button>
-          <output id="zoom-output" aria-live="polite">100%</output>
-          <button id="zoom-in-button" type="button" aria-label="Zoom in">+</button>
-          <button id="pan-left-button" type="button" aria-label="Pan left">Left</button>
-          <button id="pan-right-button" type="button" aria-label="Pan right">Right</button>
-          <button id="pan-up-button" type="button" aria-label="Pan up">Up</button>
-          <button id="pan-down-button" type="button" aria-label="Pan down">Down</button>
-          <button id="pixel-grid-button" type="button" aria-pressed="false">Pixel grid</button>
-          <button id="transparency-button" type="button" aria-pressed="true">Transparency</button>
-          <button id="compare-button" type="button">Hold to compare</button>
-        </fieldset>
         <section id="stage" class="stage" aria-label="Image preview">
           <div id="stage-content" class="stage-content">
             <canvas id="gpu-preview" aria-label="Processed WebGPU preview" hidden></canvas>
@@ -110,7 +83,44 @@
         </section>
       </section>
 
-      <aside id="properties-panel" class="properties-panel" aria-label="Properties"></aside>
+      <aside id="properties-panel" class="properties-panel" aria-label="Properties">
+        <section id="canvas-properties" class="canvas-properties">
+          <div class="properties-heading">
+            <h2>Canvas</h2>
+          </div>
+          <fieldset class="canvas-view-options">
+            <legend class="visually-hidden">Canvas view options</legend>
+            <div class="canvas-view-row">
+              <span class="property-label">Zoom</span>
+              <div class="canvas-view-controls">
+                <button id="fit-button" type="button">Fit</button>
+                <button id="actual-size-button" type="button">100%</button>
+                <button id="zoom-out-button" type="button" aria-label="Zoom out">-</button>
+                <output id="zoom-output" aria-live="polite">100%</output>
+                <button id="zoom-in-button" type="button" aria-label="Zoom in">+</button>
+              </div>
+            </div>
+            <div class="canvas-view-row">
+              <span class="property-label">Pan</span>
+              <div class="canvas-view-controls">
+                <button id="pan-left-button" type="button" aria-label="Pan left">Left</button>
+                <button id="pan-right-button" type="button" aria-label="Pan right">Right</button>
+                <button id="pan-up-button" type="button" aria-label="Pan up">Up</button>
+                <button id="pan-down-button" type="button" aria-label="Pan down">Down</button>
+              </div>
+            </div>
+            <div class="canvas-view-row">
+              <span class="property-label">Display</span>
+              <div class="canvas-view-controls">
+                <button id="pixel-grid-button" type="button" aria-pressed="false">Pixel grid</button>
+                <button id="transparency-button" type="button" aria-pressed="true">Transparency</button>
+              </div>
+            </div>
+            <button id="compare-button" class="compare-button" type="button">Hold to compare</button>
+          </fieldset>
+        </section>
+        <section id="selection-properties" class="selection-properties" hidden></section>
+      </aside>
     </section>
   </main>
 

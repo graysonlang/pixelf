@@ -108,7 +108,7 @@ button:disabled {
   min-width: 230px;
   padding: 6px;
   position: fixed;
-  top: 101px;
+  top: 58px;
   z-index: 40;
 }
 
@@ -174,13 +174,13 @@ button:disabled {
   display: flex;
   flex-direction: column;
   left: 14px;
-  max-height: calc(100% - 71px);
+  max-height: calc(100% - 28px);
   max-width: calc(100% - 28px);
   min-height: 0;
   overflow: hidden;
   padding: 12px;
   position: absolute;
-  top: 57px;
+  top: 14px;
   width: 290px;
   z-index: 20;
 }
@@ -209,20 +209,11 @@ button:disabled {
   align-items: start;
   display: grid;
   gap: 10px;
-  grid-template-columns: 32px minmax(0, 1fr) auto;
+  grid-template-columns: 32px minmax(0, 1fr);
 }
 
-.history-actions {
-  border: 0;
-  display: flex;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-}
-
-.history-actions button,
 .tree-actions button,
-.stage-toolbar button {
+.canvas-view-options button {
   font-size: 11px;
 }
 
@@ -302,35 +293,11 @@ button:disabled {
 
 .stage-column {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   inset: 0;
   min-height: 0;
   min-width: 0;
   position: absolute;
-}
-
-.stage-toolbar {
-  align-items: center;
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
-  display: flex;
-  gap: 5px;
-  min-height: 43px;
-  margin: 0;
-  padding: 7px 10px;
-}
-
-.stage-toolbar output {
-  color: var(--muted);
-  font-size: 11px;
-  min-width: 44px;
-  text-align: center;
-}
-
-.stage-toolbar button[aria-pressed="true"] {
-  background: var(--panel-hover);
-  border-color: var(--line-strong);
-  color: var(--text);
 }
 
 .stage {
@@ -393,7 +360,7 @@ button:disabled {
   box-shadow: 0 16px 60px var(--shadow);
   display: block;
   height: auto;
-  max-height: calc(100dvh - 92px);
+  max-height: calc(100dvh - 48px);
   max-width: calc(100vw - 48px);
   object-fit: contain;
   user-select: none;
@@ -410,14 +377,14 @@ button:disabled {
   border: 1px solid var(--line-strong);
   border-radius: 11px;
   box-shadow: 0 18px 50px var(--shadow);
-  max-height: calc(100% - 71px);
+  max-height: calc(100% - 28px);
   max-width: calc(100% - 28px);
   min-height: 0;
   overflow: auto;
   padding: 12px;
   position: absolute;
   right: 14px;
-  top: 57px;
+  top: 14px;
   width: 280px;
   z-index: 20;
 }
@@ -438,6 +405,48 @@ button:disabled {
 .properties-heading h2 {
   font-size: 17px;
   margin: 3px 0 0;
+}
+
+.canvas-properties[hidden],
+.selection-properties[hidden] {
+  display: none;
+}
+
+.canvas-view-options {
+  border: 0;
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+}
+
+.canvas-view-row {
+  display: grid;
+  gap: 6px;
+}
+
+.canvas-view-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.canvas-view-controls output {
+  align-content: center;
+  color: var(--muted);
+  font-size: 11px;
+  min-width: 44px;
+  text-align: center;
+}
+
+.canvas-view-options button[aria-pressed="true"] {
+  background: var(--panel-hover);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.compare-button {
+  width: 100%;
 }
 
 .properties-empty {
@@ -572,13 +581,13 @@ button:disabled {
 
 @media (max-width: 650px) {
   .layers-panel {
-    max-height: calc(50% - 36px);
+    max-height: calc(50% - 21px);
     width: min(250px, calc(100% - 28px));
   }
 
   .properties-panel {
     bottom: 14px;
-    max-height: calc(50% - 36px);
+    max-height: calc(50% - 21px);
     top: auto;
     width: min(250px, calc(100% - 28px));
   }
