@@ -29,6 +29,7 @@ import {
   type SourceNode,
   type TargetContract,
 } from '../src/project/index.js';
+import { filterActions, isActionEnabled, type QuickAction } from '../src/ui/actions.js';
 import { renderProjectTree, renderProperties } from '../src/ui/editor-view.js';
 import indexPath from './index.html';
 import './styles.css';
@@ -60,11 +61,9 @@ function requireElement<ElementType extends Element>(selector: string): ElementT
 function deviceMessage(state: GpuDeviceState): string {
   switch (state.kind) {
     case 'idle':
-      return 'WebGPU is idle';
     case 'acquiring':
-      return 'Starting WebGPU...';
     case 'ready':
-      return `WebGPU ready / device ${state.generation}`;
+      return '';
     case 'unsupported':
     case 'lost':
       return state.message;
@@ -90,6 +89,12 @@ function download(data: BlobPart, mimeType: string, fileName: string): void {
 
 const dispose = createRoot(disposeRoot => {
   const appShell = requireElement<HTMLElement>('.app-shell');
+  const menuButton = requireElement<HTMLButtonElement>('#menu-button');
+  const appMenu = requireElement<HTMLElement>('#app-menu');
+  const quickActionsButton = requireElement<HTMLButtonElement>('#quick-actions-button');
+  const quickActionsOverlay = requireElement<HTMLElement>('#quick-actions-overlay');
+  const quickActionsInput = requireElement<HTMLInputElement>('#quick-actions-input');
+  const quickActionsResults = requireElement<HTMLElement>('#quick-actions-results');
   const input = requireElement<HTMLInputElement>('#image-input');
   const saveProjectButton = requireElement<HTMLButtonElement>('#save-project-button');
   const exportButton = requireElement<HTMLButtonElement>('#export-button');
@@ -131,7 +136,7 @@ const dispose = createRoot(disposeRoot => {
   const [projectGeneration, setProjectGeneration] = createSignal(0);
   const [treeGeneration, setTreeGeneration] = createSignal(0);
   const [gpuMode, setGpuMode] = createSignal<'checking' | 'fallback' | 'ready'>('checking');
-  const [gpuMessage, setGpuMessage] = createSignal('Checking WebGPU...');
+  const [gpuMessage, setGpuMessage] = createSignal('');
   const [deviceGeneration, setDeviceGeneration] = createSignal(0);
   const [zoom, setZoom] = createSignal(1);
   const [panX, setPanX] = createSignal(0);
@@ -440,7 +445,7 @@ const dispose = createRoot(disposeRoot => {
       setProjectGeneration(current => current + 1);
       setTreeGeneration(current => current + 1);
       requestAnimationFrame(fitStage);
-      setGpuMessage(manager.current === null ? 'Source ready / browser preview' : 'Source ready');
+      setGpuMessage('');
     } catch (error) {
       if (generation === selectionGeneration) reportError(error);
     }
@@ -513,6 +518,268 @@ const dispose = createRoot(disposeRoot => {
     }
   };
 
+  const undo = (): void => {
+    currentEditor()?.undo();
+    refreshProject();
+  };
+  const redo = (): void => {
+    currentEditor()?.redo();
+    refreshProject();
+  };
+  const deleteSelected = (): void => {
+    const nodeId = selectedNodeId();
+    if (nodeId !== null) deleteNode(nodeId);
+  };
+  const resetZoom = (): void => {
+    setZoom(1);
+    setPanX(0);
+    setPanY(0);
+  };
+  const zoomOut = (): void => {
+    setZoom(value => Math.max(0.01, value / 1.25));
+  };
+  const zoomIn = (): void => {
+    setZoom(value => Math.min(16, value * 1.25));
+  };
+  const togglePixelGrid = (): void => {
+    setPixelGrid(value => !value);
+  };
+  const toggleTransparency = (): void => {
+    setTransparency(value => !value);
+  };
+  const selectedNode = () => {
+    const editor = currentEditor();
+    const selectedId = selectedNodeId();
+    return selectedId === null ? undefined : editor?.project.nodes[selectedId];
+  };
+
+  const actions: readonly QuickAction[] = [
+    {
+      id: 'open-image',
+      keywords: ['file', 'import'],
+      label: 'Open image...',
+      run: () => input.click(),
+    },
+    {
+      enabled: () => currentEditor() !== null,
+      id: 'save-project',
+      keywords: ['file', 'download'],
+      label: 'Save project',
+      run: saveProject,
+    },
+    {
+      enabled: () => currentEditor() !== null,
+      id: 'export-target',
+      keywords: ['file', 'download', 'render'],
+      label: 'Export target',
+      run: exportTarget,
+    },
+    {
+      enabled: () => currentEditor()?.canUndo ?? false,
+      id: 'undo',
+      keywords: ['history'],
+      label: 'Undo',
+      run: undo,
+    },
+    {
+      enabled: () => currentEditor()?.canRedo ?? false,
+      id: 'redo',
+      keywords: ['history'],
+      label: 'Redo',
+      run: redo,
+    },
+    {
+      enabled: () => currentEditor() !== null,
+      id: 'add-layer',
+      keywords: ['new', 'source'],
+      label: 'Add layer',
+      run: addLayer,
+    },
+    {
+      enabled: () => {
+        const node = selectedNode();
+        return node !== undefined && node.type !== 'target' && node.type !== 'source/mask';
+      },
+      id: 'add-operation',
+      keywords: ['new', 'processor', 'effect'],
+      label: 'Add operation',
+      run: addOperation,
+    },
+    {
+      enabled: () => {
+        const editor = currentEditor();
+        const selectedId = selectedNodeId();
+        if (editor === null || selectedId === null) return false;
+        const layer = layerForNode(selectedId);
+        return (
+          layer !== null &&
+          !editor.project.wires.some(wire => wire.to.nodeId === layer.id && wire.to.port === 'mask')
+        );
+      },
+      id: 'add-mask',
+      keywords: ['new', 'layer'],
+      label: 'Add mask',
+      run: addMask,
+    },
+    {
+      enabled: () => {
+        const editor = currentEditor();
+        const node = selectedNode();
+        return (
+          editor !== null &&
+          node !== undefined &&
+          node.type !== 'target' &&
+          findPrimaryParent(editor.project, node.id) !== null
+        );
+      },
+      id: 'duplicate',
+      keywords: ['copy', 'branch'],
+      label: 'Duplicate selected branch',
+      run: duplicateNode,
+    },
+    {
+      enabled: () => selectedNodeId() !== null,
+      id: 'delete',
+      keywords: ['remove', 'selected'],
+      label: 'Delete selected item',
+      run: deleteSelected,
+    },
+    {
+      enabled: () => selectedImage() !== null,
+      id: 'fit-preview',
+      keywords: ['zoom', 'view'],
+      label: 'Fit preview',
+      run: fitStage,
+    },
+    {
+      id: 'actual-size',
+      keywords: ['zoom', 'view', '100 percent'],
+      label: 'Preview at 100%',
+      run: resetZoom,
+    },
+    {
+      id: 'zoom-in',
+      keywords: ['view', 'preview'],
+      label: 'Zoom in',
+      run: zoomIn,
+    },
+    {
+      id: 'zoom-out',
+      keywords: ['view', 'preview'],
+      label: 'Zoom out',
+      run: zoomOut,
+    },
+    {
+      id: 'pixel-grid',
+      keywords: ['toggle', 'view'],
+      label: 'Toggle pixel grid',
+      run: togglePixelGrid,
+    },
+    {
+      id: 'transparency',
+      keywords: ['toggle', 'checkerboard', 'view'],
+      label: 'Toggle transparency background',
+      run: toggleTransparency,
+    },
+  ];
+  const actionsById = new Map(actions.map(action => [action.id, action]));
+  const menuActionButtons = Array.from(
+    appMenu.querySelectorAll<HTMLButtonElement>('button[data-action]'),
+  );
+  let filteredQuickActions: readonly QuickAction[] = actions;
+  let quickActionFocus = 0;
+
+  const setMenuOpen = (open: boolean, focusFirst = false): void => {
+    appMenu.hidden = !open;
+    menuButton.setAttribute('aria-expanded', String(open));
+    if (open && focusFirst) {
+      menuActionButtons.find(button => !button.disabled)?.focus();
+    }
+  };
+  const syncMenuActions = (): void => {
+    for (const button of menuActionButtons) {
+      const action = actionsById.get(button.dataset.action ?? '');
+      button.disabled = action === undefined || !isActionEnabled(action);
+    }
+  };
+  const setQuickActionFocus = (index: number): void => {
+    quickActionFocus = index;
+    const buttons = quickActionsResults.querySelectorAll<HTMLButtonElement>('.quick-action');
+    buttons.forEach((button, buttonIndex) => {
+      button.classList.toggle('focused', buttonIndex === index);
+    });
+  };
+  const executeAction = (action: QuickAction): void => {
+    if (!isActionEnabled(action)) return;
+    closeQuickActions();
+    setMenuOpen(false);
+    try {
+      void Promise.resolve(action.run()).catch(reportError);
+    } catch (error) {
+      reportError(error);
+    }
+  };
+  const renderQuickActions = (query: string): void => {
+    filteredQuickActions = filterActions(actions, query);
+    quickActionsResults.replaceChildren();
+    if (filteredQuickActions.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'quick-actions-empty';
+      empty.textContent = 'No actions found';
+      quickActionsResults.append(empty);
+      quickActionFocus = -1;
+      return;
+    }
+    quickActionFocus = filteredQuickActions.findIndex(isActionEnabled);
+    filteredQuickActions.forEach((action, index) => {
+      const button = document.createElement('button');
+      button.className = `quick-action${index === quickActionFocus ? ' focused' : ''}`;
+      button.type = 'button';
+      button.disabled = !isActionEnabled(action);
+      const label = document.createElement('span');
+      label.textContent = action.label;
+      button.append(label);
+      if (action.shortcut !== undefined) {
+        const shortcut = document.createElement('kbd');
+        shortcut.textContent = action.shortcut;
+        button.append(shortcut);
+      }
+      button.addEventListener('mouseenter', () => {
+        if (!button.disabled) setQuickActionFocus(index);
+      });
+      button.addEventListener('click', () => executeAction(action));
+      quickActionsResults.append(button);
+    });
+  };
+  function closeQuickActions(restoreFocus = false): void {
+    if (!quickActionsOverlay.classList.contains('open')) return;
+    quickActionsOverlay.classList.remove('open');
+    quickActionsOverlay.setAttribute('aria-hidden', 'true');
+    quickActionsOverlay.inert = true;
+    if (restoreFocus) menuButton.focus();
+  }
+  const openQuickActions = (): void => {
+    setMenuOpen(false);
+    quickActionsInput.value = '';
+    renderQuickActions('');
+    quickActionsOverlay.inert = false;
+    quickActionsOverlay.setAttribute('aria-hidden', 'false');
+    quickActionsOverlay.classList.add('open');
+    requestAnimationFrame(() => quickActionsInput.focus());
+  };
+  const moveQuickActionFocus = (direction: -1 | 1): void => {
+    if (filteredQuickActions.length === 0) return;
+    let next = quickActionFocus;
+    for (let offset = 0; offset < filteredQuickActions.length; offset += 1) {
+      next = (next + direction + filteredQuickActions.length) % filteredQuickActions.length;
+      const action = filteredQuickActions[next];
+      if (action !== undefined && isActionEnabled(action)) {
+        setQuickActionFocus(next);
+        return;
+      }
+    }
+  };
+
   const onInputChange = (): void => {
     const file = input.files?.[0];
     input.value = '';
@@ -539,7 +806,7 @@ const dispose = createRoot(disposeRoot => {
     dragDepth = Math.max(0, dragDepth - 1);
     if (dragDepth > 0) return;
     appShell.classList.remove('drop-target');
-    setGpuMessage(selectedImage() === null ? 'Drop an image anywhere to open it' : 'Source ready');
+    setGpuMessage('');
   };
   const onDrop = (event: DragEvent): void => {
     if (
@@ -557,45 +824,117 @@ const dispose = createRoot(disposeRoot => {
     }
     void openImage(file);
   };
+  const onMenuButtonClick = (): void => {
+    syncMenuActions();
+    setMenuOpen(appMenu.hidden);
+  };
+  const onMenuButtonKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== 'ArrowDown') return;
+    event.preventDefault();
+    syncMenuActions();
+    setMenuOpen(true, true);
+  };
+  const onAppMenuClick = (event: MouseEvent): void => {
+    const button = (event.target as Element).closest<HTMLButtonElement>('button[data-action]');
+    if (button === null || !appMenu.contains(button)) return;
+    const action = actionsById.get(button.dataset.action ?? '');
+    if (action !== undefined) executeAction(action);
+  };
+  const onAppMenuKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setMenuOpen(false);
+      menuButton.focus();
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault();
+    const buttons = menuActionButtons.filter(button => !button.disabled);
+    if (buttons.length === 0) return;
+    const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const direction = event.key === 'ArrowDown' ? 1 : -1;
+    const nextIndex = (currentIndex + direction + buttons.length) % buttons.length;
+    buttons[nextIndex]?.focus();
+  };
+  const onQuickActionsButtonClick = (): void => openQuickActions();
+  const onQuickActionsInput = (): void => renderQuickActions(quickActionsInput.value);
+  const onQuickActionsInputKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveQuickActionFocus(event.key === 'ArrowDown' ? 1 : -1);
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const action = filteredQuickActions[quickActionFocus];
+      if (action !== undefined) executeAction(action);
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closeQuickActions(true);
+    }
+  };
+  const onQuickActionsOverlayPointerDown = (event: PointerEvent): void => {
+    if (event.target === quickActionsOverlay) closeQuickActions(true);
+  };
+  const onDocumentPointerDown = (event: PointerEvent): void => {
+    if (
+      appMenu.hidden ||
+      appMenu.contains(event.target as Node) ||
+      menuButton.contains(event.target as Node)
+    ) {
+      return;
+    }
+    setMenuOpen(false);
+  };
+  const onDocumentKeyDown = (event: KeyboardEvent): void => {
+    if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key === '/') {
+      event.preventDefault();
+      if (quickActionsOverlay.classList.contains('open')) closeQuickActions(true);
+      else openQuickActions();
+      return;
+    }
+    if (event.key === 'Escape' && !appMenu.hidden) {
+      setMenuOpen(false);
+      menuButton.focus();
+    }
+  };
   input.addEventListener('change', onInputChange);
   appShell.addEventListener('dragenter', onDragEnter);
   appShell.addEventListener('dragover', onDragOver);
   appShell.addEventListener('dragleave', onDragLeave);
   appShell.addEventListener('drop', onDrop);
-  saveProjectButton.addEventListener('click', saveProject);
-  exportButton.addEventListener('click', () => void exportTarget());
-  undoButton.addEventListener('click', () => {
-    currentEditor()?.undo();
-    refreshProject();
-  });
-  redoButton.addEventListener('click', () => {
-    currentEditor()?.redo();
-    refreshProject();
-  });
+  menuButton.addEventListener('click', onMenuButtonClick);
+  menuButton.addEventListener('keydown', onMenuButtonKeyDown);
+  appMenu.addEventListener('click', onAppMenuClick);
+  appMenu.addEventListener('keydown', onAppMenuKeyDown);
+  quickActionsButton.addEventListener('click', onQuickActionsButtonClick);
+  quickActionsInput.addEventListener('input', onQuickActionsInput);
+  quickActionsInput.addEventListener('keydown', onQuickActionsInputKeyDown);
+  quickActionsOverlay.addEventListener('pointerdown', onQuickActionsOverlayPointerDown);
+  document.addEventListener('pointerdown', onDocumentPointerDown);
+  document.addEventListener('keydown', onDocumentKeyDown);
+  undoButton.addEventListener('click', undo);
+  redoButton.addEventListener('click', redo);
   addLayerButton.addEventListener('click', addLayer);
   addOperationButton.addEventListener('click', addOperation);
   addMaskButton.addEventListener('click', addMask);
   duplicateButton.addEventListener('click', duplicateNode);
   moveUpButton.addEventListener('click', () => moveLayer(-1));
   moveDownButton.addEventListener('click', () => moveLayer(1));
-  deleteButton.addEventListener('click', () => {
-    const nodeId = selectedNodeId();
-    if (nodeId !== null) deleteNode(nodeId);
-  });
+  deleteButton.addEventListener('click', deleteSelected);
   fitButton.addEventListener('click', fitStage);
-  actualSizeButton.addEventListener('click', () => {
-    setZoom(1);
-    setPanX(0);
-    setPanY(0);
-  });
-  zoomOutButton.addEventListener('click', () => setZoom(value => Math.max(0.01, value / 1.25)));
-  zoomInButton.addEventListener('click', () => setZoom(value => Math.min(16, value * 1.25)));
+  actualSizeButton.addEventListener('click', resetZoom);
+  zoomOutButton.addEventListener('click', zoomOut);
+  zoomInButton.addEventListener('click', zoomIn);
   panLeftButton.addEventListener('click', () => setPanX(value => value - 20));
   panRightButton.addEventListener('click', () => setPanX(value => value + 20));
   panUpButton.addEventListener('click', () => setPanY(value => value - 20));
   panDownButton.addEventListener('click', () => setPanY(value => value + 20));
-  pixelGridButton.addEventListener('click', () => setPixelGrid(value => !value));
-  transparencyButton.addEventListener('click', () => setTransparency(value => !value));
+  pixelGridButton.addEventListener('click', togglePixelGrid);
+  transparencyButton.addEventListener('click', toggleTransparency);
   const setCompare = (active: boolean): void => {
     setComparing(active);
   };
@@ -639,6 +978,16 @@ const dispose = createRoot(disposeRoot => {
     appShell.removeEventListener('dragover', onDragOver);
     appShell.removeEventListener('dragleave', onDragLeave);
     appShell.removeEventListener('drop', onDrop);
+    menuButton.removeEventListener('click', onMenuButtonClick);
+    menuButton.removeEventListener('keydown', onMenuButtonKeyDown);
+    appMenu.removeEventListener('click', onAppMenuClick);
+    appMenu.removeEventListener('keydown', onAppMenuKeyDown);
+    quickActionsButton.removeEventListener('click', onQuickActionsButtonClick);
+    quickActionsInput.removeEventListener('input', onQuickActionsInput);
+    quickActionsInput.removeEventListener('keydown', onQuickActionsInputKeyDown);
+    quickActionsOverlay.removeEventListener('pointerdown', onQuickActionsOverlayPointerDown);
+    document.removeEventListener('pointerdown', onDocumentPointerDown);
+    document.removeEventListener('keydown', onDocumentKeyDown);
   });
   onCleanup(() => {
     renderer?.dispose();
@@ -646,7 +995,9 @@ const dispose = createRoot(disposeRoot => {
   });
 
   createEffect(() => {
-    gpuStatus.textContent = gpuMessage();
+    const message = gpuMessage();
+    gpuStatus.textContent = message;
+    gpuStatus.hidden = message.length === 0;
   });
 
   createEffect(() => {
@@ -689,6 +1040,10 @@ const dispose = createRoot(disposeRoot => {
       ) === true;
     moveUpButton.disabled = selectedNode?.type !== 'layer';
     moveDownButton.disabled = selectedNode?.type !== 'layer';
+    syncMenuActions();
+    if (quickActionsOverlay.classList.contains('open')) {
+      renderQuickActions(quickActionsInput.value);
+    }
     if (editor === null) {
       layerTree.replaceChildren();
       renderProperties(
@@ -808,7 +1163,7 @@ const dispose = createRoot(disposeRoot => {
           projection.target.contract.width,
           projection.target.contract.height,
         )
-        .then(() => setGpuMessage(`WebGPU preview / device ${deviceGeneration()}`))
+        .then(() => setGpuMessage(''))
         .catch(error => {
           canvas.hidden = true;
           preview.hidden = false;
