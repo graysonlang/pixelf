@@ -1,5 +1,6 @@
 import { cloneProject, createOpaqueId, findPrimaryParent } from './project.js';
 import type {
+  CanvasBackground,
   ImageAsset,
   JsonValue,
   PixelfProject,
@@ -15,6 +16,7 @@ export type ProjectCommand =
   | { index: number; nodeId: string; parentId: string | null; type: 'move-node' }
   | { key: string; nodeId: string; type: 'set-parameter'; value: JsonValue }
   | { contract: TargetContract; nodeId: string; type: 'set-target-contract' }
+  | { background: CanvasBackground; nodeId: string; type: 'set-target-background' }
   | { type: 'connect'; wire: ProjectWire }
   | { type: 'disconnect'; wireId: string }
   | {
@@ -117,6 +119,12 @@ function applyMutable(project: PixelfProject, command: ProjectCommand): void {
       const node = project.nodes[command.nodeId];
       if (node?.type !== 'target') throw new Error(`${command.nodeId} is not a target`);
       node.contract = structuredClone(command.contract);
+      return;
+    }
+    case 'set-target-background': {
+      const node = project.nodes[command.nodeId];
+      if (node?.type !== 'target') throw new Error(`${command.nodeId} is not a target`);
+      node.background = structuredClone(command.background);
       return;
     }
     case 'connect':

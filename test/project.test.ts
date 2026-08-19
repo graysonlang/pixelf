@@ -127,6 +127,21 @@ describe('Pixelf project document', () => {
     assert.throws(() => validateProject(project), /parameters\.amount must be at most 1/);
   });
 
+  it('validates optional canvas background properties', () => {
+    const project = cloneProject(importedProject());
+    const target = projectNode(project, 'node-target');
+    assert.equal(target.type, 'target');
+    if (target.type !== 'target') return;
+    target.background = {
+      color: { a: 1, b: 0.25, g: 0.5, r: 0.75 },
+      mode: 'custom',
+      visible: true,
+    };
+    assert.doesNotThrow(() => validateProject(project));
+    target.background.color = { a: 1, b: 0, g: 0, r: 2 };
+    assert.throws(() => validateProject(project), /background\.color\.r/);
+  });
+
   it('rejects duplicate ownership, incompatible wires, and dependency cycles', () => {
     const duplicate = cloneProject(importedProject());
     const opacity = createNode('process/opacity', 'node-opacity') as ProcessorNode;

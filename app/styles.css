@@ -18,7 +18,9 @@
   --stage: #0b0e10;
   --stage-solid: #0f1316;
   --stage-tile: #111519;
-  --pixel-grid: rgba(216, 255, 115, 0.2);
+  --pixel-grid-on-dark: rgba(255, 255, 255, 0.12);
+  --pixel-grid-on-light: rgba(0, 0, 0, 0.16);
+  --pixel-grid: var(--pixel-grid-on-dark);
 }
 
 :root[data-theme="light"] {
@@ -39,7 +41,7 @@
   --stage: #d8dcd8;
   --stage-solid: #eceeec;
   --stage-tile: #cfd4d0;
-  --pixel-grid: rgba(88, 111, 22, 0.22);
+  --pixel-grid: var(--pixel-grid-on-light);
 }
 
 @media (prefers-color-scheme: light) {
@@ -61,7 +63,7 @@
     --stage: #d8dcd8;
     --stage-solid: #eceeec;
     --stage-tile: #cfd4d0;
-    --pixel-grid: rgba(88, 111, 22, 0.22);
+    --pixel-grid: var(--pixel-grid-on-light);
   }
 }
 
@@ -422,18 +424,7 @@ button:disabled {
 
 .stage {
   align-items: center;
-  background-color: var(--stage);
-  background-image:
-    linear-gradient(45deg, var(--stage-tile) 25%, transparent 25%),
-    linear-gradient(-45deg, var(--stage-tile) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, var(--stage-tile) 75%),
-    linear-gradient(-45deg, transparent 75%, var(--stage-tile) 75%);
-  background-position:
-    0 0,
-    0 8px,
-    8px -8px,
-    -8px 0;
-  background-size: 16px 16px;
+  background-color: var(--stage-solid);
   cursor: grab;
   min-height: 0;
   overflow: hidden;
@@ -451,8 +442,39 @@ button:disabled {
   cursor: grabbing;
 }
 
-.stage.solid-background {
-  background: var(--stage-solid);
+.stage[data-checker]::before {
+  background-color: var(--stage);
+  background-image:
+    linear-gradient(
+      45deg,
+      var(--stage-tile) 25%,
+      transparent 25%,
+      transparent 75%,
+      var(--stage-tile) 75%
+    ),
+    linear-gradient(
+      45deg,
+      var(--stage-tile) 25%,
+      transparent 25%,
+      transparent 75%,
+      var(--stage-tile) 75%
+    );
+  background-position:
+    0 0,
+    8px 8px;
+  background-size: 16px 16px;
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.stage[data-backdrop="light"] {
+  --pixel-grid: var(--pixel-grid-on-light);
+}
+
+.stage[data-backdrop="dark"] {
+  --pixel-grid: var(--pixel-grid-on-dark);
 }
 
 .stage.pixel-grid::after {
@@ -550,16 +572,51 @@ button:disabled {
   gap: 6px;
 }
 
-.canvas-view-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
+.canvas-view-row[hidden] {
+  display: none;
 }
 
-.canvas-view-options button[aria-pressed="true"] {
-  background: var(--panel-hover);
-  border-color: var(--line-strong);
+.canvas-background-controls {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+#canvas-background-mode {
+  background: var(--panel-raised);
   color: var(--text);
+  min-width: 0;
+  padding: 6px 7px;
+  width: 100%;
+}
+
+.canvas-background-visibility {
+  align-items: center;
+  background: transparent;
+  color: var(--text);
+  display: flex;
+  height: 29px;
+  justify-content: center;
+  padding: 0;
+  width: 29px;
+}
+
+.canvas-background-visibility[data-off="true"] {
+  color: var(--muted);
+}
+
+.canvas-background-visibility[data-off="false"] .eye-slash,
+.canvas-background-visibility[data-off="true"] .eye-pupil {
+  display: none;
+}
+
+#canvas-background-color {
+  background: transparent;
+  cursor: pointer;
+  height: 29px;
+  padding: 1px;
+  width: 44px;
 }
 
 .compare-button {

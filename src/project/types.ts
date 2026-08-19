@@ -13,6 +13,20 @@ export type ProjectColorSpace = 'srgb' | 'display-p3';
 export type OutputFileFormat = 'png' | 'jpeg' | 'webp';
 export type OutputBitDepth = 8 | 16;
 export type AlphaPolicy = 'preserve' | 'opaque';
+export type CanvasBackgroundMode = 'theme' | 'light' | 'dark' | 'custom';
+
+export interface CanvasBackgroundColor {
+  a: number;
+  b: number;
+  g: number;
+  r: number;
+}
+
+export interface CanvasBackground {
+  color?: CanvasBackgroundColor;
+  mode: CanvasBackgroundMode;
+  visible: boolean;
+}
 
 export interface TargetContract {
   alphaPolicy: AlphaPolicy;
@@ -57,6 +71,7 @@ export interface BaseNode {
 }
 
 export interface TargetNode extends BaseNode {
+  background?: CanvasBackground;
   childIds: string[];
   contract: TargetContract;
   type: 'target';

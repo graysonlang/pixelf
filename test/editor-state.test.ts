@@ -118,4 +118,24 @@ describe('EditorState', () => {
     state.markSaved();
     assert.equal(state.dirty, false);
   });
+
+  it('stores canvas backgrounds in undoable target state', () => {
+    const state = editor();
+    state.dispatch({
+      background: {
+        color: { a: 1, b: 0.25, g: 0.5, r: 0.75 },
+        mode: 'custom',
+        visible: true,
+      },
+      nodeId: 'node-target',
+      type: 'set-target-background',
+    });
+    const changed = editorNode(state, 'node-target');
+    assert.equal(changed.type, 'target');
+    if (changed.type === 'target') assert.equal(changed.background?.mode, 'custom');
+    state.undo();
+    const restored = editorNode(state, 'node-target');
+    assert.equal(restored.type, 'target');
+    if (restored.type === 'target') assert.equal(restored.background, undefined);
+  });
 });

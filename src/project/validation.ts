@@ -20,6 +20,7 @@ const WORKING_FORMATS = new Set(['rgba8unorm', 'rgba16float', 'rgba32float']);
 const COLOR_SPACES = new Set(['srgb', 'display-p3']);
 const OUTPUT_FORMATS = new Set(['png', 'jpeg', 'webp']);
 const ALPHA_POLICIES = new Set(['preserve', 'opaque']);
+const CANVAS_BACKGROUND_MODES = new Set(['theme', 'light', 'dark', 'custom']);
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -92,6 +93,33 @@ function checkTargetContract(value: unknown, path: string, issues: string[]): vo
   }
   if (contract.outputFormat === 'webp' && contract.outputBitDepth !== 8) {
     issues.push(`${path} WebP output currently requires 8-bit output`);
+  }
+}
+
+function checkCanvasBackground(value: unknown, path: string, issues: string[]): void {
+  if (!isRecord(value)) {
+    issues.push(`${path} must be an object`);
+    return;
+  }
+  if (!CANVAS_BACKGROUND_MODES.has(value.mode as string)) {
+    issues.push(`${path}.mode is unsupported`);
+  }
+  if (typeof value.visible !== 'boolean') issues.push(`${path}.visible must be a boolean`);
+  if (value.color === undefined) return;
+  if (!isRecord(value.color)) {
+    issues.push(`${path}.color must be an RGBA object`);
+    return;
+  }
+  for (const channel of ['r', 'g', 'b', 'a'] as const) {
+    const component = value.color[channel];
+    if (
+      typeof component !== 'number' ||
+      !Number.isFinite(component) ||
+      component < 0 ||
+      component > 1
+    ) {
+      issues.push(`${path}.color.${channel} must be a number from 0 through 1`);
+    }
   }
 }
 
@@ -171,6 +199,9 @@ function checkNodeShape(node: UnknownRecord, key: string, issues: string[]): voi
       issues.push(`${path}.childIds must be an array of layer IDs`);
     }
     checkTargetContract(node.contract, `${path}.contract`, issues);
+    if (node.background !== undefined) {
+      checkCanvasBackground(node.background, `${path}.background`, issues);
+    }
   } else if (definition.childPolicy === 'one') {
     if (node.childId !== null && typeof node.childId !== 'string') {
       issues.push(`${path}.childId must be a node ID or null`);

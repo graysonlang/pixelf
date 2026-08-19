@@ -124,12 +124,34 @@
           <fieldset class="canvas-view-options">
             <legend class="visually-hidden">Canvas view options</legend>
             <div class="canvas-view-row">
-              <span class="property-label">Display</span>
-              <div class="canvas-view-controls">
-                <button id="pixel-grid-button" type="button" aria-pressed="false">Pixel grid</button>
-                <button id="transparency-button" type="button" aria-pressed="true">Transparency</button>
+              <label class="property-label" for="canvas-background-mode">Background</label>
+              <div class="canvas-background-controls">
+                <select id="canvas-background-mode">
+                  <option value="theme">Match theme</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                  <option value="custom">Custom</option>
+                </select>
+                <button
+                  id="canvas-background-visibility"
+                  class="canvas-background-visibility"
+                  type="button"
+                  aria-label="Hide background"
+                  aria-pressed="true"
+                  data-off="false"
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M1.5 8C3.5 4.6 12.5 4.6 14.5 8C12.5 11.4 3.5 11.4 1.5 8Z" fill="none" stroke="currentColor" stroke-width="1.3"></path>
+                    <circle class="eye-pupil" cx="8" cy="8" r="1.8" fill="none" stroke="currentColor" stroke-width="1.3"></circle>
+                    <path class="eye-slash" d="M3 13.5L13 2.5" fill="none" stroke="currentColor" stroke-width="1.3"></path>
+                  </svg>
+                </button>
               </div>
             </div>
+            <label id="canvas-background-color-row" class="canvas-view-row" hidden>
+              <span class="property-label">Color</span>
+              <input id="canvas-background-color" type="color" value="#ffffff">
+            </label>
             <button id="compare-button" class="compare-button" type="button">Hold to compare</button>
           </fieldset>
         </section>

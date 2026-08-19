@@ -24,12 +24,21 @@ import {
   nodeRegistry,
   serializeProject,
   type LayerNode,
+  type CanvasBackground,
+  type CanvasBackgroundMode,
   type ProcessorNode,
   type ProjectCommand,
   type SourceNode,
   type TargetContract,
 } from '../src/project/index.js';
 import { filterActions, isActionEnabled, type QuickAction } from '../src/ui/actions.js';
+import {
+  canvasBackgroundColor,
+  canvasBackgroundPolarity,
+  colorFromHex,
+  colorToHex,
+  resolvedCanvasBackground,
+} from '../src/ui/canvas-background.js';
 import { renderProjectTree, renderProperties } from '../src/ui/editor-view.js';
 import { primaryShortcutLabel } from '../src/ui/platform.js';
 import {
@@ -44,6 +53,7 @@ import {
   fitZoom,
   initialImageZoom,
   panByWheel,
+  pixelGridShortcut,
   zoomShortcut,
 } from '../src/ui/viewport-controls.js';
 import indexPath from './index.html';
@@ -146,8 +156,12 @@ const dispose = createRoot(disposeRoot => {
   const deleteButton = requireElement<HTMLButtonElement>('#delete-button');
   const fitButton = requireElement<HTMLButtonElement>('#fit-button');
   const actualSizeButton = requireElement<HTMLButtonElement>('#actual-size-button');
-  const pixelGridButton = requireElement<HTMLButtonElement>('#pixel-grid-button');
-  const transparencyButton = requireElement<HTMLButtonElement>('#transparency-button');
+  const canvasBackgroundMode = requireElement<HTMLSelectElement>('#canvas-background-mode');
+  const canvasBackgroundVisibility = requireElement<HTMLButtonElement>(
+    '#canvas-background-visibility',
+  );
+  const canvasBackgroundColorRow = requireElement<HTMLElement>('#canvas-background-color-row');
+  const canvasBackgroundColorInput = requireElement<HTMLInputElement>('#canvas-background-color');
   const compareButton = requireElement<HTMLButtonElement>('#compare-button');
 
   const preferences = loadPreferences(localStorage);
@@ -163,7 +177,6 @@ const dispose = createRoot(disposeRoot => {
   const [panX, setPanX] = createSignal(0);
   const [panY, setPanY] = createSignal(0);
   const [pixelGrid, setPixelGrid] = createSignal(false);
-  const [transparency, setTransparency] = createSignal(true);
   const [comparing, setComparing] = createSignal(false);
   const [theme, setTheme] = createSignal<ThemePreference>(preferences.theme);
   const expanded = new Set<string>();
@@ -576,8 +589,23 @@ const dispose = createRoot(disposeRoot => {
   const togglePixelGrid = (): void => {
     setPixelGrid(value => !value);
   };
-  const toggleTransparency = (): void => {
-    setTransparency(value => !value);
+  const currentCanvasBackground = (): CanvasBackground => {
+    const editor = currentEditor();
+    const targetId = editor?.project.targetIds[0];
+    const target =
+      editor === null || targetId === undefined ? undefined : editor.project.nodes[targetId];
+    return resolvedCanvasBackground(target?.type === 'target' ? target.background : undefined);
+  };
+  const setCanvasBackground = (background: CanvasBackground): void => {
+    const editor = currentEditor();
+    const targetId = editor?.project.targetIds[0];
+    if (editor === null || targetId === undefined) return;
+    runCommand(() =>
+      editor.dispatch(
+        { background, nodeId: targetId, type: 'set-target-background' },
+        { label: 'Change canvas background' },
+      ),
+    );
   };
   const selectedNode = () => {
     const editor = currentEditor();
@@ -714,12 +742,7 @@ const dispose = createRoot(disposeRoot => {
       keywords: ['toggle', 'view'],
       label: 'Toggle pixel grid',
       run: togglePixelGrid,
-    },
-    {
-      id: 'transparency',
-      keywords: ['toggle', 'checkerboard', 'view'],
-      label: 'Toggle transparency background',
-      run: toggleTransparency,
+      shortcut: primaryShortcut("'"),
     },
   ];
   const actionsById = new Map(actions.map(action => [action.id, action]));
@@ -963,6 +986,27 @@ const dispose = createRoot(disposeRoot => {
     setPanX(result.panX);
     setPanY(result.panY);
   };
+  const onCanvasBackgroundModeChange = (): void => {
+    const background = currentCanvasBackground();
+    const mode = canvasBackgroundMode.value as CanvasBackgroundMode;
+    setCanvasBackground({
+      ...background,
+      color:
+        mode === 'custom' ? (background.color ?? { a: 1, b: 1, g: 1, r: 1 }) : background.color,
+      mode,
+    });
+  };
+  const onCanvasBackgroundVisibilityClick = (): void => {
+    const background = currentCanvasBackground();
+    setCanvasBackground({ ...background, visible: !background.visible });
+  };
+  const onCanvasBackgroundColorChange = (): void => {
+    setCanvasBackground({
+      ...currentCanvasBackground(),
+      color: colorFromHex(canvasBackgroundColorInput.value),
+      mode: 'custom',
+    });
+  };
   const onMenuButtonClick = (): void => {
     syncMenuActions();
     setMenuOpen(appMenu.hidden);
@@ -1073,6 +1117,11 @@ const dispose = createRoot(disposeRoot => {
     ) {
       return;
     }
+    if (pixelGridShortcut(event)) {
+      event.preventDefault();
+      togglePixelGrid();
+      return;
+    }
     if (
       event.shiftKey &&
       !event.altKey &&
@@ -1123,6 +1172,9 @@ const dispose = createRoot(disposeRoot => {
   settingsCloseButton.addEventListener('click', onSettingsCloseButtonClick);
   settingsOverlay.addEventListener('change', onSettingsChange);
   settingsOverlay.addEventListener('pointerdown', onSettingsOverlayPointerDown);
+  canvasBackgroundMode.addEventListener('change', onCanvasBackgroundModeChange);
+  canvasBackgroundVisibility.addEventListener('click', onCanvasBackgroundVisibilityClick);
+  canvasBackgroundColorInput.addEventListener('change', onCanvasBackgroundColorChange);
   document.addEventListener('pointerdown', onDocumentPointerDown);
   document.addEventListener('keydown', onDocumentKeyDown);
   addLayerButton.addEventListener('click', addLayer);
@@ -1134,8 +1186,6 @@ const dispose = createRoot(disposeRoot => {
   deleteButton.addEventListener('click', deleteSelected);
   fitButton.addEventListener('click', onFitButtonClick);
   actualSizeButton.addEventListener('click', onActualSizeButtonClick);
-  pixelGridButton.addEventListener('click', togglePixelGrid);
-  transparencyButton.addEventListener('click', toggleTransparency);
   const setCompare = (active: boolean): void => {
     setComparing(active);
   };
@@ -1201,6 +1251,9 @@ const dispose = createRoot(disposeRoot => {
     settingsCloseButton.removeEventListener('click', onSettingsCloseButtonClick);
     settingsOverlay.removeEventListener('change', onSettingsChange);
     settingsOverlay.removeEventListener('pointerdown', onSettingsOverlayPointerDown);
+    canvasBackgroundMode.removeEventListener('change', onCanvasBackgroundModeChange);
+    canvasBackgroundVisibility.removeEventListener('click', onCanvasBackgroundVisibilityClick);
+    canvasBackgroundColorInput.removeEventListener('change', onCanvasBackgroundColorChange);
     document.removeEventListener('pointerdown', onDocumentPointerDown);
     document.removeEventListener('keydown', onDocumentKeyDown);
     stage.removeEventListener('wheel', onStageWheel);
@@ -1335,9 +1388,36 @@ const dispose = createRoot(disposeRoot => {
     zoomMenuButton.setAttribute('aria-label', `Zoom options, ${percentage}%`);
     if (document.activeElement !== zoomInput) zoomInput.value = String(percentage);
     stage.classList.toggle('pixel-grid', pixelGrid());
-    pixelGridButton.setAttribute('aria-pressed', String(pixelGrid()));
-    stage.classList.toggle('solid-background', !transparency());
-    transparencyButton.setAttribute('aria-pressed', String(transparency()));
+  });
+
+  createEffect(() => {
+    projectGeneration();
+    const editor = currentEditor();
+    const targetId = editor?.project.targetIds[0];
+    const target =
+      editor === null || targetId === undefined ? undefined : editor.project.nodes[targetId];
+    const enabled = target?.type === 'target';
+    const background = resolvedCanvasBackground(enabled ? target.background : undefined);
+    canvasBackgroundMode.disabled = !enabled;
+    canvasBackgroundMode.value = background.mode;
+    canvasBackgroundVisibility.disabled = !enabled;
+    canvasBackgroundVisibility.dataset.off = String(!background.visible);
+    canvasBackgroundVisibility.setAttribute('aria-pressed', String(background.visible));
+    canvasBackgroundVisibility.setAttribute(
+      'aria-label',
+      background.visible ? 'Hide background' : 'Show background',
+    );
+    canvasBackgroundVisibility.title = background.visible ? 'Hide background' : 'Show background';
+    canvasBackgroundColorRow.hidden = background.mode !== 'custom';
+    canvasBackgroundColorInput.disabled = !enabled;
+    canvasBackgroundColorInput.value = colorToHex(background.color ?? { a: 1, b: 1, g: 1, r: 1 });
+    if (enabled && !background.visible) stage.dataset.checker = 'true';
+    else delete stage.dataset.checker;
+    const polarity = enabled && background.visible ? canvasBackgroundPolarity(background) : null;
+    if (polarity === null) delete stage.dataset.backdrop;
+    else stage.dataset.backdrop = polarity;
+    stage.style.backgroundColor =
+      enabled && background.visible ? canvasBackgroundColor(background) : '';
   });
 
   createEffect(() => {
