@@ -1,6 +1,9 @@
 :root {
   color-scheme: dark;
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --serif: ui-serif, Georgia, Cambria, serif;
+  font-family: var(--sans);
   font-synthesis: none;
   --background: #090b0d;
   --control: rgba(255, 255, 255, 0.035);
@@ -99,6 +102,16 @@ button,
 input,
 select {
   font: inherit;
+}
+
+kbd,
+#zoom-menu-label,
+#zoom-input,
+#canvas-background-mode,
+.source-details,
+.property-field input:not([type="checkbox"]),
+.property-field select {
+  font-family: var(--mono);
 }
 
 button,
