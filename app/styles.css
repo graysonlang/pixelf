@@ -586,6 +586,7 @@ button:disabled {
 #canvas-background-mode {
   background: var(--panel-raised);
   color: var(--text);
+  font-size: 12px;
   min-width: 0;
   padding: 6px 7px;
   width: 100%;
@@ -632,14 +633,15 @@ button:disabled {
 }
 
 .property-label {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 550;
 }
 
 .property-field input:not([type="checkbox"]),
 .property-field select {
   background: var(--panel-raised);
   color: var(--text);
+  font-size: 12px;
   min-width: 0;
   padding: 7px 8px;
   width: 100%;
