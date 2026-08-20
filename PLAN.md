@@ -128,10 +128,11 @@ Completion criteria:
 Goal: support a compact, useful editing set through one uniform operation contract.
 
 - Add crop, canvas resize, affine transform, opacity, and layer compositing.
-- Add exposure, levels or curves, white balance, contrast, saturation, and channel inspection.
-- Add blur and sharpen as the first halo-requiring spatial operations.
-- Add masks with invert, density, feather, and transform behavior.
-- Add a small deliberate blend-mode set with specified linear-light and alpha semantics.
+- Add exposure, brightness, levels, white balance, contrast, highlights, shadows, whites, blacks, clarity, vibrance, saturation, and channel inspection from the Artifactorial adjustment vocabulary.
+- Add blur, sharpen, and noise reduction as halo-requiring spatial operations, plus target-aware vignette and deterministic tile-stable grain.
+- Add masks with invert, density, feather, and transform behavior, and let typed masks limit either a complete layer or one adjustment.
+- Add Photoshop-style separable and non-separable blend modes with specified linear-light and premultiplied-alpha semantics.
+- Keep Fill before the layer effect chain and Opacity after the chain so the two authored controls remain structurally distinct.
 - Let every operation declare parameters, secondary ports, input-region mapping, quality behavior, and CPU and GPU runners.
 - Add bypass, compare, reorder, duplicate, reuse, and delete without implicitly baking source pixels.
 - Define explicit bake or rasterize commands, including whether they create a new asset or replace one, what undo retains, and when old derived tiles can be released.

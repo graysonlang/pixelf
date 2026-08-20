@@ -11,7 +11,9 @@ Pixelf has a target-first project document, direct-DOM layer editor, determinist
 It uses the same core stack as Amoire: TypeScript, `@graysonlang/esp`, Solid's fine-grained reactive primitives, and direct real-DOM bindings.
 There is deliberately no JSX or TSX compilation and no Solid framework renderer.
 
-The current processing vocabulary includes crop, canvas bounds, affine transform, opacity, exposure, levels, white balance, contrast, saturation, channel inspection, blur, sharpen, masks, and a focused set of linear-light blend modes.
+The current processing vocabulary includes crop, canvas bounds, affine transform, opacity, exposure, brightness, levels, white balance, contrast, highlights, shadows, whites, blacks, clarity, vibrance, saturation, channel inspection, blur, sharpen, noise reduction, vignette, and deterministic grain.
+Layers expose Photoshop-style blend modes plus distinct Fill and Opacity stages: Fill controls the source entering the effect chain, while Opacity controls the completed layer contribution.
+Typed masks can limit a complete layer or an individual adjustment and retain invert, density, feather, and transform behavior.
 Images can be opened with the file picker or dropped anywhere on the application workspace.
 The operation registry drives insertion, property controls, validation, region behavior, CPU evaluation, GPU routing, and serialization.
 Operations not yet implemented as dedicated shaders are evaluated by the CPU oracle and uploaded through the WebGPU presentation path, preserving one visible result while GPU coverage grows.
@@ -128,10 +130,11 @@ Metadata policy is a visible export choice: discard, preserve supplied fields, o
 
 ## Compositor lineage
 
-`../mixaic/src/compositor/` is the starting implementation source for Pixelf's rendering core.
+`../mixaic/src/compositor/` is the starting implementation source for Pixelf's rendering core, and `../artifactorial/` is the source vocabulary for the initial photographic adjustment set.
 Its useful contracts already include pure graph-to-pixels evaluation, backward input-region propagation for effect halos, isolated tile rendering and caching, affine placement, premultiplied linear compositing, alpha-safe mip sampling, blend modes, WebGPU acquisition and presentation, upload paths, and budgeted resource pooling.
 
-Pixelf will adapt that code into an internal compositor boundary rather than importing a sibling checkout at runtime.
+Pixelf adapts sibling behavior into an internal compositor boundary rather than importing a sibling checkout at runtime.
+Artifactorial's authored controls become deterministic linear-light engine operations rather than copied CSS preview filters; clarity is a real local-contrast effect and grain is stable across isolated tiles.
 The CPU path should remain the deterministic reference while the WebGPU path grows against shared conformance fixtures.
 Pixelf-specific target contracts, nested layer semantics, persistence, and UI stay outside the low-level compositor.
 
