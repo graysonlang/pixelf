@@ -1424,7 +1424,9 @@ const dispose = createRoot(disposeRoot => {
     stageContent.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
     const deviceScale = measuredStage.deviceWidth / measuredStage.cssWidth;
     preview.style.imageRendering =
-      hybridNearestBlend(scale * deviceScale) >= 1 ? 'pixelated' : 'auto';
+      Math.abs(scale - 1) < 1e-6 || hybridNearestBlend(scale * deviceScale) >= 1
+        ? 'pixelated'
+        : 'auto';
     const percentage = Math.round(scale * 100);
     zoomMenuLabel.textContent = `${percentage}%`;
     zoomMenuButton.setAttribute('aria-label', `Zoom options, ${percentage}%`);

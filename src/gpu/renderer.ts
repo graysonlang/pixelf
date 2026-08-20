@@ -83,6 +83,7 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
     smoothstep(ADAPT_START, ADAPT_END, magnification),
     integerSnap,
   );
+  nearestBlend = max(nearestBlend, item.misc.w);
   sampled = mix(
     sampled,
     textureSample(sourceTexture, nearestSampler, input.uv),
@@ -304,6 +305,7 @@ export class GpuImageRenderer {
       outputWidth,
       outputHeight,
       projection,
+      viewport === undefined || Math.abs(viewport.zoom - 1) < 1e-6,
     );
   }
 
@@ -465,6 +467,7 @@ export class GpuImageRenderer {
     outputWidth: number,
     outputHeight: number,
     projection?: DeviceProjection,
+    forceNearest = false,
   ): void {
     const encoder = this.gpu.device.createCommandEncoder({ label: 'Pixelf presentation encoder' });
     const pass = encoder.beginRenderPass({
@@ -513,7 +516,7 @@ export class GpuImageRenderer {
           targetWidth,
           targetHeight,
           1,
-          0,
+          forceNearest ? 1 : 0,
         ]),
       );
       pass.setBindGroup(
