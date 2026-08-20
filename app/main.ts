@@ -13,6 +13,7 @@ import {
   attachCanvas,
   GpuDeviceManager,
   GpuImageRenderer,
+  hybridNearestBlend,
   type GpuDeviceState,
 } from '../src/gpu/index.js';
 import {
@@ -79,6 +80,13 @@ interface PanState {
   startY: number;
 }
 
+interface StageSize {
+  cssHeight: number;
+  cssWidth: number;
+  deviceHeight: number;
+  deviceWidth: number;
+}
+
 function requireElement<ElementType extends Element>(selector: string): ElementType {
   const element = document.querySelector<ElementType>(selector);
   if (element === null) throw new Error(`Missing required element: ${selector}`);
@@ -139,6 +147,7 @@ const dispose = createRoot(disposeRoot => {
   const metadataPolicy = requireElement<HTMLSelectElement>('#metadata-policy');
   const preview = requireElement<HTMLImageElement>('#image-preview');
   const canvas = requireElement<HTMLCanvasElement>('#gpu-preview');
+  const canvasFrame = requireElement<HTMLElement>('#gpu-preview-frame');
   const sourceIdentity = requireElement<HTMLElement>('#source-identity');
   const sourceName = requireElement<HTMLElement>('#source-name');
   const sourceDetails = requireElement<HTMLElement>('#source-details');
@@ -177,6 +186,14 @@ const dispose = createRoot(disposeRoot => {
   const [zoom, setZoom] = createSignal(1);
   const [panX, setPanX] = createSignal(0);
   const [panY, setPanY] = createSignal(0);
+  const initialStageBounds = stage.getBoundingClientRect();
+  const initialDeviceScale = window.devicePixelRatio || 1;
+  const [stageSize, setStageSize] = createSignal<StageSize>({
+    cssHeight: Math.max(1, initialStageBounds.height),
+    cssWidth: Math.max(1, initialStageBounds.width),
+    deviceHeight: Math.max(1, Math.round(initialStageBounds.height * initialDeviceScale)),
+    deviceWidth: Math.max(1, Math.round(initialStageBounds.width * initialDeviceScale)),
+  });
   const [pixelGrid, setPixelGrid] = createSignal(false);
   const [showingOriginal, setShowingOriginal] = createSignal(false);
   const [theme, setTheme] = createSignal<ThemePreference>(preferences.theme);
@@ -186,6 +203,24 @@ const dispose = createRoot(disposeRoot => {
   let presentationGeneration = 0;
   let dragDepth = 0;
   let panState: PanState | null = null;
+
+  const stageResizeObserver = new ResizeObserver(entries => {
+    const entry = entries.at(-1);
+    const bounds = stage.getBoundingClientRect();
+    const deviceBox = entry?.devicePixelContentBoxSize[0];
+    const deviceScale = window.devicePixelRatio || 1;
+    setStageSize({
+      cssHeight: Math.max(1, bounds.height),
+      cssWidth: Math.max(1, bounds.width),
+      deviceHeight: Math.max(1, deviceBox?.blockSize ?? Math.round(bounds.height * deviceScale)),
+      deviceWidth: Math.max(1, deviceBox?.inlineSize ?? Math.round(bounds.width * deviceScale)),
+    });
+  });
+  try {
+    stageResizeObserver.observe(stage, { box: 'device-pixel-content-box' });
+  } catch {
+    stageResizeObserver.observe(stage);
+  }
 
   quickActionsShortcut.textContent = primaryShortcut('/');
   settingsShortcut.textContent = primaryShortcut(',');
@@ -1267,6 +1302,7 @@ const dispose = createRoot(disposeRoot => {
     stage.removeEventListener('wheel', onStageWheel);
   });
   onCleanup(() => {
+    stageResizeObserver.disconnect();
     renderer?.dispose();
     manager.dispose();
   });
@@ -1384,7 +1420,11 @@ const dispose = createRoot(disposeRoot => {
     const scale = zoom();
     const x = panX();
     const y = panY();
+    const measuredStage = stageSize();
     stageContent.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    const deviceScale = measuredStage.deviceWidth / measuredStage.cssWidth;
+    preview.style.imageRendering =
+      hybridNearestBlend(scale * deviceScale) >= 1 ? 'pixelated' : 'auto';
     const percentage = Math.round(scale * 100);
     zoomMenuLabel.textContent = `${percentage}%`;
     zoomMenuButton.setAttribute('aria-label', `Zoom options, ${percentage}%`);
@@ -1427,12 +1467,18 @@ const dispose = createRoot(disposeRoot => {
     const selected = selectedImage();
     const mode = gpuMode();
     const original = showingOriginal();
+    const scale = zoom();
+    const x = panX();
+    const y = panY();
+    const measuredStage = stageSize();
+    const activeDeviceGeneration = deviceGeneration();
     projectGeneration();
-    deviceGeneration();
     if (selected === null) {
       stage.setAttribute('aria-label', 'Image preview');
       preview.hidden = true;
       canvas.hidden = true;
+      canvasFrame.hidden = true;
+      delete canvas.dataset.presentationKey;
       preview.removeAttribute('src');
       return;
     }
@@ -1442,12 +1488,14 @@ const dispose = createRoot(disposeRoot => {
     stage.setAttribute('aria-label', original ? 'Original image preview' : 'Edited image preview');
     if (original || mode !== 'ready' || manager.current === null || renderer === null) {
       canvas.hidden = true;
+      canvasFrame.hidden = true;
       preview.hidden = false;
       return;
     }
     const targetId = selected.editor.project.targetIds[0];
     if (targetId === undefined) {
       canvas.hidden = true;
+      canvasFrame.hidden = true;
       preview.hidden = false;
       return;
     }
@@ -1460,14 +1508,19 @@ const dispose = createRoot(disposeRoot => {
       const target = attachCanvas(
         manager.current,
         canvas,
-        projection.target.contract.width,
-        projection.target.contract.height,
+        measuredStage.deviceWidth,
+        measuredStage.deviceHeight,
         projection.target.contract.colorSpace,
       );
       canvas.style.maxHeight = 'none';
       canvas.style.maxWidth = 'none';
-      canvas.hidden = true;
-      preview.hidden = false;
+      canvasFrame.style.height = `${projection.target.contract.height}px`;
+      canvasFrame.style.width = `${projection.target.contract.width}px`;
+      const presentationKey = `${selectionGeneration}:${activeDeviceGeneration}:${measuredStage.deviceWidth}x${measuredStage.deviceHeight}`;
+      const retainPresentedFrame = canvas.dataset.presentationKey === presentationKey;
+      canvas.hidden = !retainPresentedFrame;
+      canvasFrame.hidden = !retainPresentedFrame;
+      preview.hidden = retainPresentedFrame;
       const activeRenderer = renderer;
       void activeRenderer
         .present(
@@ -1475,23 +1528,34 @@ const dispose = createRoot(disposeRoot => {
           target,
           projection.target.contract.width,
           projection.target.contract.height,
+          {
+            cssHeight: measuredStage.cssHeight,
+            cssWidth: measuredStage.cssWidth,
+            panX: x,
+            panY: y,
+            zoom: scale,
+          },
         )
         .then(() => {
           if (activePresentation !== presentationGeneration || activeRenderer !== renderer) {
             return;
           }
+          canvas.dataset.presentationKey = presentationKey;
           canvas.hidden = false;
+          canvasFrame.hidden = false;
           preview.hidden = true;
           setGpuMessage('');
         })
         .catch(error => {
           if (activePresentation !== presentationGeneration) return;
           canvas.hidden = true;
+          canvasFrame.hidden = true;
           preview.hidden = false;
           reportError(error);
         });
     } catch (error) {
       canvas.hidden = true;
+      canvasFrame.hidden = true;
       preview.hidden = false;
       reportError(error);
     }

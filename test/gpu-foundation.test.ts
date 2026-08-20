@@ -8,7 +8,10 @@ import {
   compareGpuBytesToReference,
   GpuDeviceManager,
   GpuImageRenderer,
+  hybridNearestBlend,
   premultipliedSrgbMipLevels,
+  previewDeviceProjection,
+  projectImagePlacement,
   ResourcePool,
   srgbViewFormat,
   stripPaddedRows,
@@ -108,19 +111,73 @@ describe('WebGPU foundation', () => {
     assert.equal(srgbChannelToLinear(1), 1);
   });
 
+  it('projects the document through the physical viewport and snaps exact texel scales', () => {
+    const projection = previewDeviceProjection(
+      { cssHeight: 400, cssWidth: 600, panX: 0, panY: 0, zoom: 1 },
+      1200,
+      800,
+      101,
+      51,
+    );
+    assert.deepEqual(projection, {
+      offsetX: 499,
+      offsetY: 349,
+      scaleX: 2,
+      scaleY: 2,
+      scissor: { height: 102, width: 202, x: 499, y: 349 },
+    });
+    assert.deepEqual(
+      projectImagePlacement([1, 0, 0, 1, 0.24, 0.24], projection, 101, 51, 101, 51),
+      [2, 0, 0, 2, 499, 349],
+    );
+    assert.equal(
+      previewDeviceProjection(
+        { cssHeight: 400, cssWidth: 600, panX: 1000, panY: 1000, zoom: 1 },
+        1200,
+        800,
+        101,
+        51,
+      ).scissor,
+      null,
+    );
+  });
+
+  it('uses mipped linear sampling below the adaptive band and nearest at exact scales', () => {
+    assert.equal(hybridNearestBlend(0.25), 0);
+    assert.equal(hybridNearestBlend(1), 1);
+    assert.equal(hybridNearestBlend(2.5) > 0, true);
+    assert.equal(hybridNearestBlend(2.5) < 1, true);
+    assert.equal(hybridNearestBlend(3), 1);
+    assert.equal(hybridNearestBlend(6), 1);
+  });
+
   it('waits for the pipeline before acquiring a presentation texture', async () => {
     const shaderStageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'GPUShaderStage');
+    const textureUsageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'GPUTextureUsage');
+    const bufferUsageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'GPUBufferUsage');
     Object.defineProperty(globalThis, 'GPUShaderStage', {
       configurable: true,
       value: { FRAGMENT: 2, VERTEX: 1 },
     });
+    Object.defineProperty(globalThis, 'GPUTextureUsage', {
+      configurable: true,
+      value: { COPY_SRC: 1, RENDER_ATTACHMENT: 2, TEXTURE_BINDING: 4 },
+    });
+    Object.defineProperty(globalThis, 'GPUBufferUsage', {
+      configurable: true,
+      value: { COPY_DST: 1, UNIFORM: 2 },
+    });
     const events: string[] = [];
     const pass = {
+      draw: () => {},
       end: () => {},
+      setBindGroup: () => {},
       setPipeline: () => {},
     };
     const device = {
+      createBindGroup: () => ({}),
       createBindGroupLayout: () => ({}),
+      createBuffer: () => ({ destroy: () => {} }),
       createCommandEncoder: () => ({
         beginRenderPass: () => pass,
         finish: () => ({}),
@@ -134,6 +191,7 @@ describe('WebGPU foundation', () => {
           return { messages: [] };
         },
       }),
+      createTexture: () => ({ createView: () => ({}), destroy: () => {} }),
       limits: { minUniformBufferOffsetAlignment: 256 },
     } as unknown as GPUDevice;
     const renderer = new GpuImageRenderer({
@@ -143,6 +201,7 @@ describe('WebGPU foundation', () => {
       queue: {
         onSubmittedWorkDone: async () => {},
         submit: () => events.push('submitted'),
+        writeBuffer: () => {},
       } as unknown as GPUQueue,
     });
     const target = {
@@ -159,13 +218,23 @@ describe('WebGPU foundation', () => {
     };
     try {
       await renderer.present({ entities: [] }, target, 1, 1);
-      assert.deepEqual(events, ['pipeline-ready', 'texture-acquired', 'submitted']);
+      assert.deepEqual(events, [
+        'pipeline-ready',
+        'pipeline-ready',
+        'pipeline-ready',
+        'submitted',
+        'texture-acquired',
+        'submitted',
+      ]);
     } finally {
       renderer.dispose();
-      if (shaderStageDescriptor === undefined) {
-        Reflect.deleteProperty(globalThis, 'GPUShaderStage');
-      } else {
-        Object.defineProperty(globalThis, 'GPUShaderStage', shaderStageDescriptor);
+      for (const [name, descriptor] of [
+        ['GPUShaderStage', shaderStageDescriptor],
+        ['GPUTextureUsage', textureUsageDescriptor],
+        ['GPUBufferUsage', bufferUsageDescriptor],
+      ] as const) {
+        if (descriptor === undefined) Reflect.deleteProperty(globalThis, name);
+        else Object.defineProperty(globalThis, name, descriptor);
       }
     }
   });

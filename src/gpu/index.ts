@@ -31,3 +31,12 @@ export {
   uploadImageTexture,
   type ByteMipLevel,
 } from './upload.js';
+export {
+  HYBRID_NEAREST_END,
+  HYBRID_NEAREST_START,
+  hybridNearestBlend,
+  previewDeviceProjection,
+  projectImagePlacement,
+  type DeviceProjection,
+  type ViewportPresentation,
+} from './viewport.js';

@@ -109,8 +109,9 @@
 
       <section class="stage-column">
         <section id="stage" class="stage" aria-label="Image preview">
+          <canvas id="gpu-preview" aria-label="Processed WebGPU preview" hidden></canvas>
           <div id="stage-content" class="stage-content">
-            <canvas id="gpu-preview" aria-label="Processed WebGPU preview" hidden></canvas>
+            <div id="gpu-preview-frame" class="gpu-preview-frame" aria-hidden="true" hidden></div>
             <img id="image-preview" alt="Original source preview" hidden>
           </div>
         </section>
