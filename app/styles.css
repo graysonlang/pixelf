@@ -660,6 +660,48 @@ button:disabled {
   width: 100%;
 }
 
+.property-field.dimension-field {
+  align-items: center;
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  display: flex;
+  gap: 8px;
+  padding: 7px 8px;
+}
+
+.property-field.dimension-field:focus-within {
+  border-color: var(--line-strong);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dimension-label {
+  color: var(--muted);
+  cursor: ew-resize;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 400;
+  touch-action: none;
+  user-select: none;
+}
+
+.property-field.dimension-field .dimension-input {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  outline: 0;
+  padding: 0;
+  width: 0;
+}
+
+.property-field.dimension-field[data-scrubbing="true"],
+.property-field.dimension-field[data-scrubbing="true"] .dimension-input {
+  cursor: ew-resize;
+}
+
 .property-field input[type="checkbox"] {
   height: 18px;
   width: 18px;

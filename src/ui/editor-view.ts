@@ -1,5 +1,12 @@
 import { nodeRegistry, type ParameterDefinition } from '../project/registry.js';
 import type { JsonValue, PixelfProject, ProjectNode, TargetContract } from '../project/types.js';
+import {
+  MAX_DIMENSION,
+  MIN_DIMENSION,
+  parseDimension,
+  scrubDimension,
+  stepDimension,
+} from './dimension-control.js';
 
 export interface TreeEntry {
   depth: number;
@@ -19,7 +26,11 @@ export interface TreeViewOptions {
 
 export interface PropertiesViewOptions {
   onParameter(nodeId: string, key: string, value: JsonValue): void;
-  onTargetContract(nodeId: string, contract: TargetContract): void;
+  onTargetContract(
+    nodeId: string,
+    contract: TargetContract,
+    options?: { preserveControls?: boolean },
+  ): void;
 }
 
 function primaryChildren(node: ProjectNode): readonly string[] {
@@ -230,20 +241,91 @@ function parameterControl(
 function targetFields(
   fragment: DocumentFragment,
   node: ProjectNode & { type: 'target' },
-  onContract: (contract: TargetContract) => void,
+  onContract: (contract: TargetContract, options?: { preserveControls?: boolean }) => void,
 ): void {
+  let currentContract = node.contract;
   const numberField = (key: 'height' | 'width', label: string): void => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'property-field dimension-field';
+    const name = document.createElement('label');
+    name.className = 'dimension-label';
+    name.textContent = label;
+    name.title = `Drag to adjust ${label.toLowerCase()}`;
     const input = document.createElement('input');
-    input.type = 'number';
-    input.min = '1';
-    input.max = '262144';
-    input.step = '1';
+    input.autocomplete = 'off';
+    input.className = 'dimension-input';
+    input.id = `property-${node.id}-${key}`;
+    input.inputMode = 'numeric';
+    input.pattern = '[0-9]*';
+    input.role = 'spinbutton';
+    input.type = 'text';
     input.value = String(node.contract[key]);
+    input.setAttribute('aria-valuemax', String(MAX_DIMENSION));
+    input.setAttribute('aria-valuemin', String(MIN_DIMENSION));
+    input.setAttribute('aria-valuenow', input.value);
+    name.htmlFor = input.id;
+    let appliedValue = node.contract[key];
+    const apply = (value: number): void => {
+      if (value === appliedValue) return;
+      appliedValue = value;
+      input.setAttribute('aria-valuenow', String(value));
+      currentContract = { ...currentContract, [key]: value };
+      onContract(currentContract, { preserveControls: true });
+    };
     input.addEventListener('input', () => {
-      const value = Number(input.value);
-      if (Number.isInteger(value) && value > 0) onContract({ ...node.contract, [key]: value });
+      const value = parseDimension(input.value);
+      if (value !== null) apply(value);
     });
-    fragment.append(field(label, input));
+    input.addEventListener('blur', () => {
+      const value = parseDimension(input.value);
+      if (value === null) input.value = String(appliedValue);
+      else apply(value);
+    });
+    input.addEventListener('keydown', event => {
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        const current = parseDimension(input.value) ?? appliedValue;
+        const value = stepDimension(current, event.key === 'ArrowUp' ? 1 : -1);
+        input.value = String(value);
+        apply(value);
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        input.blur();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        input.value = String(appliedValue);
+        input.blur();
+      }
+    });
+    let scrubPointerId: number | null = null;
+    let scrubStartX = 0;
+    let scrubStartValue = 0;
+    const stopScrub = (event: PointerEvent): void => {
+      if (event.pointerId !== scrubPointerId) return;
+      scrubPointerId = null;
+      delete wrapper.dataset.scrubbing;
+      if (name.hasPointerCapture(event.pointerId)) name.releasePointerCapture(event.pointerId);
+    };
+    name.addEventListener('pointerdown', event => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      scrubPointerId = event.pointerId;
+      scrubStartX = event.clientX;
+      scrubStartValue = parseDimension(input.value) ?? appliedValue;
+      wrapper.dataset.scrubbing = 'true';
+      name.setPointerCapture(event.pointerId);
+    });
+    name.addEventListener('click', event => event.preventDefault());
+    name.addEventListener('pointermove', event => {
+      if (event.pointerId !== scrubPointerId) return;
+      const value = scrubDimension(scrubStartValue, event.clientX - scrubStartX);
+      input.value = String(value);
+      apply(value);
+    });
+    name.addEventListener('pointerup', stopScrub);
+    name.addEventListener('pointercancel', stopScrub);
+    wrapper.append(name, input);
+    fragment.append(wrapper);
   };
   const selectField = <Key extends keyof TargetContract>(
     key: Key,
@@ -260,7 +342,10 @@ function targetFields(
     select.value = String(node.contract[key]);
     select.addEventListener('change', () => {
       const current = values.find(value => String(value) === select.value);
-      if (current !== undefined) onContract({ ...node.contract, [key]: current });
+      if (current !== undefined) {
+        currentContract = { ...currentContract, [key]: current };
+        onContract(currentContract);
+      }
     });
     fragment.append(field(label, select));
   };
@@ -294,7 +379,9 @@ export function renderProperties(
   heading.append(eyebrow, title);
   fragment.append(heading);
   if (node.type === 'target') {
-    targetFields(fragment, node, contract => options.onTargetContract(node.id, contract));
+    targetFields(fragment, node, (contract, changeOptions) =>
+      options.onTargetContract(node.id, contract, changeOptions),
+    );
   } else {
     const definition = nodeRegistry.get(node.type);
     for (const parameter of definition?.parameters ?? []) {

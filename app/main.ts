@@ -169,6 +169,7 @@ const dispose = createRoot(disposeRoot => {
   const [selectedImage, setSelectedImage] = createSignal<SelectedImage | null>(null);
   const [selectedNodeId, setSelectedNodeId] = createSignal<string | null>(null);
   const [projectGeneration, setProjectGeneration] = createSignal(0);
+  const [propertiesGeneration, setPropertiesGeneration] = createSignal(0);
   const [treeGeneration, setTreeGeneration] = createSignal(0);
   const [gpuMode, setGpuMode] = createSignal<'checking' | 'fallback' | 'ready'>('checking');
   const [gpuMessage, setGpuMessage] = createSignal('');
@@ -223,8 +224,9 @@ const dispose = createRoot(disposeRoot => {
   });
 
   const currentEditor = (): EditorState | null => selectedImage()?.editor ?? null;
-  const refreshProject = (): void => {
+  const refreshProject = (refreshProperties = true): void => {
     setProjectGeneration(generation => generation + 1);
+    if (refreshProperties) setPropertiesGeneration(generation => generation + 1);
   };
   const refreshTree = (): void => {
     setTreeGeneration(generation => generation + 1);
@@ -232,10 +234,10 @@ const dispose = createRoot(disposeRoot => {
   const reportError = (error: unknown): void => {
     setGpuMessage(error instanceof Error ? error.message : String(error));
   };
-  const runCommand = (action: () => void): void => {
+  const runCommand = (action: () => void, refreshProperties = true): void => {
     try {
       action();
-      refreshProject();
+      refreshProject(refreshProperties);
     } catch (error) {
       reportError(error);
     }
@@ -1330,24 +1332,6 @@ const dispose = createRoot(disposeRoot => {
     }
     if (editor === null) {
       layerTree.replaceChildren();
-      renderProperties(
-        selectionProperties,
-        {
-          assets: {},
-          name: '',
-          nodes: {},
-          projectId: 'project-empty',
-          schema: 'pixelf.project',
-          targetIds: [],
-          version: 1,
-          wires: [],
-        },
-        null,
-        {
-          onParameter: () => {},
-          onTargetContract: () => {},
-        },
-      );
       return;
     }
     localStorage.setItem(
@@ -1366,6 +1350,16 @@ const dispose = createRoot(disposeRoot => {
       onToggle: toggleNode,
       selectedNodeId: selectedId,
     });
+  });
+
+  createEffect(() => {
+    propertiesGeneration();
+    const editor = currentEditor();
+    const selectedId = selectedNodeId();
+    if (editor === null) {
+      selectionProperties.replaceChildren();
+      return;
+    }
     renderProperties(selectionProperties, editor.project, selectedId, {
       onParameter: (nodeId, key, value) =>
         runCommand(() =>
@@ -1374,12 +1368,14 @@ const dispose = createRoot(disposeRoot => {
             { label: `Set ${key}`, mergeKey: `${nodeId}:${key}` },
           ),
         ),
-      onTargetContract: (nodeId, contract) =>
-        runCommand(() =>
-          editor.dispatch(
-            { contract: normalizedContract(contract), nodeId, type: 'set-target-contract' },
-            { label: 'Set target output', mergeKey: `${nodeId}:contract` },
-          ),
+      onTargetContract: (nodeId, contract, options) =>
+        runCommand(
+          () =>
+            editor.dispatch(
+              { contract: normalizedContract(contract), nodeId, type: 'set-target-contract' },
+              { label: 'Set target output', mergeKey: `${nodeId}:contract` },
+            ),
+          options?.preserveControls !== true,
         ),
     });
   });
