@@ -1,4 +1,5 @@
 export { projectTargetToGraph, type DecodedAssetStore, type DecodedImageAsset } from './adapter.js';
+export { BLEND_MODES } from '../image/blend-modes.js';
 export { applyEffect, effectHalo, effectInputRegion } from './effects.js';
 export {
   blur,

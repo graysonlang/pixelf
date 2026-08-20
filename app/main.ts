@@ -312,6 +312,13 @@ const dispose = createRoot(disposeRoot => {
     return null;
   };
 
+  const maskTargetForNode = (nodeId: string): LayerNode | ProcessorNode | null => {
+    const editor = currentEditor();
+    const node = editor?.project.nodes[nodeId];
+    if (node?.type.startsWith('process/')) return node as ProcessorNode;
+    return layerForNode(nodeId);
+  };
+
   const deleteNode = (nodeId: string): void => {
     const editor = currentEditor();
     if (editor === null || editor.project.nodes[nodeId] === undefined) return;
@@ -437,10 +444,10 @@ const dispose = createRoot(disposeRoot => {
     const editor = currentEditor();
     const selectedId = selectedNodeId();
     if (editor === null || selectedId === null) return;
-    const layer = layerForNode(selectedId);
+    const target = maskTargetForNode(selectedId);
     if (
-      layer === null ||
-      editor.project.wires.some(wire => wire.to.nodeId === layer.id && wire.to.port === 'mask')
+      target === null ||
+      editor.project.wires.some(wire => wire.to.nodeId === target.id && wire.to.port === 'mask')
     ) {
       return;
     }
@@ -456,7 +463,7 @@ const dispose = createRoot(disposeRoot => {
               wire: {
                 from: { nodeId: mask.id, port: 'mask' },
                 id: wireId,
-                to: { nodeId: layer.id, port: 'mask' },
+                to: { nodeId: target.id, port: 'mask' },
               },
             },
           ],
@@ -465,7 +472,7 @@ const dispose = createRoot(disposeRoot => {
         { label: 'Add mask' },
       ),
     );
-    expanded.add(layer.id);
+    expanded.add(target.id);
     selectNode(mask.id);
   };
 
@@ -708,7 +715,12 @@ const dispose = createRoot(disposeRoot => {
     {
       enabled: () => {
         const node = selectedNode();
-        return node !== undefined && node.type !== 'target' && node.type !== 'source/mask';
+        return (
+          node !== undefined &&
+          node.type !== 'target' &&
+          node.type !== 'source/mask' &&
+          node.type !== 'source/checker-mask'
+        );
       },
       id: 'add-operation',
       keywords: ['new', 'processor', 'effect'],
@@ -720,10 +732,12 @@ const dispose = createRoot(disposeRoot => {
         const editor = currentEditor();
         const selectedId = selectedNodeId();
         if (editor === null || selectedId === null) return false;
-        const layer = layerForNode(selectedId);
+        const target = maskTargetForNode(selectedId);
         return (
-          layer !== null &&
-          !editor.project.wires.some(wire => wire.to.nodeId === layer.id && wire.to.port === 'mask')
+          target !== null &&
+          !editor.project.wires.some(
+            wire => wire.to.nodeId === target.id && wire.to.port === 'mask',
+          )
         );
       },
       id: 'add-mask',
@@ -1347,18 +1361,19 @@ const dispose = createRoot(disposeRoot => {
     addOperationButton.disabled =
       selectedNode === undefined ||
       selectedNode.type === 'target' ||
-      selectedNode.type === 'source/mask';
+      selectedNode.type === 'source/mask' ||
+      selectedNode.type === 'source/checker-mask';
     operationType.disabled = addOperationButton.disabled;
     duplicateButton.disabled =
       editor === null ||
       selectedNode === undefined ||
       selectedNode.type === 'target' ||
       findPrimaryParent(editor.project, selectedNode.id) === null;
-    const selectedLayer = selectedId === null ? null : layerForNode(selectedId);
+    const selectedMaskTarget = selectedId === null ? null : maskTargetForNode(selectedId);
     addMaskButton.disabled =
-      selectedLayer === null ||
+      selectedMaskTarget === null ||
       editor?.project.wires.some(
-        wire => wire.to.nodeId === selectedLayer.id && wire.to.port === 'mask',
+        wire => wire.to.nodeId === selectedMaskTarget.id && wire.to.port === 'mask',
       ) === true;
     moveUpButton.disabled = selectedNode?.type !== 'layer';
     moveDownButton.disabled = selectedNode?.type !== 'layer';

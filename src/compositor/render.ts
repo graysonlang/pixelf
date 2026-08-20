@@ -1,7 +1,82 @@
 import { applyEffect, effectInputRegion } from './effects.js';
 import type { Entity, Graph } from './graph.js';
 import { rasterSource } from './source.js';
-import { blendOnto, makeSurface, readPremul, type Region, type Surface } from './surface.js';
+import {
+  blendOnto,
+  cropSurface,
+  makeSurface,
+  readPremul,
+  type Region,
+  type Surface,
+} from './surface.js';
+
+function evaluateMask(
+  ownerId: string,
+  mask: NonNullable<Entity['mask']>,
+  output: Region,
+  scale: number,
+): Surface {
+  return evalEntity(
+    {
+      blend: 'normal',
+      effects: mask.effects,
+      fill: 1,
+      h: mask.h,
+      id: `${ownerId}:mask`,
+      matrix: mask.matrix,
+      opacity: 1,
+      source: mask.source,
+      w: mask.w,
+      x: mask.x,
+      y: mask.y,
+    },
+    output,
+    scale,
+  );
+}
+
+function maskAmount(
+  mask: NonNullable<Entity['mask']>,
+  maskSurface: Surface,
+  x: number,
+  y: number,
+  pixel: Float32Array,
+): number {
+  readPremul(maskSurface, x, y, pixel);
+  const value = (pixel[0] ?? 0) * 0.2126 + (pixel[1] ?? 0) * 0.7152 + (pixel[2] ?? 0) * 0.0722;
+  const inverted = mask.invert ? 1 - value : value;
+  return Math.max(0, Math.min(1, inverted * mask.density));
+}
+
+function mixEffectMask(
+  original: Surface,
+  adjusted: Surface,
+  mask: NonNullable<Entity['mask']>,
+  ownerId: string,
+  output: Region,
+  scale: number,
+): Surface {
+  const maskSurface = evaluateMask(ownerId, mask, output, scale);
+  const maskPixel = new Float32Array(4);
+  for (let y = 0; y < output.h; y += 1) {
+    for (let x = 0; x < output.w; x += 1) {
+      const amount = maskAmount(mask, maskSurface, output.x + x, output.y + y, maskPixel);
+      const offset = (y * output.w + x) * 4;
+      for (let channel = 0; channel < 4; channel += 1) {
+        adjusted.data[offset + channel] =
+          (original.data[offset + channel] ?? 0) * (1 - amount) +
+          (adjusted.data[offset + channel] ?? 0) * amount;
+      }
+    }
+  }
+  return adjusted;
+}
+
+function multiplySurface(surface: Surface, amount: number): void {
+  for (let offset = 0; offset < surface.data.length; offset += 1) {
+    surface.data[offset] = (surface.data[offset] ?? 0) * amount;
+  }
+}
 
 export function evalEntity(entity: Entity, output: Region, scale: number): Surface {
   const regions = new Array<Region>(entity.effects.length + 1);
@@ -19,39 +94,33 @@ export function evalEntity(entity: Entity, output: Region, scale: number): Surfa
     const effect = entity.effects[index];
     const effectOutput = regions[index + 1];
     if (effect === undefined || effectOutput === undefined) throw new Error('Invalid effect chain');
+    const original = effect.mask === undefined ? null : cropSurface(surface, effectOutput);
     surface = applyEffect(effect, surface, effectOutput, scale);
+    if (effect.mask !== undefined && original !== null) {
+      surface = mixEffectMask(
+        original,
+        surface,
+        effect.mask,
+        `${entity.id}:effect:${index}`,
+        effectOutput,
+        scale,
+      );
+    }
   }
-  if (entity.mask === undefined) return surface;
-  const mask = evalEntity(
-    {
-      blend: 'normal',
-      effects: entity.mask.effects,
-      h: entity.mask.h,
-      id: `${entity.id}:mask`,
-      matrix: entity.mask.matrix,
-      opacity: 1,
-      source: entity.mask.source,
-      w: entity.mask.w,
-      x: entity.mask.x,
-      y: entity.mask.y,
-    },
-    output,
-    scale,
-  );
-  const maskPixel = new Float32Array(4);
-  for (let y = 0; y < output.h; y += 1) {
-    for (let x = 0; x < output.w; x += 1) {
-      readPremul(mask, output.x + x, output.y + y, maskPixel);
-      const value =
-        (maskPixel[0] ?? 0) * 0.2126 + (maskPixel[1] ?? 0) * 0.7152 + (maskPixel[2] ?? 0) * 0.0722;
-      const inverted = entity.mask.invert ? 1 - value : value;
-      const amount = Math.max(0, Math.min(1, inverted * entity.mask.density));
-      const offset = (y * output.w + x) * 4;
-      for (let channel = 0; channel < 4; channel += 1) {
-        surface.data[offset + channel] = (surface.data[offset + channel] ?? 0) * amount;
+  if (entity.mask !== undefined) {
+    const maskSurface = evaluateMask(entity.id, entity.mask, output, scale);
+    const maskPixel = new Float32Array(4);
+    for (let y = 0; y < output.h; y += 1) {
+      for (let x = 0; x < output.w; x += 1) {
+        const amount = maskAmount(entity.mask, maskSurface, output.x + x, output.y + y, maskPixel);
+        const offset = (y * output.w + x) * 4;
+        for (let channel = 0; channel < 4; channel += 1) {
+          surface.data[offset + channel] = (surface.data[offset + channel] ?? 0) * amount;
+        }
       }
     }
   }
+  multiplySurface(surface, Math.max(0, entity.opacity));
   return surface;
 }
 

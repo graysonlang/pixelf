@@ -214,6 +214,7 @@ export function flattenGraphForGpu(graph: Graph, width: number, height: number):
       {
         blend: 'normal',
         effects: [],
+        fill: 1,
         h: height,
         id: `flattened:${revision}`,
         opacity: 1,
@@ -568,7 +569,7 @@ export class GpuImageRenderer {
       if (entity.source.kind !== 'image') {
         throw new Error(`The first WebGPU path cannot render ${entity.source.kind} sources`);
       }
-      if (entity.effects.length > 0 || entity.blend !== 'normal') {
+      if (entity.effects.length > 0 || entity.mask !== undefined || entity.blend !== 'normal') {
         throw new Error(
           'The first WebGPU path accepts imported images with normal compositing only',
         );
@@ -589,7 +590,20 @@ export class GpuImageRenderer {
       this.gpu.queue.writeBuffer(
         uniform,
         0,
-        new Float32Array([a, c, e, width, b, d, f, height, entity.w, entity.h, entity.opacity, 0]),
+        new Float32Array([
+          a,
+          c,
+          e,
+          width,
+          b,
+          d,
+          f,
+          height,
+          entity.w,
+          entity.h,
+          (entity.fill ?? 1) * entity.opacity,
+          0,
+        ]),
       );
       const texture = textureForImage(this.gpu, this.textures, entity.source);
       const bindGroup = this.gpu.device.createBindGroup({

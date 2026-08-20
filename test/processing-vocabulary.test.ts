@@ -52,13 +52,24 @@ const effects: readonly Effect[] = [
   { height: 2, kind: 'canvas-resize', width: 3, x: 0, y: 1 },
   { kind: 'affine', pivotX: 1, pivotY: 1, rotation: 15, scaleX: 1, scaleY: 1, x: 0, y: 0 },
   { kind: 'exposure', stops: 0.5 },
+  { amount: 0.2, kind: 'brightness' },
   { gamma: 1.2, inBlack: 0.1, inWhite: 0.9, kind: 'levels', outBlack: 0, outWhite: 1 },
   { kind: 'white-balance', temperature: 0.4, tint: -0.2 },
   { amount: 0.3, kind: 'contrast' },
+  { amount: 0.4, kind: 'highlights' },
+  { amount: -0.3, kind: 'shadows' },
+  { amount: 0.2, kind: 'whites' },
+  { amount: -0.2, kind: 'blacks' },
+  { amount: 0.4, kind: 'clarity', radius: 1 },
+  { amount: 0.5, kind: 'vibrance' },
   { amount: 0.5, kind: 'saturation' },
   { channel: 'alpha', kind: 'channel' },
   { kind: 'blur', sigma: 0.8 },
   { amount: 0.6, kind: 'sharpen', radius: 0.8 },
+  { amount: 0.6, kind: 'noise-reduction', radius: 1 },
+  { amount: 0.5, height: 3, kind: 'vignette', width: 3 },
+  { amount: 0.5, kind: 'grain', seed: 42 },
+  { amount: 0.5, kind: 'opacity' },
 ];
 
 function projectFixture() {
@@ -90,13 +101,23 @@ describe('reversible processing vocabulary', () => {
         'process/affine',
         'process/opacity',
         'process/exposure',
+        'process/brightness',
         'process/levels',
         'process/white-balance',
         'process/contrast',
+        'process/highlights',
+        'process/shadows',
+        'process/whites',
+        'process/blacks',
+        'process/clarity',
+        'process/vibrance',
         'process/saturation',
         'process/channel',
         'process/blur',
         'process/sharpen',
+        'process/noise-reduction',
+        'process/vignette',
+        'process/grain',
         'process/composite',
         'process/adjustment-group',
       ],
@@ -107,6 +128,7 @@ describe('reversible processing vocabulary', () => {
       assert.equal(definition.execution.cpuRunner, 'reference');
       assert.ok(['cpu-upload', 'direct'].includes(definition.execution.gpuRunner));
       assert.ok(definition.region.kind);
+      assert.ok(definition.ports.some(port => port.direction === 'input' && port.kind === 'mask'));
     }
   });
 
@@ -128,7 +150,11 @@ describe('reversible processing vocabulary', () => {
 
   it('keeps halo operations equal across isolated tile boundaries', () => {
     for (const effect of effects.filter(
-      candidate => candidate.kind === 'blur' || candidate.kind === 'sharpen',
+      candidate =>
+        candidate.kind === 'blur' ||
+        candidate.kind === 'clarity' ||
+        candidate.kind === 'noise-reduction' ||
+        candidate.kind === 'sharpen',
     )) {
       const graph: Graph = {
         entities: [
@@ -184,6 +210,52 @@ describe('reversible processing vocabulary', () => {
     assert.equal(graph.entities[0]?.source.kind, 'solid');
   });
 
+  it('limits an individual adjustment with its own mask', () => {
+    const graph: Graph = {
+      entities: [
+        {
+          blend: 'normal',
+          effects: [
+            {
+              amount: 1,
+              kind: 'brightness',
+              mask: {
+                density: 1,
+                effects: [],
+                h: 1,
+                invert: false,
+                source: { first: 0, kind: 'checker', offsetX: 0, offsetY: 0, second: 1, size: 1 },
+                w: 2,
+                x: 0,
+                y: 0,
+              },
+            },
+          ],
+          h: 1,
+          id: 'adjustment-mask',
+          opacity: 1,
+          source: solid(0.25, 0.25, 0.25),
+          w: 2,
+          x: 0,
+          y: 0,
+        },
+      ],
+    };
+    const output = renderRegion(graph, { h: 1, w: 2, x: 0, y: 0 }, 1);
+    assert.deepEqual([...output.data], [0.25, 0.25, 0.25, 1, 0.5, 0.5, 0.5, 1]);
+  });
+
+  it('keeps deterministic grain identical across full and tiled evaluation', () => {
+    const graph: Graph = { entities: [entity({ amount: 0.8, kind: 'grain', seed: 27 })] };
+    const region = { h: 3, w: 3, x: 0, y: 0 };
+    const full = renderRegion(graph, region, 1);
+    const tiled = assembleTiles(
+      renderTiles({ graph, quality: 'final', region, scale: 1, targetKey: 'grain' }),
+      region,
+    );
+    assert.deepEqual([...tiled.data], [...full.data]);
+  });
+
   it('projects every registry operation and preserves authored parameters through reload', () => {
     const decoded = new Map([
       ['asset-processing', { data: pixels, height: 3, revision: 'one', width: 3 }],
@@ -207,6 +279,32 @@ describe('reversible processing vocabulary', () => {
       const projection = projectTargetToGraph(reloaded, 'node-target', decoded);
       assert.equal(projection.graph.entities.length, 1, definition.type);
     }
+  });
+
+  it('projects a typed processor mask onto its adjustment effect', () => {
+    const project = projectFixture();
+    const layer = project.nodes['node-layer'];
+    assert.equal(layer?.type, 'layer');
+    if (layer?.type !== 'layer') return;
+    const adjustment = createNode('process/brightness', 'node-brightness') as ProcessorNode;
+    adjustment.parameters.amount = 50;
+    adjustment.childId = layer.childId;
+    layer.childId = adjustment.id;
+    project.nodes[adjustment.id] = adjustment;
+    const mask = createNode('source/checker-mask', 'node-adjustment-mask');
+    project.nodes[mask.id] = mask;
+    project.wires.push({
+      from: { nodeId: mask.id, port: 'mask' },
+      id: 'wire-adjustment-mask',
+      to: { nodeId: adjustment.id, port: 'mask' },
+    });
+    const projection = projectTargetToGraph(
+      project,
+      'node-target',
+      new Map([['asset-processing', { data: pixels, height: 3, revision: 'mask', width: 3 }]]),
+    );
+    assert.equal(projection.graph.entities[0]?.effects[0]?.kind, 'brightness');
+    assert.ok(projection.graph.entities[0]?.effects[0]?.mask);
   });
 
   it('duplicates reusable branches and makes rasterization an undoable visible boundary', () => {

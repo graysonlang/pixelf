@@ -1,5 +1,5 @@
 export const PIXELF_PROJECT_SCHEMA = 'pixelf.project';
-export const PIXELF_PROJECT_VERSION = 1;
+export const PIXELF_PROJECT_VERSION = 2;
 
 export type JsonPrimitive = boolean | number | string | null;
 export type JsonValue =

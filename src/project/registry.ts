@@ -1,3 +1,4 @@
+import { BLEND_MODES } from '../image/blend-modes.js';
 import type { JsonValue, PortKind, ProjectNode } from './types.js';
 
 export type ParameterKind = 'boolean' | 'enum' | 'number' | 'string';
@@ -96,7 +97,11 @@ function processor(
     execution: { cpuRunner: 'reference', gpuRunner: 'cpu-upload', quality },
     kind: 'processor',
     parameters: [...parameters, bypass],
-    ports: [...inputs, { direction: 'output', key: 'image', kind: 'image', label: 'Image' }],
+    ports: [
+      { direction: 'input', key: 'mask', kind: 'mask', label: 'Mask' },
+      ...inputs,
+      { direction: 'output', key: 'image', kind: 'image', label: 'Image' },
+    ],
     region,
     title,
     type,
@@ -129,12 +134,21 @@ const definitions = [
         minimum: 0,
       },
       {
+        default: 1,
+        description: 'The layer source contribution before adjustments and compositing effects.',
+        key: 'fill',
+        kind: 'number',
+        label: 'Fill',
+        maximum: 1,
+        minimum: 0,
+      },
+      {
         default: 'normal',
         description: 'How the layer combines with the accumulated target.',
         key: 'blendMode',
         kind: 'enum',
         label: 'Blend mode',
-        values: ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'add'],
+        values: BLEND_MODES,
       },
     ],
     ports: [
@@ -194,6 +208,9 @@ const definitions = [
   processor('process/exposure', 'Exposure', 'Scales scene-linear light by photographic stops.', [
     numberParameter('stops', 'Stops', 0, -20, 20),
   ]),
+  processor('process/brightness', 'Brightness', 'Scales overall image brightness.', [
+    numberParameter('amount', 'Amount', 0, -100, 100),
+  ]),
   processor('process/levels', 'Levels', 'Remaps black, white, gamma, and output endpoints.', [
     numberParameter('inBlack', 'Input black', 0, 0, 1),
     numberParameter('inWhite', 'Input white', 1, 0, 1),
@@ -212,6 +229,29 @@ const definitions = [
   ),
   processor('process/contrast', 'Contrast', 'Adjusts contrast around middle gray.', [
     numberParameter('amount', 'Amount', 0, -1, 10),
+  ]),
+  processor('process/highlights', 'Highlights', 'Adjusts the brighter half of the tonal range.', [
+    numberParameter('amount', 'Amount', 0, -100, 100),
+  ]),
+  processor('process/shadows', 'Shadows', 'Adjusts the darker half of the tonal range.', [
+    numberParameter('amount', 'Amount', 0, -100, 100),
+  ]),
+  processor('process/whites', 'Whites', 'Adjusts the white range and diffuse highlights.', [
+    numberParameter('amount', 'Amount', 0, -100, 100),
+  ]),
+  processor('process/blacks', 'Blacks', 'Adjusts the black range and shadow floor.', [
+    numberParameter('amount', 'Amount', 0, -100, 100),
+  ]),
+  processor(
+    'process/clarity',
+    'Clarity',
+    'Adjusts local midtone contrast with a tile-aware halo.',
+    [numberParameter('amount', 'Amount', 0, -100, 100)],
+    { kind: 'halo' },
+    'scalable',
+  ),
+  processor('process/vibrance', 'Vibrance', 'Adjusts less colorful pixels preferentially.', [
+    numberParameter('amount', 'Amount', 0, -100, 100),
   ]),
   processor('process/saturation', 'Saturation', 'Adjusts colorfulness in linear working space.', [
     numberParameter('amount', 'Amount', 1, 0, 10),
@@ -251,6 +291,21 @@ const definitions = [
     'scalable',
   ),
   processor(
+    'process/noise-reduction',
+    'Noise reduction',
+    'Reduces high-frequency noise with an alpha-safe tile-aware filter.',
+    [numberParameter('amount', 'Amount', 0, 0, 100)],
+    { kind: 'halo' },
+    'scalable',
+  ),
+  processor('process/vignette', 'Vignette', 'Darkens or lifts the image toward its edges.', [
+    numberParameter('amount', 'Amount', 0, -100, 100),
+  ]),
+  processor('process/grain', 'Grain', 'Adds deterministic tile-stable monochrome grain.', [
+    numberParameter('amount', 'Amount', 0, 0, 100),
+    { ...numberParameter('seed', 'Seed', 0, 0, 2147483647), integer: true },
+  ]),
+  processor(
     'process/composite',
     'Composite',
     'Combines a declared secondary image with the primary branch.',
@@ -262,7 +317,7 @@ const definitions = [
         key: 'blendMode',
         kind: 'enum',
         label: 'Blend mode',
-        values: ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'add'],
+        values: BLEND_MODES,
       },
     ],
     { kind: 'identity' },

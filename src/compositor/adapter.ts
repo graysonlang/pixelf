@@ -63,12 +63,12 @@ function stringParameter(node: ProjectNode, key: string): string {
   return value;
 }
 
-function operationEffect(node: ProcessorNode): Effect | null {
+function operationEffect(node: ProcessorNode, target: TargetNode): Effect {
   nodeRegistry.require(node.type);
   switch (node.type) {
     case 'process/opacity':
     case 'process/adjustment-group':
-      return null;
+      return { amount: numberParameter(node, 'amount'), kind: 'opacity' };
     case 'process/composite':
       throw new Error('Composite effects require a secondary input projection');
     case 'process/crop':
@@ -93,6 +93,8 @@ function operationEffect(node: ProcessorNode): Effect | null {
       };
     case 'process/exposure':
       return { kind: 'exposure', stops: numberParameter(node, 'stops') };
+    case 'process/brightness':
+      return { amount: numberParameter(node, 'amount') / 100, kind: 'brightness' };
     case 'process/levels':
       return {
         gamma: numberParameter(node, 'gamma'),
@@ -110,6 +112,22 @@ function operationEffect(node: ProcessorNode): Effect | null {
       };
     case 'process/contrast':
       return { amount: numberParameter(node, 'amount'), kind: 'contrast' };
+    case 'process/highlights':
+    case 'process/shadows':
+    case 'process/whites':
+    case 'process/blacks':
+      return {
+        amount: numberParameter(node, 'amount') / 100,
+        kind: node.type.slice('process/'.length) as 'blacks' | 'highlights' | 'shadows' | 'whites',
+      };
+    case 'process/clarity':
+      return {
+        amount: numberParameter(node, 'amount') / 100,
+        kind: 'clarity',
+        radius: 4,
+      };
+    case 'process/vibrance':
+      return { amount: numberParameter(node, 'amount') / 100, kind: 'vibrance' };
     case 'process/saturation':
       return { amount: numberParameter(node, 'amount'), kind: 'saturation' };
     case 'process/channel': {
@@ -130,6 +148,23 @@ function operationEffect(node: ProcessorNode): Effect | null {
         kind: 'sharpen',
         radius: numberParameter(node, 'radius'),
       };
+    case 'process/noise-reduction': {
+      const amount = numberParameter(node, 'amount') / 100;
+      return { amount, kind: 'noise-reduction', radius: amount * 4 };
+    }
+    case 'process/vignette':
+      return {
+        amount: numberParameter(node, 'amount') / 100,
+        height: target.contract.height,
+        kind: 'vignette',
+        width: target.contract.width,
+      };
+    case 'process/grain':
+      return {
+        amount: numberParameter(node, 'amount') / 100,
+        kind: 'grain',
+        seed: numberParameter(node, 'seed'),
+      };
     default:
       throw new Error(`No CPU projection exists for ${node.type}`);
   }
@@ -141,9 +176,8 @@ function sourceForLayer(
   decodedAssets: DecodedAssetStore,
   target: TargetNode,
   visited = new Set<string>(),
-): { effects: Effect[]; opacity: number; source: ImageSource } {
+): { effects: Effect[]; source: ImageSource } {
   const effects: Effect[] = [];
-  let opacity = 1;
   let node = root;
   while (node.type.startsWith('process/')) {
     if (visited.has(node.id)) throw new Error(`Projection cycle includes ${node.id}`);
@@ -161,18 +195,20 @@ function sourceForLayer(
           target,
           new Set(visited),
         );
-        effects.unshift({
+        const mask = maskForNode(project, node.id, target);
+        const effect: Effect = {
           blend: stringParameter(node, 'blendMode') as BlendMode,
           height: target.contract.height,
           kind: 'composite',
           opacity: numberParameter(node, 'opacity'),
           source: flattenBranch(secondary, target),
           width: target.contract.width,
-        });
+        };
+        effects.unshift(mask === undefined ? effect : { ...effect, mask });
       } else {
-        const effect = operationEffect(node as ProcessorNode);
-        if (effect === null) opacity *= numberParameter(node, 'amount');
-        else effects.unshift(effect);
+        const effect = operationEffect(node as ProcessorNode, target);
+        const mask = maskForNode(project, node.id, target);
+        effects.unshift(mask === undefined ? effect : { ...effect, mask });
       }
     }
     if (!('childId' in node) || node.childId === null) {
@@ -196,7 +232,6 @@ function sourceForLayer(
     );
     return {
       effects: [...shared.effects, ...effects],
-      opacity: opacity * shared.opacity,
       source: shared.source,
     };
   }
@@ -212,13 +247,12 @@ function sourceForLayer(
   }
   return {
     effects,
-    opacity,
     source: image(decoded.width, decoded.height, decoded.data, decoded.revision),
   };
 }
 
 function flattenBranch(
-  branch: { effects: Effect[]; opacity: number; source: ImageSource },
+  branch: { effects: Effect[]; source: ImageSource },
   target: TargetNode,
 ): ImageSource {
   const graph: Graph = {
@@ -226,9 +260,10 @@ function flattenBranch(
       {
         blend: 'normal',
         effects: branch.effects,
+        fill: 1,
         h: target.contract.height,
         id: 'shared-secondary',
-        opacity: branch.opacity,
+        opacity: 1,
         source: branch.source,
         w: target.contract.width,
         x: 0,
@@ -252,13 +287,13 @@ function flattenBranch(
   return image(target.contract.width, target.contract.height, straight, graphHash(graph));
 }
 
-function layerMask(
+function maskForNode(
   project: PixelfProject,
-  layerId: string,
+  nodeId: string,
   target: TargetNode,
 ): EntityMask | undefined {
   const wire = project.wires.find(
-    candidate => candidate.to.nodeId === layerId && candidate.to.port === 'mask',
+    candidate => candidate.to.nodeId === nodeId && candidate.to.port === 'mask',
   );
   if (wire === undefined) return undefined;
   const node = requireNode(project, wire.from.nodeId);
@@ -324,13 +359,16 @@ export function projectTargetToGraph(
     if (typeof layerOpacity !== 'number') throw new Error(`${layer.id}.opacity must be numeric`);
     const blendMode = layer.parameters.blendMode;
     if (typeof blendMode !== 'string') throw new Error(`${layer.id}.blendMode must be text`);
+    const layerFill = layer.parameters.fill;
+    if (typeof layerFill !== 'number') throw new Error(`${layer.id}.fill must be numeric`);
     return {
       blend: blendMode as BlendMode,
       effects: source.effects,
+      fill: layerFill,
       h: target.contract.height,
       id: layer.id,
-      opacity: layerOpacity * source.opacity,
-      mask: layerMask(project, layer.id, target),
+      opacity: layerOpacity,
+      mask: maskForNode(project, layer.id, target),
       source: source.source,
       w: target.contract.width,
       x: 0,

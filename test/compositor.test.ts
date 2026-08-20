@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  BLEND_MODES,
   assembleTiles,
   blur,
   effectInputRegion,
@@ -127,6 +128,51 @@ describe('CPU reference compositor', () => {
     assert.deepEqual([...blended.data], [0.8125, 0.8125, 0.8125, 1]);
   });
 
+  it('evaluates every Photoshop-style blend mode deterministically', () => {
+    for (const blend of BLEND_MODES) {
+      const graph: Graph = {
+        entities: [
+          entity(solid(0.2, 0.5, 0.8), { h: 4, id: 'backdrop', w: 4 }),
+          entity(solid(0.8, 0.3, 0.1, 0.6), { blend, h: 4, id: 'source', w: 4 }),
+        ],
+      };
+      const first = renderRegion(graph, { h: 4, w: 4, x: 0, y: 0 }, 1);
+      const second = renderRegion(graph, { h: 4, w: 4, x: 0, y: 0 }, 1);
+      assert.ok([...first.data].every(Number.isFinite), blend);
+      assert.deepEqual([...first.data], [...second.data], blend);
+    }
+  });
+
+  it('applies fill before effects and opacity after effects', () => {
+    const secondary = image(1, 1, new Float32Array([0, 0, 1, 1]), 'secondary');
+    const common: Partial<Entity> = {
+      effects: [
+        {
+          blend: 'normal',
+          height: 1,
+          kind: 'composite',
+          opacity: 1,
+          source: secondary,
+          width: 1,
+        },
+      ],
+      h: 1,
+      w: 1,
+    };
+    const filled = renderRegion(
+      { entities: [entity(solid(1, 0, 0), { ...common, fill: 0.5, opacity: 1 })] },
+      { h: 1, w: 1, x: 0, y: 0 },
+      1,
+    );
+    const faded = renderRegion(
+      { entities: [entity(solid(1, 0, 0), { ...common, fill: 1, opacity: 0.5 })] },
+      { h: 1, w: 1, x: 0, y: 0 },
+      1,
+    );
+    assert.deepEqual([...filled.data], [0, 0, 1, 1]);
+    assert.deepEqual([...faded.data], [0, 0, 0.5, 0.5]);
+  });
+
   it('keys cached tiles by source revision while retaining unrelated entries', () => {
     const cache = new TileCache();
     const data = new Float32Array([1, 0, 0, 1]);
@@ -195,6 +241,7 @@ describe('CPU reference compositor', () => {
     assert.equal(projection.graph.entities.length, 1);
     assert.equal(projection.graph.entities[0]?.w, 40);
     assert.equal(projection.graph.entities[0]?.h, 30);
-    assert.equal(projection.graph.entities[0]?.opacity, 0.25);
+    assert.equal(projection.graph.entities[0]?.opacity, 0.5);
+    assert.deepEqual(projection.graph.entities[0]?.effects, [{ amount: 0.5, kind: 'opacity' }]);
   });
 });

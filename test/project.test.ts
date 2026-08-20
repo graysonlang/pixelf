@@ -82,12 +82,14 @@ describe('Pixelf project document', () => {
     delete contract.outputBitDepth;
 
     const migrated = parseProject(JSON.stringify(legacy));
-    assert.equal(migrated.version, 1);
+    assert.equal(migrated.version, 2);
     const target = projectNode(migrated, 'node-target');
     assert.equal(target.type, 'target');
     if (target.type === 'target') {
       assert.equal(target.contract.outputBitDepth, 8);
     }
+    const layer = projectNode(migrated, 'node-layer');
+    assert.equal(layer.parameters.fill, 1);
   });
 
   it('distinguishes embedded, available linked, and missing linked assets', () => {

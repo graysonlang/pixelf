@@ -43,7 +43,8 @@ function imageLod(
 export function rasterSource(entity: Entity, region: Region, scale: number): Surface {
   if (!(scale > 0) || !Number.isFinite(scale)) throw new Error('Render scale must be positive');
   const output = makeSurface(region);
-  if (entity.w <= 0 || entity.h <= 0 || entity.opacity <= 0) return output;
+  const fill = Math.max(0, entity.fill ?? 1);
+  if (entity.w <= 0 || entity.h <= 0 || fill <= 0) return output;
   const inverse = inversePlacement(entity);
   if (inverse === null) return output;
   const sampled = new Float32Array(4);
@@ -77,7 +78,7 @@ export function rasterSource(entity: Entity, region: Region, scale: number): Sur
       }
       const offset = (y * region.w + x) * 4;
       for (let channel = 0; channel < 4; channel += 1) {
-        output.data[offset + channel] = (sampled[channel] ?? 0) * entity.opacity;
+        output.data[offset + channel] = (sampled[channel] ?? 0) * fill;
       }
     }
   }

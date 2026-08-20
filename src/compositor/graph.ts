@@ -1,3 +1,5 @@
+import type { BlendMode } from '../image/blend-modes.js';
+
 export interface SolidSource {
   a: number;
   b: number;
@@ -24,14 +26,18 @@ export interface CheckerSource {
 }
 
 export type Source = CheckerSource | ImageSource | SolidSource;
-export type BlendMode = 'add' | 'darken' | 'lighten' | 'multiply' | 'normal' | 'overlay' | 'screen';
+export type { BlendMode } from '../image/blend-modes.js';
 
-export interface BlurEffect {
+export interface EffectBase {
+  mask?: EntityMask;
+}
+
+export interface BlurEffect extends EffectBase {
   kind: 'blur';
   sigma: number;
 }
 
-export interface LevelsEffect {
+export interface LevelsEffect extends EffectBase {
   gamma: number;
   inBlack: number;
   inWhite: number;
@@ -40,33 +46,78 @@ export interface LevelsEffect {
   outWhite: number;
 }
 
-export interface ExposureEffect {
+export interface ExposureEffect extends EffectBase {
   kind: 'exposure';
   stops: number;
 }
 
-export interface WhiteBalanceEffect {
+export interface WhiteBalanceEffect extends EffectBase {
   kind: 'white-balance';
   temperature: number;
   tint: number;
 }
 
-export interface ContrastEffect {
+export interface ContrastEffect extends EffectBase {
   amount: number;
   kind: 'contrast';
 }
 
-export interface SaturationEffect {
+export interface SaturationEffect extends EffectBase {
   amount: number;
   kind: 'saturation';
 }
 
-export interface ChannelEffect {
+export interface BrightnessEffect extends EffectBase {
+  amount: number;
+  kind: 'brightness';
+}
+
+export interface TonalRangeEffect extends EffectBase {
+  amount: number;
+  kind: 'blacks' | 'highlights' | 'shadows' | 'whites';
+}
+
+export interface VibranceEffect extends EffectBase {
+  amount: number;
+  kind: 'vibrance';
+}
+
+export interface ClarityEffect extends EffectBase {
+  amount: number;
+  kind: 'clarity';
+  radius: number;
+}
+
+export interface NoiseReductionEffect extends EffectBase {
+  amount: number;
+  kind: 'noise-reduction';
+  radius: number;
+}
+
+export interface VignetteEffect extends EffectBase {
+  amount: number;
+  height: number;
+  kind: 'vignette';
+  width: number;
+}
+
+export interface GrainEffect extends EffectBase {
+  amount: number;
+  kind: 'grain';
+  seed: number;
+}
+
+export interface OpacityEffect extends EffectBase {
+  amount: number;
+  kind: 'opacity';
+}
+
+export interface ChannelEffect extends EffectBase {
   channel: 'alpha' | 'blue' | 'green' | 'luma' | 'red' | 'rgba';
   kind: 'channel';
 }
 
-export interface CropEffect {
+export interface CropEffect extends EffectBase {
   height: number;
   kind: 'crop';
   width: number;
@@ -74,7 +125,7 @@ export interface CropEffect {
   y: number;
 }
 
-export interface CanvasResizeEffect {
+export interface CanvasResizeEffect extends EffectBase {
   height: number;
   kind: 'canvas-resize';
   width: number;
@@ -82,7 +133,7 @@ export interface CanvasResizeEffect {
   y: number;
 }
 
-export interface AffineEffect {
+export interface AffineEffect extends EffectBase {
   kind: 'affine';
   pivotX: number;
   pivotY: number;
@@ -93,13 +144,13 @@ export interface AffineEffect {
   y: number;
 }
 
-export interface SharpenEffect {
+export interface SharpenEffect extends EffectBase {
   amount: number;
   kind: 'sharpen';
   radius: number;
 }
 
-export interface CompositeEffect {
+export interface CompositeEffect extends EffectBase {
   blend: BlendMode;
   height: number;
   kind: 'composite';
@@ -110,22 +161,31 @@ export interface CompositeEffect {
 
 export type Effect =
   | AffineEffect
+  | BrightnessEffect
+  | TonalRangeEffect
   | BlurEffect
   | CanvasResizeEffect
   | ChannelEffect
+  | ClarityEffect
   | CompositeEffect
   | ContrastEffect
   | CropEffect
   | ExposureEffect
+  | GrainEffect
   | LevelsEffect
+  | NoiseReductionEffect
+  | OpacityEffect
   | SaturationEffect
   | SharpenEffect
+  | VibranceEffect
+  | VignetteEffect
   | WhiteBalanceEffect;
 export type EntityMatrix = [number, number, number, number, number, number];
 
 export interface Entity {
   blend: BlendMode;
   effects: Effect[];
+  fill?: number;
   h: number;
   id: string;
   matrix?: EntityMatrix;
@@ -242,9 +302,21 @@ function mixEffect(effect: Effect, mix: (value: number) => void): void {
     mixText(effect.blend, mix);
     for (const value of [effect.opacity, effect.width, effect.height]) mix(value * 1e6);
     mixSource(effect.source, mix);
-    return;
+  } else {
+    const parameters = { ...effect };
+    delete parameters.mask;
+    mixText(JSON.stringify(parameters), mix);
   }
-  mixText(JSON.stringify(effect), mix);
+  if (effect.mask !== undefined) mixMask(effect.mask, mix);
+}
+
+function mixMask(mask: EntityMask, mix: (value: number) => void): void {
+  mixText('mask', mix);
+  for (const value of [mask.x, mask.y, mask.w, mask.h, mask.density]) mix(value * 1e6);
+  mix(mask.invert ? 1 : 0);
+  if (mask.matrix) for (const value of mask.matrix) mix(value * 1e6);
+  mixSource(mask.source, mix);
+  for (const effect of mask.effects) mixEffect(effect, mix);
 }
 
 export function graphHash(graph: Graph): string {
@@ -255,27 +327,21 @@ export function graphHash(graph: Graph): string {
   };
   for (const entity of graph.entities) {
     mixText(entity.id, mix);
-    for (const value of [entity.x, entity.y, entity.w, entity.h, entity.opacity]) mix(value * 1e6);
+    for (const value of [
+      entity.x,
+      entity.y,
+      entity.w,
+      entity.h,
+      entity.fill ?? 1,
+      entity.opacity,
+    ]) {
+      mix(value * 1e6);
+    }
     if (entity.matrix) for (const value of entity.matrix) mix(value * 1e6);
     mixText(entity.blend, mix);
     mixSource(entity.source, mix);
     for (const effect of entity.effects) mixEffect(effect, mix);
-    if (entity.mask !== undefined) {
-      mixText('mask', mix);
-      for (const value of [
-        entity.mask.x,
-        entity.mask.y,
-        entity.mask.w,
-        entity.mask.h,
-        entity.mask.density,
-      ]) {
-        mix(value * 1e6);
-      }
-      mix(entity.mask.invert ? 1 : 0);
-      if (entity.mask.matrix) for (const value of entity.mask.matrix) mix(value * 1e6);
-      mixSource(entity.mask.source, mix);
-      for (const effect of entity.mask.effects) mixEffect(effect, mix);
-    }
+    if (entity.mask !== undefined) mixMask(entity.mask, mix);
   }
   return hash.toString(16).padStart(8, '0');
 }

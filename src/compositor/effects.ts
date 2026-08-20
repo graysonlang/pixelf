@@ -1,14 +1,21 @@
 import type {
   AffineEffect,
   BlurEffect,
+  BrightnessEffect,
   ChannelEffect,
+  ClarityEffect,
   CompositeEffect,
   ContrastEffect,
   Effect,
   ExposureEffect,
+  GrainEffect,
   LevelsEffect,
+  NoiseReductionEffect,
   SaturationEffect,
   SharpenEffect,
+  TonalRangeEffect,
+  VibranceEffect,
+  VignetteEffect,
   WhiteBalanceEffect,
 } from './graph.js';
 import { rasterSource } from './source.js';
@@ -24,6 +31,12 @@ import {
 
 export function effectHalo(effect: Effect, scale: number): number {
   if (effect.kind === 'blur') return Math.ceil(Math.max(0, effect.sigma) * scale * 3);
+  if (
+    (effect.kind === 'clarity' || effect.kind === 'noise-reduction') &&
+    Math.abs(effect.amount) > 1e-6
+  ) {
+    return Math.ceil(Math.max(0, effect.radius) * scale * 3);
+  }
   if (effect.kind === 'sharpen') return Math.ceil(Math.max(0, effect.radius) * scale * 3);
   return 0;
 }
@@ -191,6 +204,27 @@ function applyContrast(effect: ContrastEffect, input: Surface, output: Region): 
   ]);
 }
 
+function applyBrightness(effect: BrightnessEffect, input: Surface, output: Region): Surface {
+  const gain = Math.max(0, 1 + effect.amount);
+  return mapStraight(input, output, (r, g, b) => [r * gain, g * gain, b * gain]);
+}
+
+function applyTonalRange(effect: TonalRangeEffect, input: Surface, output: Region): Surface {
+  return mapStraight(input, output, (r, g, b) => {
+    const map = (value: number): number => {
+      if (effect.kind === 'highlights') {
+        return value > 0.5 ? 0.5 + (value - 0.5) * (1 + effect.amount / 2) : value;
+      }
+      if (effect.kind === 'shadows') {
+        return value < 0.5 ? value * (1 + effect.amount / 2) : value;
+      }
+      if (effect.kind === 'whites') return value * (1 + effect.amount / 2);
+      return value + effect.amount * (80 / 255);
+    };
+    return [map(r), map(g), map(b)];
+  });
+}
+
 function applySaturation(effect: SaturationEffect, input: Surface, output: Region): Surface {
   return mapStraight(input, output, (r, g, b) => {
     const luminance = r * 0.2126 + g * 0.7152 + b * 0.0722;
@@ -200,6 +234,140 @@ function applySaturation(effect: SaturationEffect, input: Surface, output: Regio
       luminance + (b - luminance) * effect.amount,
     ];
   });
+}
+
+function applyVibrance(effect: VibranceEffect, input: Surface, output: Region): Surface {
+  return mapStraight(input, output, (r, g, b) => {
+    const luminance = r * 0.2126 + g * 0.7152 + b * 0.0722;
+    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+    const gain =
+      effect.amount >= 0
+        ? 1 + effect.amount * (1 - Math.max(0, Math.min(1, chroma)))
+        : 1 + effect.amount;
+    return [
+      luminance + (r - luminance) * gain,
+      luminance + (g - luminance) * gain,
+      luminance + (b - luminance) * gain,
+    ];
+  });
+}
+
+function mixSurfaces(original: Surface, adjusted: Surface, amount: number): Surface {
+  const output = makeSurface(adjusted.region);
+  const source = new Float32Array(4);
+  for (let y = 0; y < adjusted.region.h; y += 1) {
+    for (let x = 0; x < adjusted.region.w; x += 1) {
+      readPremul(original, adjusted.region.x + x, adjusted.region.y + y, source);
+      const offset = (y * adjusted.region.w + x) * 4;
+      for (let channel = 0; channel < 4; channel += 1) {
+        output.data[offset + channel] =
+          (source[channel] ?? 0) * (1 - amount) + (adjusted.data[offset + channel] ?? 0) * amount;
+      }
+    }
+  }
+  return output;
+}
+
+function applyClarity(
+  effect: ClarityEffect,
+  input: Surface,
+  outputRegion: Region,
+  scale: number,
+): Surface {
+  if (Math.abs(effect.amount) <= 1e-6) return cropSurface(input, outputRegion);
+  const blurred = applyBlur({ kind: 'blur', sigma: effect.radius }, input, outputRegion, scale);
+  const output = makeSurface(outputRegion);
+  const original = new Float32Array(4);
+  for (let y = 0; y < outputRegion.h; y += 1) {
+    for (let x = 0; x < outputRegion.w; x += 1) {
+      readPremul(input, outputRegion.x + x, outputRegion.y + y, original);
+      const offset = (y * outputRegion.w + x) * 4;
+      for (let channel = 0; channel < 3; channel += 1) {
+        output.data[offset + channel] = Math.max(
+          0,
+          (original[channel] ?? 0) +
+            ((original[channel] ?? 0) - (blurred.data[offset + channel] ?? 0)) *
+              effect.amount *
+              1.5,
+        );
+      }
+      output.data[offset + 3] = original[3] ?? 0;
+    }
+  }
+  return output;
+}
+
+function applyNoiseReduction(
+  effect: NoiseReductionEffect,
+  input: Surface,
+  outputRegion: Region,
+  scale: number,
+): Surface {
+  if (effect.amount <= 1e-6) return cropSurface(input, outputRegion);
+  const blurred = applyBlur({ kind: 'blur', sigma: effect.radius }, input, outputRegion, scale);
+  return mixSurfaces(input, blurred, Math.max(0, Math.min(1, effect.amount)));
+}
+
+function noiseAt(x: number, y: number, seed: number): number {
+  let value =
+    Math.imul(x | 0, 0x1f123bb5) ^ Math.imul(y | 0, 0x5f356495) ^ Math.imul(seed | 0, 0x68bc21eb);
+  value = Math.imul(value ^ (value >>> 15), 0x2c1b3c6d);
+  value = Math.imul(value ^ (value >>> 12), 0x297a2d39);
+  return ((value ^ (value >>> 15)) >>> 0) / 4_294_967_296 - 0.5;
+}
+
+function applyGrain(effect: GrainEffect, input: Surface, outputRegion: Region): Surface {
+  const output = cropSurface(input, outputRegion);
+  const amplitude = Math.max(0, effect.amount) * 0.12;
+  for (let y = 0; y < outputRegion.h; y += 1) {
+    for (let x = 0; x < outputRegion.w; x += 1) {
+      const offset = (y * outputRegion.w + x) * 4;
+      const alpha = output.data[offset + 3] ?? 0;
+      const noise =
+        noiseAt(outputRegion.x + x, outputRegion.y + y, effect.seed) * amplitude * alpha;
+      for (let channel = 0; channel < 3; channel += 1) {
+        output.data[offset + channel] = Math.max(0, (output.data[offset + channel] ?? 0) + noise);
+      }
+    }
+  }
+  return output;
+}
+
+function applyVignette(
+  effect: VignetteEffect,
+  input: Surface,
+  outputRegion: Region,
+  scale: number,
+): Surface {
+  const output = cropSurface(input, outputRegion);
+  const halfWidth = Math.max(1e-6, effect.width / 2);
+  const halfHeight = Math.max(1e-6, effect.height / 2);
+  for (let y = 0; y < outputRegion.h; y += 1) {
+    for (let x = 0; x < outputRegion.w; x += 1) {
+      const canonicalX = (outputRegion.x + x + 0.5) / scale;
+      const canonicalY = (outputRegion.y + y + 0.5) / scale;
+      const dx = (canonicalX - halfWidth) / halfWidth;
+      const dy = (canonicalY - halfHeight) / halfHeight;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const edge = Math.max(0, Math.min(1, (distance - 0.35) / 0.65));
+      const falloff = edge * edge * (3 - 2 * edge);
+      const gain = Math.max(0, 1 - effect.amount * 0.75 * falloff);
+      const offset = (y * outputRegion.w + x) * 4;
+      for (let channel = 0; channel < 3; channel += 1) {
+        output.data[offset + channel] = (output.data[offset + channel] ?? 0) * gain;
+      }
+    }
+  }
+  return output;
+}
+
+function applyOpacity(amount: number, input: Surface, outputRegion: Region): Surface {
+  const output = cropSurface(input, outputRegion);
+  const opacity = Math.max(0, amount);
+  for (let offset = 0; offset < output.data.length; offset += 1) {
+    output.data[offset] = (output.data[offset] ?? 0) * opacity;
+  }
+  return output;
 }
 
 function applyChannel(effect: ChannelEffect, input: Surface, output: Region): Surface {
@@ -230,9 +398,10 @@ function applyComposite(
     {
       blend: effect.blend,
       effects: [],
+      fill: effect.opacity,
       h: effect.height,
       id: 'composite-secondary',
-      opacity: effect.opacity,
+      opacity: 1,
       source: effect.source,
       w: effect.width,
       x: 0,
@@ -332,23 +501,42 @@ export function applyEffect(
       return applyAffine(effect, input, outputRegion, scale);
     case 'blur':
       return applyBlur(effect, input, outputRegion, scale);
+    case 'brightness':
+      return applyBrightness(effect, input, outputRegion);
+    case 'blacks':
+    case 'highlights':
+    case 'shadows':
+    case 'whites':
+      return applyTonalRange(effect, input, outputRegion);
     case 'canvas-resize':
     case 'crop':
       return applyBounds(input, outputRegion, effect, scale);
     case 'channel':
       return applyChannel(effect, input, outputRegion);
+    case 'clarity':
+      return applyClarity(effect, input, outputRegion, scale);
     case 'composite':
       return applyComposite(effect, input, outputRegion, scale);
     case 'contrast':
       return applyContrast(effect, input, outputRegion);
     case 'exposure':
       return applyExposure(effect, input, outputRegion);
+    case 'grain':
+      return applyGrain(effect, input, outputRegion);
     case 'levels':
       return applyLevels(effect, cropSurface(input, outputRegion));
+    case 'noise-reduction':
+      return applyNoiseReduction(effect, input, outputRegion, scale);
+    case 'opacity':
+      return applyOpacity(effect.amount, input, outputRegion);
     case 'saturation':
       return applySaturation(effect, input, outputRegion);
     case 'sharpen':
       return applySharpen(effect, input, outputRegion, scale);
+    case 'vibrance':
+      return applyVibrance(effect, input, outputRegion);
+    case 'vignette':
+      return applyVignette(effect, input, outputRegion, scale);
     case 'white-balance':
       return applyWhiteBalance(effect, input, outputRegion);
   }
