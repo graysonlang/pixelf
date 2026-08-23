@@ -80,10 +80,12 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
       abs(magnification - integerMagnification) < 0.002 * integerMagnification,
   );
   let nearestBlend = max(
-    smoothstep(ADAPT_START, ADAPT_END, magnification),
-    integerSnap,
+    max(
+      smoothstep(ADAPT_START, ADAPT_END, magnification),
+      integerSnap,
+    ),
+    item.misc.w,
   );
-  nearestBlend = max(nearestBlend, item.misc.w);
   sampled = mix(
     sampled,
     textureSample(sourceTexture, nearestSampler, input.uv),

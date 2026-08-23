@@ -168,6 +168,7 @@ describe('WebGPU foundation', () => {
       value: { COPY_DST: 1, UNIFORM: 2 },
     });
     const events: string[] = [];
+    const shaderSources: string[] = [];
     const pass = {
       draw: () => {},
       end: () => {},
@@ -185,12 +186,15 @@ describe('WebGPU foundation', () => {
       createPipelineLayout: () => ({}),
       createRenderPipeline: () => ({}),
       createSampler: () => ({}),
-      createShaderModule: () => ({
-        getCompilationInfo: async () => {
-          events.push('pipeline-ready');
-          return { messages: [] };
-        },
-      }),
+      createShaderModule: (descriptor: GPUShaderModuleDescriptor) => {
+        shaderSources.push(descriptor.code);
+        return {
+          getCompilationInfo: async () => {
+            events.push('pipeline-ready');
+            return { messages: [] };
+          },
+        };
+      },
       createTexture: () => ({ createView: () => ({}), destroy: () => {} }),
       limits: { minUniformBufferOffsetAlignment: 256 },
     } as unknown as GPUDevice;
@@ -226,6 +230,9 @@ describe('WebGPU foundation', () => {
         'texture-acquired',
         'submitted',
       ]);
+      for (const source of shaderSources) {
+        assert.doesNotMatch(source, /^\s*nearestBlend\s*=/m);
+      }
     } finally {
       renderer.dispose();
       for (const [name, descriptor] of [
