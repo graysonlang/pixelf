@@ -1,6 +1,7 @@
 {
   "browser": {
+    "browserName": "chromium",
     "isolated": true,
-    "launchOptions": { "headless": true }
+    "launchOptions": { "channel": "chrome", "headless": true }
   }
 }
