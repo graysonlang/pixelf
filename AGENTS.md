@@ -65,11 +65,43 @@ npm run build       # esbuild, via esp's runner
 
 Formatting is Biome's job, not yours. Do not hand-format to match the surrounding code and do not argue with the formatter — run `npm run lint:fix` and take what it produces. The one thing worth knowing: `.vscode/launch_template.json` is deliberately excluded from Biome, because the `{{debug}}` placeholders in it are not valid JSON.
 
-### Do not start the dev server
+### Use an isolated preview server
 
-Do not run `npm run dev` or `npm run serve` for routine validation unless the user explicitly asks. The owner keeps the app open and refreshes it; a second server collides with that workflow, and a fresh browser window has no useful application state anyway.
+Do not run `npm run dev` or `npm run serve` for routine validation unless the user explicitly asks.
+Those commands belong to the owner's visible development workflow and use its automatically deduced port.
+
+For browser validation, an agent may start its own isolated preview without additional authorization by using `node scripts/build.mjs --serve --port=<agent-reserved-port> --sourcemap`.
+The port must be explicitly reserved for that agent rather than automatically selected, and the agent must navigate to the exact emitted URL and stop the preview when validation finishes.
 
 `npm run build` is the right check that something compiles.
+
+### Playwright tool availability
+
+Browser automation is provisioned by the repository: `.mcp.json` registers the project's pinned Playwright MCP server through `playwright-mcp.config.json`, which runs the browser headless and isolated so automation never raises a window over the owner's work and every run starts from blank browser state.
+The registration needs one-time approval per collaborator, and MCP servers connect at session start, so a session started before approval or before a config change must be restarted to see the tools.
+
+When browser validation is required, attempt to invoke the Playwright MCP `browser_navigate` tool directly rather than inferring availability from memory, prior messages, or other browser mechanisms.
+If that invocation fails because the tool is absent, report that browser validation was unavailable and that a restarted, approved session is the likely fix; do not fall back to the owner's own browser.
+
+To watch a run while debugging automation, temporarily set `browser.launchOptions.headless` to `false` in `playwright-mcp.config.json` and restart the session.
+That file is read at startup, and changing it neither alters `.mcp.json` nor requires re-approving the server.
+
+### Browser validation
+
+For browser-visible changes, validate with the Playwright MCP server against an isolated preview: start it on the agent's explicitly reserved port as described above, navigate to the exact emitted URL, and stop the preview afterward.
+Never start `npm run dev` or `npm run serve` for verification, and do not drive the owner's own browser or running application; the headless isolated browser exists so validation never interferes with their work.
+
+Start ordinary control inspection from an accessibility snapshot and prefer semantic roles, names, labels, or test IDs.
+Snapshot element references are valid only for the snapshot that produced them, so selectors and test IDs are the durable way to address controls across steps.
+Use `browser_evaluate` to read precise DOM state such as `hidden`, ARIA attributes, computed positions, and the active element, and use screenshots for visual layout and Canvas or WebGPU results rather than as the primary way to locate ordinary DOM controls.
+Canvas and WebGPU verification should combine application or DOM state, browser runtime evidence, and rendered pixels where each applies.
+For GPU-path changes, confirm that `navigator.gpu` exists and that Pixelf acquired an adapter before treating the rendered result as WebGPU evidence; a headless adapter validates the browser path but does not substitute for hardware- or driver-specific testing.
+Pass screenshot and snapshot file paths under `.playwright-mcp/`, which is gitignored; a bare relative filename lands in the repository root.
+Playwright refuses to click a target covered by another element, such as a control beneath an open menu or a point the Canvas intercepts, so choose an uncovered target rather than forcing the click.
+
+After load and interaction, inspect unexpected console errors and relevant failed network requests, including HTTP, WebGPU, WASM, worker, and asset failures.
+Wait for observable state rather than fixed sleeps; a delay belongs in a check only when the behavior under test is itself time-dependent, and then it should be the smallest interval that discriminates.
+Report the exercised flow, assertions, console and network results, GPU availability when relevant, and visual checks; if browser validation was unavailable, say so explicitly rather than describing the change as verified.
 
 ### Where not to look
 

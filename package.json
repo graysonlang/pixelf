@@ -43,7 +43,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.0",
-    "@graysonlang/esp": "^2.2.0",
+    "@graysonlang/esp": "^2.5.0",
+    "@playwright/mcp": "0.0.79",
     "@types/node": "^24.0.0",
     "@webgpu/types": "^0.1.71",
     "esbuild": "^0.28.0",

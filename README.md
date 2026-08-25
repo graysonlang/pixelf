@@ -169,6 +169,9 @@ Install dependencies with `npm install` and use the checked-in VS Code workspace
 
 `npm run check` runs type checking, linting, tests, and the production build.
 
+`.mcp.json` and `playwright-mcp.config.json` provision the project's pinned Playwright MCP server as a headless, isolated browser for coding-agent validation.
+See [AGENTS.md](AGENTS.md) for the browser validation workflow.
+
 The planned renderer requires WebGPU and a secure browser context.
 Localhost served through the esp development workflow satisfies the secure-context requirement.
 

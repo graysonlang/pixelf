@@ -1,0 +1,12 @@
+[mcp_servers.playwright]
+command = "node"
+args = [
+  "node_modules/@playwright/mcp/cli.js",
+  "--config",
+  "playwright-mcp.config.json",
+  "--browser=chrome",
+]
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+enabled = true
+default_tools_approval_mode = "approve"
