@@ -13,10 +13,11 @@ import {
   createNode,
   parseProject,
   serializeProject,
+  type PixelfProject,
   type ProcessorNode,
   type SourceNode,
 } from '../src/project/index.js';
-import { projectTreeEntries } from '../src/ui/editor-view.js';
+import { createListModel, createPixelfStructureAdapter } from '../src/ui/structure-list/index.js';
 
 function asset(id: string, hashCharacter: string) {
   return createEmbeddedImageAsset({
@@ -39,6 +40,14 @@ function projectFixture() {
   });
 }
 
+function structureRows(project: PixelfProject, expanded: ReadonlySet<string>) {
+  return createListModel(
+    { expanded, project, revision: 'advanced-fixture' },
+    createPixelfStructureAdapter(),
+    () => 48,
+  ).rows;
+}
+
 const primaryPixels = new Float32Array([1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1]);
 
 describe('advanced wiring and bounded extensibility', () => {
@@ -57,10 +66,12 @@ describe('advanced wiring and bounded extensibility', () => {
       to: { nodeId: shared.id, port: 'input' },
     });
     const reloaded = parseProject(serializeProject(project));
-    const entries = projectTreeEntries(reloaded, new Set(['node-target', 'node-layer', shared.id]));
+    const rows = structureRows(reloaded, new Set(['node-target', 'node-layer', shared.id]));
+    assert.ok(rows.some(row => row.nodeId === shared.id));
+    assert.ok(!rows.some(row => row.nodeId === 'node-primary'));
     assert.ok(
-      entries.some(
-        entry => entry.node.id === 'node-primary' && entry.relationship === 'input input',
+      reloaded.wires.some(
+        wire => wire.from.nodeId === 'node-primary' && wire.to.nodeId === shared.id,
       ),
     );
     const key = sharedBranchCacheKey(reloaded, shared.id, {
@@ -122,7 +133,7 @@ describe('advanced wiring and bounded extensibility', () => {
     );
   });
 
-  it('keeps procedural masks and scoped adjustment groups navigable in the layer tree', () => {
+  it('keeps adjustment groups in the primary tree without flattening mask dependencies', () => {
     const project = projectFixture();
     const target = project.nodes['node-target'];
     const layer = project.nodes['node-layer'];
@@ -155,10 +166,11 @@ describe('advanced wiring and bounded extensibility', () => {
       [output.data[3], output.data[7], output.data[11], output.data[15]],
       [0, 0.5, 0, 0.5],
     );
-    const entries = projectTreeEntries(project, new Set(Object.keys(project.nodes)));
-    assert.ok(entries.some(entry => entry.node.id === group.id));
+    const rows = structureRows(project, new Set(Object.keys(project.nodes)));
+    assert.ok(rows.some(row => row.nodeId === group.id));
+    assert.ok(!rows.some(row => row.nodeId === mask.id));
     assert.ok(
-      entries.some(entry => entry.node.id === mask.id && entry.relationship === 'mask input'),
+      project.wires.some(wire => wire.from.nodeId === mask.id && wire.to.nodeId === layer.id),
     );
   });
 

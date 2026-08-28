@@ -1,6 +1,6 @@
 # Structure list
 
-Status: proposed.
+Status: in progress. Implementation phases 0 through 2 are complete.
 
 The structure list is a compact, touch-friendly projection of Pixelf's target-first document tree.
 It is intended to replace the current layer tree and its separate strip of top-level actions without exposing renderer implementation details in the common workflow.

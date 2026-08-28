@@ -28,6 +28,7 @@ import {
   type CanvasBackgroundMode,
   type ProcessorNode,
   type ProjectCommand,
+  type PixelfProject,
   type SourceNode,
   type TargetContract,
 } from '../src/project/index.js';
@@ -56,6 +57,11 @@ import {
   type ThemePreference,
 } from '../src/ui/preferences.js';
 import { renderingStatusMessage } from '../src/ui/render-status.js';
+import {
+  densityPolicy,
+  firstEnabledAction,
+  partitionStructureActions,
+} from '../src/ui/structure-list/index.js';
 import {
   actualSizeViewport,
   anchoredZoom,
@@ -127,6 +133,70 @@ function normalizedContract(contract: TargetContract): TargetContract {
   return contract;
 }
 
+function structureFixtureProject(source: PixelfProject): PixelfProject {
+  const project = structuredClone(source);
+  project.name = 'Structure list fixture';
+  const targetId = project.targetIds[0];
+  const target = targetId === undefined ? undefined : project.nodes[targetId];
+  if (target?.type !== 'target') return project;
+  const baseLayer = project.nodes[target.childIds[0] ?? ''];
+  if (baseLayer?.type !== 'layer' || baseLayer.childId === null) return project;
+  const baseSource = project.nodes[baseLayer.childId];
+  if (baseSource?.type !== 'source/imported') return project;
+
+  target.name = 'Editorial portrait';
+  target.contract = { ...target.contract, height: 400, width: 640 };
+  baseLayer.name = 'Subject';
+  baseSource.name = 'Portrait source';
+  const levels = createNode(
+    'process/levels',
+    'node-fixture-levels',
+    'Subject levels',
+  ) as ProcessorNode;
+  levels.childId = baseSource.id;
+  baseLayer.childId = levels.id;
+
+  const cleanupSource = createNode(
+    'source/imported',
+    'node-fixture-cleanup-source',
+    'Cleanup source',
+  ) as SourceNode;
+  cleanupSource.assetId = baseSource.assetId;
+  const cleanupLayer = createNode('layer', 'node-fixture-cleanup-layer', 'Cleanup') as LayerNode;
+  cleanupLayer.childId = cleanupSource.id;
+
+  const atmosphereSource = createNode(
+    'source/imported',
+    'node-fixture-atmosphere-source',
+    'Atmosphere source',
+  ) as SourceNode;
+  atmosphereSource.assetId = baseSource.assetId;
+  const blur = createNode('process/blur', 'node-fixture-blur', 'Soft focus') as ProcessorNode;
+  blur.childId = atmosphereSource.id;
+  const atmosphereLayer = createNode(
+    'layer',
+    'node-fixture-atmosphere-layer',
+    'Atmosphere',
+  ) as LayerNode;
+  atmosphereLayer.childId = blur.id;
+
+  const mask = createNode('source/mask', 'node-fixture-mask', 'Subject mask') as SourceNode;
+  project.nodes[levels.id] = levels;
+  project.nodes[cleanupSource.id] = cleanupSource;
+  project.nodes[cleanupLayer.id] = cleanupLayer;
+  project.nodes[atmosphereSource.id] = atmosphereSource;
+  project.nodes[blur.id] = blur;
+  project.nodes[atmosphereLayer.id] = atmosphereLayer;
+  project.nodes[mask.id] = mask;
+  target.childIds = [baseLayer.id, cleanupLayer.id, atmosphereLayer.id];
+  project.wires.push({
+    from: { nodeId: mask.id, port: 'mask' },
+    id: 'wire-fixture-mask',
+    to: { nodeId: baseLayer.id, port: 'mask' },
+  });
+  return project;
+}
+
 function download(data: BlobPart, mimeType: string, fileName: string): void {
   const url = URL.createObjectURL(new Blob([data], { type: mimeType }));
   const anchor = document.createElement('a');
@@ -167,6 +237,7 @@ const dispose = createRoot(disposeRoot => {
   const sourceDetails = requireElement<HTMLElement>('#source-details');
   const renderStatus = requireElement<HTMLElement>('#render-status');
   const layerTree = requireElement<HTMLElement>('#layer-tree');
+  const structureToolbar = requireElement<HTMLElement>('#structure-toolbar');
   const canvasProperties = requireElement<HTMLElement>('#canvas-properties');
   const selectionProperties = requireElement<HTMLElement>('#selection-properties');
   const stage = requireElement<HTMLElement>('#stage');
@@ -194,6 +265,7 @@ const dispose = createRoot(disposeRoot => {
   const [projectGeneration, setProjectGeneration] = createSignal(0);
   const [propertiesGeneration, setPropertiesGeneration] = createSignal(0);
   const [treeGeneration, setTreeGeneration] = createSignal(0);
+  const [structureWidth, setStructureWidth] = createSignal(Math.max(1, layerTree.clientWidth));
   const [gpuMode, setGpuMode] = createSignal<'checking' | 'fallback' | 'ready'>('checking');
   const [statusMessage, setStatusMessage] = createSignal('');
   const [deviceGeneration, setDeviceGeneration] = createSignal(0);
@@ -235,6 +307,10 @@ const dispose = createRoot(disposeRoot => {
   } catch {
     stageResizeObserver.observe(stage);
   }
+  const structureResizeObserver = new ResizeObserver(() => {
+    setStructureWidth(Math.max(1, layerTree.clientWidth));
+  });
+  structureResizeObserver.observe(layerTree);
 
   quickActionsShortcut.textContent = primaryShortcut('/');
   settingsShortcut.textContent = primaryShortcut(',');
@@ -538,26 +614,45 @@ const dispose = createRoot(disposeRoot => {
     setPanY(0);
   };
 
+  const adoptDecodedImage = (decoded: DecodedProjectImage, file: File): void => {
+    const editor = new EditorState(decoded.project);
+    const targetId = decoded.project.targetIds[0] ?? null;
+    expanded.clear();
+    for (const nodeId of Object.keys(decoded.project.nodes)) expanded.add(nodeId);
+    setSelectedImage({ ...decoded, editor, file, url: URL.createObjectURL(file) });
+    setShowingOriginal(false);
+    setSelectedNodeId(targetId);
+    if (targetId !== null) editor.select([targetId]);
+    setProjectGeneration(current => current + 1);
+    setTreeGeneration(current => current + 1);
+    requestAnimationFrame(placeInitialImage);
+    setStatusMessage('');
+  };
+
   const openImage = async (file: File): Promise<void> => {
     const generation = ++selectionGeneration;
     setStatusMessage(`Decoding ${file.name}...`);
     try {
       const decoded = await decodeImageFile(file);
       if (generation !== selectionGeneration) return;
-      const editor = new EditorState(decoded.project);
-      const targetId = decoded.project.targetIds[0] ?? null;
-      expanded.clear();
-      for (const nodeId of Object.keys(decoded.project.nodes)) expanded.add(nodeId);
-      setSelectedImage({ ...decoded, editor, file, url: URL.createObjectURL(file) });
-      setShowingOriginal(false);
-      setSelectedNodeId(targetId);
-      if (targetId !== null) editor.select([targetId]);
-      setProjectGeneration(current => current + 1);
-      setTreeGeneration(current => current + 1);
-      requestAnimationFrame(placeInitialImage);
-      setStatusMessage('');
+      adoptDecodedImage(decoded, file);
     } catch (error) {
       if (generation === selectionGeneration) reportError(error);
+    }
+  };
+
+  const openStructureFixture = async (): Promise<void> => {
+    const encoded = atob(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    );
+    const bytes = Uint8Array.from(encoded, character => character.charCodeAt(0));
+    const file = new File([bytes], 'structure-fixture.png', { type: 'image/png' });
+    setStatusMessage('Preparing structure list fixture...');
+    try {
+      const decoded = await decodeImageFile(file);
+      adoptDecodedImage({ ...decoded, project: structureFixtureProject(decoded.project) }, file);
+    } catch (error) {
+      reportError(error);
     }
   };
 
@@ -681,6 +776,19 @@ const dispose = createRoot(disposeRoot => {
     const selectedId = selectedNodeId();
     return selectedId === null ? undefined : editor?.project.nodes[selectedId];
   };
+  const focusSelectionProperties = (): void => {
+    const control = selectionProperties.querySelector<HTMLElement>(
+      'input:not([type="hidden"]), select, button, [tabindex="0"]',
+    );
+    (control ?? selectionProperties).focus();
+  };
+  const structureSurfaces: readonly ActionSurface[] = [
+    'context',
+    'keyboard',
+    'overflow',
+    'quick-actions',
+    'rail',
+  ];
 
   const actions: readonly AppAction[] = [
     appAction({
@@ -741,7 +849,9 @@ const dispose = createRoot(disposeRoot => {
       id: 'add-layer',
       keywords: ['new', 'source'],
       label: 'Add layer',
+      priority: 70,
       run: addLayer,
+      surfaces: structureSurfaces,
     }),
     appAction({
       enabled: () => {
@@ -757,7 +867,9 @@ const dispose = createRoot(disposeRoot => {
       id: 'add-operation',
       keywords: ['new', 'processor', 'effect'],
       label: 'Add operation',
+      priority: 80,
       run: addOperation,
+      surfaces: structureSurfaces,
     }),
     appAction({
       enabled: () => {
@@ -776,7 +888,9 @@ const dispose = createRoot(disposeRoot => {
       id: 'add-mask',
       keywords: ['new', 'layer'],
       label: 'Add mask',
+      priority: 60,
       run: addMask,
+      surfaces: structureSurfaces,
     }),
     appAction({
       enabled: () => {
@@ -793,7 +907,9 @@ const dispose = createRoot(disposeRoot => {
       id: 'duplicate',
       keywords: ['copy', 'branch'],
       label: 'Duplicate selected branch',
+      priority: 30,
       run: duplicateNode,
+      surfaces: structureSurfaces,
     }),
     appAction({
       enabled: () => selectedNodeId() !== null,
@@ -801,7 +917,19 @@ const dispose = createRoot(disposeRoot => {
       id: 'delete',
       keywords: ['remove', 'selected'],
       label: 'Delete selected item',
+      priority: 10,
       run: deleteSelected,
+      surfaces: structureSurfaces,
+    }),
+    appAction({
+      enabled: () => selectedNodeId() !== null,
+      group: 'structure',
+      id: 'show-properties',
+      keywords: ['inspect', 'edit'],
+      label: 'Show properties',
+      priority: 100,
+      run: focusSelectionProperties,
+      surfaces: ['keyboard', 'overflow', 'rail'],
     }),
     appAction({
       enabled: () => selectedImage() !== null,
@@ -866,6 +994,7 @@ const dispose = createRoot(disposeRoot => {
     undefined,
   );
   let quickActionFocus = 0;
+  let structureToolbarOwnerId: string | null = null;
 
   const setZoomMenuOpen = (open: boolean, restoreFocus = false): void => {
     if (open) {
@@ -907,6 +1036,7 @@ const dispose = createRoot(disposeRoot => {
   const executeAction = (action: AppAction): void => {
     if (!isActionVisible(action, undefined) || !isActionEnabled(action, undefined)) return;
     closeQuickActions();
+    closeStructureToolbar(false);
     setMenuOpen(false);
     setZoomMenuOpen(false);
     try {
@@ -919,6 +1049,47 @@ const dispose = createRoot(disposeRoot => {
       reportError(error);
     }
   };
+  function focusStructureRow(nodeId: string): void {
+    const rows = layerTree.querySelectorAll<HTMLElement>('[role="treeitem"]');
+    for (const row of rows) {
+      if (row.dataset.nodeId === nodeId) {
+        row.focus();
+        return;
+      }
+    }
+  }
+  function closeStructureToolbar(restoreFocus: boolean): void {
+    const ownerId = structureToolbarOwnerId;
+    structureToolbar.hidden = true;
+    structureToolbar.replaceChildren();
+    structureToolbarOwnerId = null;
+    if (restoreFocus && ownerId !== null) focusStructureRow(ownerId);
+  }
+  function openStructureToolbar(nodeId: string): void {
+    structureToolbarOwnerId = nodeId;
+    const label = document.createElement('span');
+    label.className = 'structure-toolbar-label';
+    label.textContent = currentEditor()?.project.nodes[nodeId]?.name ?? 'Selected item';
+    const partition = partitionStructureActions(actions, undefined, 0);
+    const buttons: HTMLButtonElement[] = [];
+    const fragment = document.createDocumentFragment();
+    fragment.append(label);
+    for (const action of partition.overflow) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.action = action.id;
+      button.dataset.testid = `structure-action-${action.id}`;
+      button.disabled = !isActionEnabled(action, undefined);
+      button.textContent = action.label;
+      button.addEventListener('click', () => executeAction(action));
+      buttons.push(button);
+      fragment.append(button);
+    }
+    structureToolbar.replaceChildren(fragment);
+    structureToolbar.hidden = false;
+    const first = firstEnabledAction(partition.overflow, undefined);
+    buttons.find(button => button.dataset.action === first?.id)?.focus();
+  }
   const executeActionById = (id: string, surface: ActionSurface): void => {
     const action = actionsById.get(id);
     if (action !== undefined && actionSupportsSurface(action, surface)) executeAction(action);
@@ -1201,6 +1372,29 @@ const dispose = createRoot(disposeRoot => {
     if (!(input instanceof HTMLInputElement) || input.name !== 'settings-theme') return;
     if (input.checked && isThemePreference(input.value)) setTheme(input.value);
   };
+  const onStructureToolbarKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closeStructureToolbar(true);
+      return;
+    }
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    const buttons = Array.from(
+      structureToolbar.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
+    );
+    if (buttons.length === 0) return;
+    event.preventDefault();
+    const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    let nextIndex = currentIndex;
+    if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = buttons.length - 1;
+    else {
+      const direction = event.key === 'ArrowRight' ? 1 : -1;
+      nextIndex = (Math.max(0, currentIndex) + direction + buttons.length) % buttons.length;
+    }
+    buttons[nextIndex]?.focus();
+  };
   const onDocumentPointerDown = (event: PointerEvent): void => {
     const target = event.target as Node;
     if (!appMenu.hidden && !appMenu.contains(target) && !menuButton.contains(target)) {
@@ -1208,6 +1402,13 @@ const dispose = createRoot(disposeRoot => {
     }
     if (!zoomMenu.hidden && !zoomMenu.contains(target) && !zoomMenuButton.contains(target)) {
       setZoomMenuOpen(false);
+    }
+    if (
+      !structureToolbar.hidden &&
+      !structureToolbar.contains(target) &&
+      !layerTree.contains(target)
+    ) {
+      closeStructureToolbar(false);
     }
   };
   const onDocumentKeyDown = (event: KeyboardEvent): void => {
@@ -1306,6 +1507,7 @@ const dispose = createRoot(disposeRoot => {
   settingsCloseButton.addEventListener('click', onSettingsCloseButtonClick);
   settingsOverlay.addEventListener('change', onSettingsChange);
   settingsOverlay.addEventListener('pointerdown', onSettingsOverlayPointerDown);
+  structureToolbar.addEventListener('keydown', onStructureToolbarKeyDown);
   canvasBackgroundMode.addEventListener('change', onCanvasBackgroundModeChange);
   canvasBackgroundVisibility.addEventListener('click', onCanvasBackgroundVisibilityClick);
   canvasBackgroundColorInput.addEventListener('change', onCanvasBackgroundColorChange);
@@ -1373,6 +1575,7 @@ const dispose = createRoot(disposeRoot => {
     settingsCloseButton.removeEventListener('click', onSettingsCloseButtonClick);
     settingsOverlay.removeEventListener('change', onSettingsChange);
     settingsOverlay.removeEventListener('pointerdown', onSettingsOverlayPointerDown);
+    structureToolbar.removeEventListener('keydown', onStructureToolbarKeyDown);
     canvasBackgroundMode.removeEventListener('change', onCanvasBackgroundModeChange);
     canvasBackgroundVisibility.removeEventListener('click', onCanvasBackgroundVisibilityClick);
     canvasBackgroundColorInput.removeEventListener('change', onCanvasBackgroundColorChange);
@@ -1382,6 +1585,7 @@ const dispose = createRoot(disposeRoot => {
   });
   onCleanup(() => {
     stageResizeObserver.disconnect();
+    structureResizeObserver.disconnect();
     renderer?.dispose();
     manager.dispose();
   });
@@ -1406,8 +1610,9 @@ const dispose = createRoot(disposeRoot => {
 
   createEffect(() => {
     const selected = selectedImage();
-    projectGeneration();
+    const projectRevision = projectGeneration();
     treeGeneration();
+    const availableStructureWidth = structureWidth();
     const selectedId = selectedNodeId();
     const editor = selected?.editor ?? null;
     sourceIdentity.hidden = selected === null;
@@ -1448,6 +1653,7 @@ const dispose = createRoot(disposeRoot => {
     }
     if (editor === null) {
       layerTree.replaceChildren();
+      closeStructureToolbar(false);
       return;
     }
     localStorage.setItem(
@@ -1460,12 +1666,25 @@ const dispose = createRoot(disposeRoot => {
       return;
     }
     renderProjectTree(layerTree, editor.project, {
+      density: densityPolicy({
+        availableWidth: availableStructureWidth,
+        desiredRowHeight: 64,
+      }),
       expanded,
       onDelete: deleteNode,
+      onOpenActions: openStructureToolbar,
+      onPrimaryAction: nodeId => {
+        selectNode(nodeId);
+        requestAnimationFrame(focusSelectionProperties);
+      },
       onSelect: selectNode,
       onToggle: toggleNode,
+      revision: `${editor.project.projectId}:${projectRevision}`,
       selectedNodeId: selectedId,
     });
+    if (structureToolbarOwnerId !== null && structureToolbarOwnerId !== selectedId) {
+      closeStructureToolbar(false);
+    }
   });
 
   createEffect(() => {
@@ -1643,6 +1862,9 @@ const dispose = createRoot(disposeRoot => {
     }
   });
 
+  if (new URLSearchParams(window.location.search).has('structure-fixture')) {
+    void openStructureFixture();
+  }
   console.info(`[pixelf] Version: ${buildInfo.version} (${buildInfo.commit})`);
   return disposeRoot;
 });

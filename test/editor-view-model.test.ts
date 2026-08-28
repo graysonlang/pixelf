@@ -7,7 +7,7 @@ import {
   createNode,
   nodeRegistry,
 } from '../src/project/index.js';
-import { projectTreeEntries } from '../src/ui/editor-view.js';
+import { createListModel, createPixelfStructureAdapter } from '../src/ui/structure-list/index.js';
 
 function projectWithMask() {
   const asset = createEmbeddedImageAsset({
@@ -43,23 +43,32 @@ function projectWithMask() {
 }
 
 describe('target-first editor view model', () => {
-  it('lists the target, ordered primary branch, and declared mask relationship', () => {
+  it('lists the target and primary branch without treating mask wires as ordered rows', () => {
     const project = projectWithMask();
-    const entries = projectTreeEntries(
-      project,
-      new Set(['node-target', 'node-layer', 'node-source']),
+    const model = createListModel(
+      {
+        expanded: new Set(['node-target', 'node-layer', 'node-source']),
+        project,
+        revision: 'view-1',
+      },
+      createPixelfStructureAdapter(),
+      () => 48,
     );
     assert.deepEqual(
-      entries.map(entry => [entry.node.id, entry.depth, entry.relationship ?? 'primary']),
+      model.rows.map(row => [row.nodeId, row.depth, row.relation]),
       [
-        ['node-target', 0, 'primary'],
-        ['node-layer', 1, 'primary'],
-        ['node-source', 2, 'primary'],
-        ['node-mask', 2, 'mask input'],
+        ['node-target', 0, 'root'],
+        ['node-layer', 1, 'ordered-child'],
+        ['node-source', 2, 'unary-child'],
       ],
     );
+    assert.equal(project.wires[0]?.from.nodeId, 'node-mask');
     assert.deepEqual(
-      projectTreeEntries(project, new Set()).map(entry => entry.node.id),
+      createListModel(
+        { expanded: new Set<string>(), project, revision: 'view-2' },
+        createPixelfStructureAdapter(),
+        () => 48,
+      ).rows.map(row => row.nodeId),
       ['node-target'],
     );
   });

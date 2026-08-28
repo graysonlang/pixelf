@@ -7,20 +7,23 @@ import {
   scrubDimension,
   stepDimension,
 } from './dimension-control.js';
-
-export interface TreeEntry {
-  depth: number;
-  expandable: boolean;
-  node: ProjectNode;
-  parentId: string | null;
-  relationship?: string;
-}
+import {
+  createListModel,
+  createPixelfStructureAdapter,
+  pixelfNodeSummary,
+  renderStructureList,
+  type DensityPolicy,
+} from './structure-list/index.js';
 
 export interface TreeViewOptions {
+  density: DensityPolicy;
   expanded: Set<string>;
   onDelete(nodeId: string): void;
+  onOpenActions(nodeId: string): void;
+  onPrimaryAction(nodeId: string): void;
   onSelect(nodeId: string): void;
   onToggle(nodeId: string): void;
+  revision: string;
   selectedNodeId: string | null;
 }
 
@@ -33,154 +36,32 @@ export interface PropertiesViewOptions {
   ): void;
 }
 
-function primaryChildren(node: ProjectNode): readonly string[] {
-  if (node.type === 'target') return node.childIds;
-  if ('childId' in node && node.childId !== null) return [node.childId];
-  return [];
-}
-
-export function projectTreeEntries(
-  project: PixelfProject,
-  expanded: ReadonlySet<string>,
-): TreeEntry[] {
-  const entries: TreeEntry[] = [];
-  const visit = (
-    nodeId: string,
-    depth: number,
-    parentId: string | null,
-    relationship?: string,
-  ): void => {
-    const node = project.nodes[nodeId];
-    if (node === undefined) return;
-    const children = primaryChildren(node);
-    const wires = project.wires.filter(wire => wire.to.nodeId === node.id);
-    entries.push({
-      depth,
-      expandable: children.length + wires.length > 0,
-      node,
-      parentId,
-      relationship,
-    });
-    if (!expanded.has(node.id)) return;
-    for (const childId of children) visit(childId, depth + 1, node.id);
-    for (const wire of wires) {
-      visit(wire.from.nodeId, depth + 1, node.id, `${wire.to.port} input`);
-    }
-  };
-  for (const targetId of project.targetIds) visit(targetId, 0, null);
-  return entries;
-}
-
-function nodeSummary(project: PixelfProject, node: ProjectNode): string {
-  if (node.type === 'target') {
-    return `${node.contract.width} x ${node.contract.height} / ${node.contract.workingFormat} / ${node.contract.outputFormat} ${node.contract.outputBitDepth}-bit`;
-  }
-  if (node.type === 'source/imported' && node.assetId !== undefined) {
-    const asset = project.assets[node.assetId];
-    if (asset === undefined) return 'Missing asset';
-    return `${asset.width} x ${asset.height} / ${asset.storage}`;
-  }
-  return nodeRegistry.get(node.type)?.title ?? node.type;
-}
-
 export function renderProjectTree(
   container: HTMLElement,
   project: PixelfProject,
   options: TreeViewOptions,
 ): void {
-  const entries = projectTreeEntries(project, options.expanded);
-  const fragment = document.createDocumentFragment();
-  for (const entry of entries) {
-    const row = document.createElement('button');
-    row.className = `tree-row${entry.relationship === undefined ? '' : ' secondary'}`;
-    row.dataset.nodeId = entry.node.id;
-    row.setAttribute('aria-level', String(entry.depth + 1));
-    row.setAttribute('aria-selected', String(options.selectedNodeId === entry.node.id));
-    row.setAttribute('role', 'treeitem');
-    row.style.setProperty('--tree-depth', String(entry.depth));
-    row.tabIndex = options.selectedNodeId === entry.node.id ? 0 : -1;
-    if (entry.expandable)
-      row.setAttribute('aria-expanded', String(options.expanded.has(entry.node.id)));
-
-    const disclosure = document.createElement('span');
-    disclosure.className = 'tree-disclosure';
-    disclosure.textContent = entry.expandable
-      ? options.expanded.has(entry.node.id)
-        ? '[-]'
-        : '[+]'
-      : '   ';
-    disclosure.setAttribute('aria-hidden', 'true');
-    const text = document.createElement('span');
-    text.className = 'tree-text';
-    const title = document.createElement('strong');
-    title.textContent = entry.relationship
-      ? `${entry.relationship}: ${entry.node.name}`
-      : entry.node.name;
-    const summary = document.createElement('span');
-    summary.textContent = nodeSummary(project, entry.node);
-    text.append(title, summary);
-    row.append(disclosure, text);
-    row.addEventListener('click', () => options.onSelect(entry.node.id));
-    row.addEventListener('dblclick', () => {
-      if (entry.expandable) options.onToggle(entry.node.id);
-    });
-    fragment.append(row);
-  }
-  container.replaceChildren(fragment);
-  container.onkeydown = event => {
-    const selectedIndex = entries.findIndex(entry => entry.node.id === options.selectedNodeId);
-    const selectAt = (index: number): void => {
-      const entry = entries[index];
-      if (entry === undefined) return;
-      options.onSelect(entry.node.id);
-      requestAnimationFrame(() => {
-        container.querySelector<HTMLElement>(`[data-node-id="${entry.node.id}"]`)?.focus();
-      });
-    };
-    switch (event.key) {
-      case 'ArrowDown':
-        selectAt(Math.min(entries.length - 1, Math.max(0, selectedIndex + 1)));
-        break;
-      case 'ArrowUp':
-        selectAt(Math.max(0, selectedIndex - 1));
-        break;
-      case 'Home':
-        selectAt(0);
-        break;
-      case 'End':
-        selectAt(entries.length - 1);
-        break;
-      case 'ArrowRight': {
-        const selected = entries[selectedIndex];
-        if (selected?.expandable && !options.expanded.has(selected.node.id)) {
-          options.onToggle(selected.node.id);
-        } else {
-          selectAt(selectedIndex + 1);
-        }
-        break;
-      }
-      case 'ArrowLeft': {
-        const selected = entries[selectedIndex];
-        if (selected?.expandable && options.expanded.has(selected.node.id)) {
-          options.onToggle(selected.node.id);
-        } else if (selected?.parentId !== null && selected?.parentId !== undefined) {
-          options.onSelect(selected.parentId);
-        }
-        break;
-      }
-      case 'Delete':
-      case 'Backspace':
-        if (options.selectedNodeId !== null) options.onDelete(options.selectedNodeId);
-        break;
-      case 'Enter':
-      case ' ':
-        if (options.selectedNodeId !== null) options.onToggle(options.selectedNodeId);
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
-  };
+  const snapshot = { expanded: options.expanded, project, revision: options.revision };
+  const model = createListModel(
+    snapshot,
+    createPixelfStructureAdapter(),
+    () => options.density.rowHeight,
+  );
+  renderStructureList(container, model, {
+    density: options.density,
+    dependencyCount: row => project.wires.filter(wire => wire.to.nodeId === row.nodeId).length,
+    focusedNodeId: options.selectedNodeId,
+    onDelete: options.onDelete,
+    onOpenActions: options.onOpenActions,
+    onPrimaryAction: options.onPrimaryAction,
+    onSelect: options.onSelect,
+    onToggle: options.onToggle,
+    selectedNodeId: options.selectedNodeId,
+    summary: row => {
+      const node = project.nodes[row.nodeId];
+      return node === undefined ? row.kind : pixelfNodeSummary(project, node);
+    },
+  });
 }
 
 function field(labelText: string, control: HTMLElement, description?: string): HTMLLabelElement {
@@ -398,7 +279,7 @@ export function renderProperties(
     if ((definition?.parameters.length ?? 0) === 0) {
       const summary = document.createElement('p');
       summary.className = 'properties-empty';
-      summary.textContent = nodeSummary(project, node);
+      summary.textContent = pixelfNodeSummary(project, node);
       fragment.append(summary);
     }
   }

@@ -104,6 +104,13 @@
           <button id="delete-button" type="button" disabled>Delete</button>
         </fieldset>
         <div id="layer-tree" class="layer-tree" role="tree" aria-label="Target-first layers"></div>
+        <div
+          id="structure-toolbar"
+          class="structure-toolbar"
+          role="toolbar"
+          aria-label="Selected item actions"
+          hidden
+        ></div>
         <p id="render-status" class="render-status" role="status" hidden></p>
       </aside>
 
@@ -155,7 +162,13 @@
             </label>
           </fieldset>
         </section>
-        <section id="selection-properties" class="selection-properties" hidden></section>
+        <section
+          id="selection-properties"
+          class="selection-properties"
+          aria-label="Selected item properties"
+          tabindex="-1"
+          hidden
+        ></section>
       </aside>
     </section>
   </main>
