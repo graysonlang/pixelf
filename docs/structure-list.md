@@ -435,6 +435,7 @@ export type ActionSurface =
   | "overflow"
   | "context"
   | "properties"
+  | "menu"
   | "quick-actions"
   | "keyboard";
 
@@ -451,8 +452,8 @@ export interface UiAction<TContext, TCommand, TEditorEffect> {
   surfaces: readonly ActionSurface[];
   shortcut?: string;
   keywords?: readonly string[];
-  visible(context: TContext): boolean;
-  enabled(context: TContext): boolean;
+  visible?(context: TContext): boolean;
+  enabled?(context: TContext): boolean;
   invoke(context: TContext): ActionResult<TCommand, TEditorEffect>;
 }
 ```
@@ -465,6 +466,7 @@ Surface derivation follows one ordering:
 - Overflow receives the remaining visible rail-capable actions in the same order.
 - The context menu receives the complete visible context-capable set in the same group order.
 - The properties panel receives actions explicitly declared for that surface.
+- The main menu receives actions explicitly declared for that surface.
 - Quick actions receives searchable actions explicitly declared for that surface.
 - Keyboard invokes the same action ID and therefore the same enabled rule and result.
 

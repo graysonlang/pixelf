@@ -31,7 +31,15 @@ import {
   type SourceNode,
   type TargetContract,
 } from '../src/project/index.js';
-import { filterActions, isActionEnabled, type QuickAction } from '../src/ui/actions.js';
+import {
+  actionSupportsSurface,
+  actionsForSurface,
+  filterActions,
+  isActionEnabled,
+  isActionVisible,
+  type ActionSurface,
+  type UiAction,
+} from '../src/ui/actions.js';
 import {
   canvasBackgroundColor,
   canvasBackgroundPolarity,
@@ -85,6 +93,24 @@ interface StageSize {
   cssWidth: number;
   deviceHeight: number;
   deviceWidth: number;
+}
+
+type AppAction = UiAction<undefined, never, () => unknown>;
+
+interface AppActionDefinition extends Omit<AppAction, 'invoke' | 'priority' | 'surfaces'> {
+  priority?: number;
+  run(): unknown;
+  surfaces?: readonly ActionSurface[];
+}
+
+function appAction(definition: AppActionDefinition): AppAction {
+  const { priority = 0, run, surfaces = ['quick-actions'], ...metadata } = definition;
+  return {
+    ...metadata,
+    invoke: () => ({ effect: run, kind: 'editor' }),
+    priority,
+    surfaces,
+  };
 }
 
 function requireElement<ElementType extends Element>(selector: string): ElementType {
@@ -656,57 +682,68 @@ const dispose = createRoot(disposeRoot => {
     return selectedId === null ? undefined : editor?.project.nodes[selectedId];
   };
 
-  const actions: readonly QuickAction[] = [
-    {
+  const actions: readonly AppAction[] = [
+    appAction({
+      group: 'file',
       id: 'open-image',
       keywords: ['file', 'import'],
       label: 'Open image...',
       run: () => input.click(),
       shortcut: 'Shift+O',
-    },
-    {
+      surfaces: ['keyboard', 'menu', 'quick-actions'],
+    }),
+    appAction({
       enabled: () => currentEditor() !== null,
+      group: 'file',
       id: 'save-project',
       keywords: ['file', 'download'],
       label: 'Save project',
       run: saveProject,
-    },
-    {
+      surfaces: ['menu', 'quick-actions'],
+    }),
+    appAction({
       enabled: () => currentEditor() !== null,
+      group: 'file',
       id: 'export-target',
       keywords: ['file', 'download', 'render'],
       label: 'Export target',
       run: exportTarget,
-    },
-    {
+      surfaces: ['menu', 'quick-actions'],
+    }),
+    appAction({
+      group: 'application',
       id: 'settings',
       keywords: ['preferences', 'appearance', 'theme'],
       label: 'Settings...',
       run: () => openSettings(),
       shortcut: primaryShortcut(','),
-    },
-    {
+      surfaces: ['keyboard', 'menu', 'quick-actions'],
+    }),
+    appAction({
       enabled: () => currentEditor()?.canUndo ?? false,
+      group: 'history',
       id: 'undo',
       keywords: ['history'],
       label: 'Undo',
       run: undo,
-    },
-    {
+    }),
+    appAction({
       enabled: () => currentEditor()?.canRedo ?? false,
+      group: 'history',
       id: 'redo',
       keywords: ['history'],
       label: 'Redo',
       run: redo,
-    },
-    {
+    }),
+    appAction({
       enabled: () => currentEditor() !== null,
+      group: 'structure',
       id: 'add-layer',
       keywords: ['new', 'source'],
       label: 'Add layer',
       run: addLayer,
-    },
-    {
+    }),
+    appAction({
       enabled: () => {
         const node = selectedNode();
         return (
@@ -716,12 +753,13 @@ const dispose = createRoot(disposeRoot => {
           node.type !== 'source/checker-mask'
         );
       },
+      group: 'structure',
       id: 'add-operation',
       keywords: ['new', 'processor', 'effect'],
       label: 'Add operation',
       run: addOperation,
-    },
-    {
+    }),
+    appAction({
       enabled: () => {
         const editor = currentEditor();
         const selectedId = selectedNodeId();
@@ -734,12 +772,13 @@ const dispose = createRoot(disposeRoot => {
           )
         );
       },
+      group: 'structure',
       id: 'add-mask',
       keywords: ['new', 'layer'],
       label: 'Add mask',
       run: addMask,
-    },
-    {
+    }),
+    appAction({
       enabled: () => {
         const editor = currentEditor();
         const node = selectedNode();
@@ -750,64 +789,82 @@ const dispose = createRoot(disposeRoot => {
           findPrimaryParent(editor.project, node.id) !== null
         );
       },
+      group: 'structure',
       id: 'duplicate',
       keywords: ['copy', 'branch'],
       label: 'Duplicate selected branch',
       run: duplicateNode,
-    },
-    {
+    }),
+    appAction({
       enabled: () => selectedNodeId() !== null,
+      group: 'structure',
       id: 'delete',
       keywords: ['remove', 'selected'],
       label: 'Delete selected item',
       run: deleteSelected,
-    },
-    {
+    }),
+    appAction({
       enabled: () => selectedImage() !== null,
+      group: 'view',
       id: 'fit-preview',
       keywords: ['zoom', 'view'],
       label: 'Fit preview',
       run: fitStage,
-    },
-    {
+      surfaces: ['keyboard', 'quick-actions'],
+    }),
+    appAction({
+      group: 'view',
       id: 'actual-size',
       keywords: ['zoom', 'view', '100 percent'],
       label: 'Preview at 100%',
       run: setActualSize,
-    },
-    {
+      surfaces: ['keyboard', 'quick-actions'],
+    }),
+    appAction({
+      group: 'view',
       id: 'zoom-in',
       keywords: ['view', 'preview'],
       label: 'Zoom in',
       run: zoomIn,
-    },
-    {
+      surfaces: ['keyboard', 'quick-actions'],
+    }),
+    appAction({
+      group: 'view',
       id: 'zoom-out',
       keywords: ['view', 'preview'],
       label: 'Zoom out',
       run: zoomOut,
-    },
-    {
+      surfaces: ['keyboard', 'quick-actions'],
+    }),
+    appAction({
       enabled: () => selectedImage() !== null,
+      group: 'view',
       id: 'original-preview',
       keywords: ['before', 'after', 'compare', 'source', 'view'],
       label: 'Toggle original / edited',
       run: toggleOriginalPreview,
       shortcut: '\\',
-    },
-    {
+      surfaces: ['keyboard', 'quick-actions'],
+    }),
+    appAction({
+      group: 'view',
       id: 'pixel-grid',
       keywords: ['toggle', 'view'],
       label: 'Toggle pixel grid',
       run: togglePixelGrid,
       shortcut: primaryShortcut("'"),
-    },
+      surfaces: ['keyboard', 'quick-actions'],
+    }),
   ];
   const actionsById = new Map(actions.map(action => [action.id, action]));
   const menuActionButtons = Array.from(
     appMenu.querySelectorAll<HTMLButtonElement>('button[data-action]'),
   );
-  let filteredQuickActions: readonly QuickAction[] = actions;
+  let filteredQuickActions: readonly AppAction[] = actionsForSurface(
+    actions,
+    'quick-actions',
+    undefined,
+  );
   let quickActionFocus = 0;
 
   const setZoomMenuOpen = (open: boolean, restoreFocus = false): void => {
@@ -833,7 +890,11 @@ const dispose = createRoot(disposeRoot => {
   const syncMenuActions = (): void => {
     for (const button of menuActionButtons) {
       const action = actionsById.get(button.dataset.action ?? '');
-      button.disabled = action === undefined || !isActionEnabled(action);
+      button.disabled =
+        action === undefined ||
+        !actionSupportsSurface(action, 'menu') ||
+        !isActionVisible(action, undefined) ||
+        !isActionEnabled(action, undefined);
     }
   };
   const setQuickActionFocus = (index: number): void => {
@@ -843,19 +904,30 @@ const dispose = createRoot(disposeRoot => {
       button.classList.toggle('focused', buttonIndex === index);
     });
   };
-  const executeAction = (action: QuickAction): void => {
-    if (!isActionEnabled(action)) return;
+  const executeAction = (action: AppAction): void => {
+    if (!isActionVisible(action, undefined) || !isActionEnabled(action, undefined)) return;
     closeQuickActions();
     setMenuOpen(false);
     setZoomMenuOpen(false);
     try {
-      void Promise.resolve(action.run()).catch(reportError);
+      const result = action.invoke(undefined);
+      if (result.kind === 'command') {
+        throw new Error(`App action ${action.id} returned an unsupported document command`);
+      }
+      void Promise.resolve(result.effect()).catch(reportError);
     } catch (error) {
       reportError(error);
     }
   };
+  const executeActionById = (id: string, surface: ActionSurface): void => {
+    const action = actionsById.get(id);
+    if (action !== undefined && actionSupportsSurface(action, surface)) executeAction(action);
+  };
   const renderQuickActions = (query: string): void => {
-    filteredQuickActions = filterActions(actions, query);
+    filteredQuickActions = filterActions(
+      actionsForSurface(actions, 'quick-actions', undefined),
+      query,
+    );
     quickActionsResults.replaceChildren();
     if (filteredQuickActions.length === 0) {
       const empty = document.createElement('p');
@@ -865,12 +937,12 @@ const dispose = createRoot(disposeRoot => {
       quickActionFocus = -1;
       return;
     }
-    quickActionFocus = filteredQuickActions.findIndex(isActionEnabled);
+    quickActionFocus = filteredQuickActions.findIndex(action => isActionEnabled(action, undefined));
     filteredQuickActions.forEach((action, index) => {
       const button = document.createElement('button');
       button.className = `quick-action${index === quickActionFocus ? ' focused' : ''}`;
       button.type = 'button';
-      button.disabled = !isActionEnabled(action);
+      button.disabled = !isActionEnabled(action, undefined);
       const label = document.createElement('span');
       label.textContent = action.label;
       button.append(label);
@@ -926,7 +998,7 @@ const dispose = createRoot(disposeRoot => {
     for (let offset = 0; offset < filteredQuickActions.length; offset += 1) {
       next = (next + direction + filteredQuickActions.length) % filteredQuickActions.length;
       const action = filteredQuickActions[next];
-      if (action !== undefined && isActionEnabled(action)) {
+      if (action !== undefined && isActionEnabled(action, undefined)) {
         setQuickActionFocus(next);
         return;
       }
@@ -1079,7 +1151,7 @@ const dispose = createRoot(disposeRoot => {
     const button = (event.target as Element).closest<HTMLButtonElement>('button[data-action]');
     if (button === null || !appMenu.contains(button)) return;
     const action = actionsById.get(button.dataset.action ?? '');
-    if (action !== undefined) executeAction(action);
+    if (action !== undefined && actionSupportsSurface(action, 'menu')) executeAction(action);
   };
   const onAppMenuKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') {
@@ -1154,7 +1226,7 @@ const dispose = createRoot(disposeRoot => {
     }
     if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key === ',') {
       event.preventDefault();
-      openSettings();
+      executeActionById('settings', 'keyboard');
       return;
     }
     if (event.key === 'Escape') {
@@ -1177,12 +1249,12 @@ const dispose = createRoot(disposeRoot => {
     }
     if (pixelGridShortcut(event)) {
       event.preventDefault();
-      togglePixelGrid();
+      executeActionById('pixel-grid', 'keyboard');
       return;
     }
     if (originalPreviewShortcut(event)) {
       event.preventDefault();
-      if (!event.repeat) toggleOriginalPreview();
+      if (!event.repeat) executeActionById('original-preview', 'keyboard');
       return;
     }
     if (
@@ -1193,17 +1265,16 @@ const dispose = createRoot(disposeRoot => {
       event.code === 'KeyO'
     ) {
       event.preventDefault();
-      setMenuOpen(false);
-      input.click();
+      executeActionById('open-image', 'keyboard');
       return;
     }
     const shortcut = zoomShortcut(event);
     if (shortcut === null) return;
     event.preventDefault();
-    if (shortcut === 'fit') fitStage();
-    else if (shortcut === 'reset') setActualSize();
-    else if (shortcut === 'in') zoomIn();
-    else zoomOut();
+    if (shortcut === 'fit') executeActionById('fit-preview', 'keyboard');
+    else if (shortcut === 'reset') executeActionById('actual-size', 'keyboard');
+    else if (shortcut === 'in') executeActionById('zoom-in', 'keyboard');
+    else executeActionById('zoom-out', 'keyboard');
   };
   const onZoomMenuKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') {
