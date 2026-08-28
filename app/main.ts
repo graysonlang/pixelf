@@ -14,7 +14,6 @@ import {
   GpuDeviceManager,
   GpuImageRenderer,
   hybridNearestBlend,
-  type GpuDeviceState,
 } from '../src/gpu/index.js';
 import {
   createNode,
@@ -48,6 +47,7 @@ import {
   savePreferences,
   type ThemePreference,
 } from '../src/ui/preferences.js';
+import { renderingStatusMessage } from '../src/ui/render-status.js';
 import {
   actualSizeViewport,
   anchoredZoom,
@@ -93,18 +93,6 @@ function requireElement<ElementType extends Element>(selector: string): ElementT
   return element;
 }
 
-function deviceMessage(state: GpuDeviceState): string {
-  switch (state.kind) {
-    case 'idle':
-    case 'acquiring':
-    case 'ready':
-      return '';
-    case 'unsupported':
-    case 'lost':
-      return state.message;
-  }
-}
-
 function normalizedContract(contract: TargetContract): TargetContract {
   if (contract.outputFormat === 'jpeg') {
     return { ...contract, alphaPolicy: 'opaque', outputBitDepth: 8 };
@@ -146,12 +134,12 @@ const dispose = createRoot(disposeRoot => {
   const exportButton = requireElement<HTMLButtonElement>('#export-button');
   const metadataPolicy = requireElement<HTMLSelectElement>('#metadata-policy');
   const preview = requireElement<HTMLImageElement>('#image-preview');
-  const canvas = requireElement<HTMLCanvasElement>('#gpu-preview');
-  const canvasFrame = requireElement<HTMLElement>('#gpu-preview-frame');
+  const canvas = requireElement<HTMLCanvasElement>('#render-preview');
+  const canvasFrame = requireElement<HTMLElement>('#render-preview-frame');
   const sourceIdentity = requireElement<HTMLElement>('#source-identity');
   const sourceName = requireElement<HTMLElement>('#source-name');
   const sourceDetails = requireElement<HTMLElement>('#source-details');
-  const gpuStatus = requireElement<HTMLElement>('#gpu-status');
+  const renderStatus = requireElement<HTMLElement>('#render-status');
   const layerTree = requireElement<HTMLElement>('#layer-tree');
   const canvasProperties = requireElement<HTMLElement>('#canvas-properties');
   const selectionProperties = requireElement<HTMLElement>('#selection-properties');
@@ -181,7 +169,7 @@ const dispose = createRoot(disposeRoot => {
   const [propertiesGeneration, setPropertiesGeneration] = createSignal(0);
   const [treeGeneration, setTreeGeneration] = createSignal(0);
   const [gpuMode, setGpuMode] = createSignal<'checking' | 'fallback' | 'ready'>('checking');
-  const [gpuMessage, setGpuMessage] = createSignal('');
+  const [statusMessage, setStatusMessage] = createSignal('');
   const [deviceGeneration, setDeviceGeneration] = createSignal(0);
   const [zoom, setZoom] = createSignal(1);
   const [panX, setPanX] = createSignal(0);
@@ -240,7 +228,7 @@ const dispose = createRoot(disposeRoot => {
       setDeviceGeneration(generation);
     },
     onState: state => {
-      setGpuMessage(deviceMessage(state));
+      setStatusMessage(renderingStatusMessage(state));
       if (state.kind === 'unsupported' || state.kind === 'lost') setGpuMode('fallback');
     },
   });
@@ -267,7 +255,13 @@ const dispose = createRoot(disposeRoot => {
     setTreeGeneration(generation => generation + 1);
   };
   const reportError = (error: unknown): void => {
-    setGpuMessage(error instanceof Error ? error.message : String(error));
+    setStatusMessage(error instanceof Error ? error.message : String(error));
+  };
+  const reportRenderingError = (error: unknown): void => {
+    console.error('[pixelf] Preview rendering failed', error);
+    setStatusMessage(
+      'The edited preview could not be rendered. Pixelf is showing the source image.',
+    );
   };
   const runCommand = (action: () => void, refreshProperties = true): void => {
     try {
@@ -520,7 +514,7 @@ const dispose = createRoot(disposeRoot => {
 
   const openImage = async (file: File): Promise<void> => {
     const generation = ++selectionGeneration;
-    setGpuMessage(`Decoding ${file.name}...`);
+    setStatusMessage(`Decoding ${file.name}...`);
     try {
       const decoded = await decodeImageFile(file);
       if (generation !== selectionGeneration) return;
@@ -535,7 +529,7 @@ const dispose = createRoot(disposeRoot => {
       setProjectGeneration(current => current + 1);
       setTreeGeneration(current => current + 1);
       requestAnimationFrame(placeInitialImage);
-      setGpuMessage('');
+      setStatusMessage('');
     } catch (error) {
       if (generation === selectionGeneration) reportError(error);
     }
@@ -953,7 +947,7 @@ const dispose = createRoot(disposeRoot => {
     event.preventDefault();
     dragDepth += 1;
     appShell.classList.add('drop-target');
-    setGpuMessage('Drop image to open');
+    setStatusMessage('Drop image to open');
   };
   const onDragOver = (event: DragEvent): void => {
     if (!isFileDrag(event.dataTransfer?.types ?? [])) return;
@@ -965,7 +959,7 @@ const dispose = createRoot(disposeRoot => {
     dragDepth = Math.max(0, dragDepth - 1);
     if (dragDepth > 0) return;
     appShell.classList.remove('drop-target');
-    setGpuMessage('');
+    setStatusMessage('');
   };
   const onDrop = (event: DragEvent): void => {
     if (
@@ -978,7 +972,7 @@ const dispose = createRoot(disposeRoot => {
     resetDropTarget();
     const file = firstImageFile(event.dataTransfer?.files ?? []);
     if (file === null) {
-      setGpuMessage('The dropped files do not include a supported image');
+      setStatusMessage('The dropped files do not include a supported image');
       return;
     }
     void openImage(file);
@@ -1329,9 +1323,9 @@ const dispose = createRoot(disposeRoot => {
   });
 
   createEffect(() => {
-    const message = gpuMessage();
-    gpuStatus.textContent = message;
-    gpuStatus.hidden = message.length === 0;
+    const message = statusMessage();
+    renderStatus.textContent = message;
+    renderStatus.hidden = message.length === 0;
   });
 
   createEffect(() => {
@@ -1561,20 +1555,20 @@ const dispose = createRoot(disposeRoot => {
           canvas.hidden = false;
           canvasFrame.hidden = false;
           preview.hidden = true;
-          setGpuMessage('');
+          setStatusMessage('');
         })
         .catch(error => {
           if (activePresentation !== presentationGeneration) return;
           canvas.hidden = true;
           canvasFrame.hidden = true;
           preview.hidden = false;
-          reportError(error);
+          reportRenderingError(error);
         });
     } catch (error) {
       canvas.hidden = true;
       canvasFrame.hidden = true;
       preview.hidden = false;
-      reportError(error);
+      reportRenderingError(error);
     }
   });
 

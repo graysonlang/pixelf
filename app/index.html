@@ -104,14 +104,14 @@
           <button id="delete-button" type="button" disabled>Delete</button>
         </fieldset>
         <div id="layer-tree" class="layer-tree" role="tree" aria-label="Target-first layers"></div>
-        <p id="gpu-status" class="gpu-status" role="status" hidden></p>
+        <p id="render-status" class="render-status" role="status" hidden></p>
       </aside>
 
       <section class="stage-column">
         <section id="stage" class="stage" aria-label="Image preview">
-          <canvas id="gpu-preview" aria-label="Processed WebGPU preview" hidden></canvas>
+          <canvas id="render-preview" aria-label="Edited image preview" hidden></canvas>
           <div id="stage-content" class="stage-content">
-            <div id="gpu-preview-frame" class="gpu-preview-frame" aria-hidden="true" hidden></div>
+            <div id="render-preview-frame" class="render-preview-frame" aria-hidden="true" hidden></div>
             <img id="image-preview" alt="Original source preview" hidden>
           </div>
         </section>

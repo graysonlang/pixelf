@@ -327,7 +327,7 @@ button:disabled {
 }
 
 .source-details,
-.gpu-status {
+.render-status {
   border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: 11px;
@@ -336,7 +336,7 @@ button:disabled {
   padding-top: 10px;
 }
 
-.gpu-status[hidden] {
+.render-status[hidden] {
   display: none;
 }
 
@@ -521,7 +521,7 @@ button:disabled {
   user-select: none;
 }
 
-#gpu-preview {
+#render-preview {
   height: 100%;
   inset: 0;
   pointer-events: none;
@@ -529,14 +529,14 @@ button:disabled {
   width: 100%;
 }
 
-.gpu-preview-frame {
+.render-preview-frame {
   box-shadow: 0 16px 60px var(--shadow);
   flex: 0 0 auto;
   pointer-events: none;
 }
 
-#gpu-preview[hidden],
-#gpu-preview-frame[hidden],
+#render-preview[hidden],
+#render-preview-frame[hidden],
 #image-preview[hidden] {
   display: none;
 }
