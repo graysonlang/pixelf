@@ -15,6 +15,9 @@ It should be updated when a phase materially changes direction or is completed.
 - [x] Phase 7 - Durable projects and faithful export
 - [x] Phase 8 - Advanced wiring and extensibility
 
+The completed phases establish the architectural foundation rather than the final product surface.
+[The base editing scope](docs/base-editing-scope.md) defines the viewing and manipulation capabilities for the next product slices, while [the structure-list design](docs/structure-list.md) defines their compact primary navigation surface.
+
 ## Working rules
 
 - Keep the project document canonical and prefer rendered pixels as derived projections.

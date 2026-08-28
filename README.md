@@ -41,6 +41,8 @@ The initial principles are:
 - Local-first operation: opening, editing, saving, and exporting should not require an account or remote service.
 - Fidelity is explicit: color space, alpha semantics, resolution, precision, sampling, and export encoding are data rather than hidden renderer choices.
 
+[The base editing scope](docs/base-editing-scope.md) records the viewing, format, transform, processing, and brush capabilities that define the next product baseline.
+
 ## Target-first layers and wiring
 
 The primary authoring structure reads from result to source.
