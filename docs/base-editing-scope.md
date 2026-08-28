@@ -239,7 +239,8 @@ Pixelf also owns premultiplied linear color, target and asset identity, typed ma
 Skitsaro does not yet provide a WebGPU brush backend to adopt.
 
 ABR parsing code and synthetic tests can be adapted behind a Pixelf-owned preset contract.
-Local proprietary brush files in Skitsaro are development fixtures and must not be copied or redistributed.
+Original ABR files authored for the project and other explicitly redistributable brush assets can be committed as fixtures or bundled presets with their provenance and license recorded.
+Adobe-owned or otherwise non-redistributable brush material remains local development input and must not be copied or published.
 Imported preset tips, textures, and other payloads need an explicit Pixelf asset ownership and persistence policy.
 
 ### 8.2 Cleanup
