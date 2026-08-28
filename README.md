@@ -142,6 +142,8 @@ Pixelf-specific target contracts, nested layer semantics, persistence, and UI st
 
 Amoire is the reference for Solid reactive ownership, direct DOM construction, commands, and the separation between documents and GPU projections.
 Filfre is a source of practical image-effect, graph, schema-driven property, and animation ideas.
+Skitsaro is the reference for ABR parsing, deterministic brush stamping, pressure and tilt dynamics, coalesced and predicted pen input, and touch or stylus arbitration.
+Pixelf adapts those behaviors behind its own target-first document, command, tiled-evaluation, color, and renderer boundaries rather than importing the sibling checkout at runtime.
 Place3D is the reference for sparse workspace geometry: content-sized panels float over the primary viewport instead of reserving permanent side columns.
 Neither application model should be copied wholesale: Pixelf's target-first image document is its own contract.
 

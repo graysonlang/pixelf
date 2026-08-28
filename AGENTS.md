@@ -17,6 +17,8 @@ Read [README.md](README.md) and [PLAN.md](PLAN.md) before changing document sema
 The compositor in `../mixaic/src/compositor/` is the implementation reference for region evaluation, tile halos and caching, premultiplied linear color, alpha-safe sampling, and GPU resource ownership.
 Adapt it behind a Pixelf-owned internal contract with focused conformance tests; do not create runtime imports across sibling repositories or copy host-specific Mixaic application state.
 Use `../amoire` as the reference for the JSX-free Solid and command-driven application structure, and `../filfre` as a reference for image-effect vocabulary and graph authoring concepts.
+Use `../skitsaro` as the reference for ABR parsing, deterministic brush stamping, coalesced and predicted pen input, stylus dynamics, and touch or stylus arbitration.
+Adapt those behaviors behind Pixelf-owned document, command, tiling, color, and rendering contracts; do not create runtime imports across the sibling repository.
 
 ## Hard rules
 

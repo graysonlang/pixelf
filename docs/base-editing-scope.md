@@ -40,7 +40,7 @@ Information is derived, format choices belong primarily to targets and export, t
 | Format | PNG, JPEG, and WebP targets; target dimensions, channel layout, bit depth, alpha policy, sRGB or Display P3 labeling, and discard/preserve/rewrite metadata policy. | Durable codec settings, compression or quality controls, embedded-profile handling, editable metadata fields, and supported embedded-thumbnail settings. |
 | Transforms | Reversible crop, canvas resize, and affine transform operations. | Clear separation between target resize, content scale, and resampling; rotate controls and presets; and a defined rectification transform. |
 | Processing | Levels, white balance, channel inspection, masks, and a broader photographic adjustment set. | Curves, image invert, and per-channel editing rather than inspection alone. |
-| Brush operations | Typed masks and tiled invalidation foundations. | A localized stroke document, brush interaction, cleanup semantics, painted masks, and localized median evaluation. |
+| Brush operations | Typed masks and tiled invalidation foundations in Pixelf; ABR parsing, deterministic stroke stamping, and pen or touch interaction in Skitsaro. | Pixelf-owned stroke persistence and commands, tiled brush evaluation, cleanup semantics, painted masks, and localized median evaluation. |
 
 The existing implementation is a foundation, not evidence that a baseline capability is product-complete.
 A capability is complete only when its document meaning, controls, undo behavior, evaluation, persistence, accessibility, and export effect agree.
@@ -206,8 +206,9 @@ A broader channel mixer or arbitrary channel algebra is not implied until separa
 
 ## 8. Brush operations
 
-Brush operations require a dedicated design slice before UI implementation.
-They introduce potentially long pointer streams, localized invalidation, stroke replay, per-gesture undo, and authored raster ownership.
+Brush operations require a focused Pixelf adaptation slice before UI implementation.
+Skitsaro already provides substantial implementation evidence for ABR import, parametric stroke replay, brush dynamics, live preview, and pen or touch capture, so this is not a greenfield brush engine.
+Pixelf still needs to define how those behaviors enter its target-first document, commands, tiled evaluator, masks, color pipeline, persistence, and asset ownership.
 
 The baseline model should satisfy these rules:
 
@@ -219,21 +220,43 @@ The baseline model should satisfy these rules:
 - Touch can pan when not intentionally brushing, and a stylus is useful without being required.
 - Brush cursors and effects remain perceivable without relying on color alone.
 
-### 8.1 Cleanup
+### 8.1 Skitsaro adaptation boundary
+
+Use `../skitsaro` as an implementation reference for these proven behaviors:
+
+- Legacy ABR v1 and v2 presets and modern 8BIM-based v6 and v10 presets, including computed and sampled tips, raw and PackBits bitmap data, patterns, dual brushes, brush groups, and available dynamics.
+- A versioned parametric stroke containing committed input samples, brush parameters, paint color, and a seeded random stream so replay is deterministic.
+- Distance-based dab emission, pressure-controlled size and flow, tilt or direction-controlled shape and angle, scatter and jitter, texture, dual-brush coverage, and supported color dynamics.
+- A per-stroke coverage buffer that separates per-dab flow buildup from per-stroke opacity and final compositing.
+- Coalesced samples for fidelity and predicted samples for provisional latency hiding, with predicted samples excluded from committed stroke data.
+- A normalized pointer stream that can carry pressure, tilt, azimuth, altitude, roll, hover distance, and a calibrated brush angle without making the core depend on a browser or native bridge.
+- One-pointer-per-stroke capture, cancellation of an early speculative finger stroke when a second touch becomes navigation, and a travel threshold that protects an intentional stroke from a stray second touch.
+- Brush preset thumbnails and a hover preview that communicates diameter, angle, and roundness.
+
+These behaviors must be adapted rather than imported as a runtime dependency.
+Skitsaro's current full-surface `StrokeBuffer` and Canvas2D renderer are useful correctness references, but Pixelf needs bounded stroke regions and tile-aware storage or replay so document-size allocations do not bypass its scheduler and memory budgets.
+Pixelf also owns premultiplied linear color, target and asset identity, typed masks and wires, operation ordering, undo and redo, project serialization, cache invalidation, and CPU or WebGPU conformance.
+Skitsaro does not yet provide a WebGPU brush backend to adopt.
+
+ABR parsing code and synthetic tests can be adapted behind a Pixelf-owned preset contract.
+Local proprietary brush files in Skitsaro are development fixtures and must not be copied or redistributed.
+Imported preset tips, textures, and other payloads need an explicit Pixelf asset ownership and persistence policy.
+
+### 8.2 Cleanup
 
 Cleanup is a brush-scoped correction family rather than one assumed algorithm.
 The first implementation must choose and label a precise behavior such as clone, heal, or content-aware replacement before the document contract is finalized.
 
 Any sampled source point, alignment mode, radius, hardness, opacity, and blending behavior needed to reproduce a cleanup stroke becomes authored data.
 
-### 8.2 Masking
+### 8.3 Masking
 
 Mask brush gestures add to, subtract from, or replace a typed mask.
 They preserve the existing mask invert, density, feather, and transform behavior rather than creating a separate mask ownership model.
 
 The list summarizes the mask dependency; individual strokes do not become top-level structure rows.
 
-### 8.3 Median filter
+### 8.4 Median filter
 
 The brush median filter applies a median neighborhood within the stroke footprint.
 Its radius defines a tile halo, and its mask or coverage edge must agree between isolated tiles and full evaluation.
@@ -262,8 +285,9 @@ After the static structure-list slice, implementation should proceed through foc
 1. Information and format contracts: print resolution, metadata storage and viewing, profile distinctions, hover sampling, and codec settings.
 2. Transform completion: explicit resize semantics, rotate controls, and projective rectification.
 3. Processing completion: curves, image invert, and composite or per-channel targeting for tonal tools.
-4. Brush architecture: stroke document, localized invalidation, pointer arbitration, and undo.
-5. Brush tools: masking first, then median and the precisely selected cleanup behavior.
+4. Brush adaptation: map Skitsaro's ABR, input, stroke, dynamics, and preview seams onto Pixelf-owned contracts, with conformance fixtures that preserve deterministic behavior.
+5. Brush integration: add stroke persistence, commands, localized invalidation, tiled evaluation, preset asset ownership, and undo without a whole-document brush buffer.
+6. Brush tools: masking first, then median and the precisely selected cleanup behavior.
 
 Each slice includes document and command semantics, headless evaluation tests, persistence, accessible controls, and isolated browser validation where visible.
 
@@ -276,3 +300,6 @@ Each slice includes document and command semantics, headless evaluation tests, p
 5. Does rectify begin with manual four-corner perspective correction, or is another geometry intended?
 6. Which cleanup behavior should ship first: clone, heal, or another precisely defined correction?
 7. Should the localized median brush also create a reusable global median processor in the first implementation?
+8. Are imported ABR presets embedded in a project, linked as external assets, installed in an editor-level library, or offered through more than one explicit choice?
+9. Which of Skitsaro's supported dynamics belong in Pixelf's first brush UI, and which remain faithfully imported but progressively disclosed?
+10. Should Skitsaro code initially be adapted into Pixelf with conformance tests, or should a shared package be extracted only after both applications prove a stable boundary?
