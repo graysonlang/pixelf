@@ -31,6 +31,8 @@ test('zoom shortcuts map fit, actual size, and physical plus and minus keys', ()
   assert.equal(zoomShortcut(key({ code: 'Digit1', shiftKey: true })), 'fit');
   assert.equal(zoomShortcut(key({ code: 'Digit9', shiftKey: true })), 'fit');
   assert.equal(zoomShortcut(key({ code: 'Digit0', shiftKey: true })), 'reset');
+  assert.equal(zoomShortcut(key({ code: 'Digit0', metaKey: true })), 'reset');
+  assert.equal(zoomShortcut(key({ code: 'Digit0', ctrlKey: true })), 'reset');
   for (const modifiers of [
     {},
     { shiftKey: true },

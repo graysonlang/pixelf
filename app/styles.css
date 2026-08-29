@@ -188,7 +188,7 @@ button:disabled {
   box-shadow: 0 12px 34px var(--shadow);
   padding: 6px;
   position: fixed;
-  width: 240px;
+  width: 204px;
   z-index: 40;
 }
 
@@ -216,12 +216,10 @@ button:disabled {
 }
 
 .zoom-custom {
-  align-items: center;
   border-top: 1px solid var(--line);
   color: var(--muted);
-  display: flex;
+  display: block;
   font-size: 11px;
-  justify-content: space-between;
   margin-top: 5px;
   padding: 8px;
 }
@@ -230,14 +228,17 @@ button:disabled {
   align-items: center;
   display: flex;
   gap: 5px;
+  width: 100%;
 }
 
 #zoom-input {
   background: var(--panel);
   color: var(--text);
+  flex: 1 1 auto;
+  min-width: 0;
   padding: 5px 6px;
   text-align: right;
-  width: 72px;
+  width: auto;
 }
 
 .menu-item {
@@ -374,15 +375,9 @@ button:disabled {
 
 .zoom-hud {
   align-items: center;
-  backdrop-filter: blur(18px) saturate(120%);
-  background: var(--panel-glass);
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  box-shadow: 0 10px 30px var(--shadow);
-  display: flex;
   bottom: 12px;
+  display: flex;
   left: 12px;
-  padding: 4px;
   position: absolute;
   z-index: 20;
 }
@@ -431,6 +426,9 @@ button:disabled {
 }
 
 .zoom-menu-button {
+  backdrop-filter: blur(18px) saturate(120%);
+  background: var(--panel-glass);
+  box-shadow: 0 10px 30px var(--shadow);
   font-size: 11px;
   min-width: 52px;
   padding: 6px 8px;

@@ -227,6 +227,7 @@ const dispose = createRoot(disposeRoot => {
   const quickActionsInput = requireElement<HTMLInputElement>('#quick-actions-input');
   const quickActionsResults = requireElement<HTMLElement>('#quick-actions-results');
   const settingsShortcut = requireElement<HTMLElement>('#settings-shortcut');
+  const actualSizeShortcut = requireElement<HTMLElement>('#actual-size-shortcut');
   const settingsOverlay = requireElement<HTMLElement>('#settings-overlay');
   const settingsCloseButton = requireElement<HTMLButtonElement>('#settings-close-button');
   const themeInputs = Array.from(
@@ -318,6 +319,7 @@ const dispose = createRoot(disposeRoot => {
 
   quickActionsShortcut.textContent = primaryShortcut('/');
   settingsShortcut.textContent = primaryShortcut(',');
+  actualSizeShortcut.textContent = primaryShortcut('0');
 
   const manager = new GpuDeviceManager({
     onContext: (context, generation) => {
@@ -906,6 +908,7 @@ const dispose = createRoot(disposeRoot => {
       keywords: ['zoom', 'view', '100 percent'],
       label: 'Preview at 100%',
       run: setActualSize,
+      shortcut: primaryShortcut('0'),
       surfaces: ['keyboard', 'quick-actions'],
     }),
     appAction({
@@ -979,7 +982,7 @@ const dispose = createRoot(disposeRoot => {
       setAddMenuOpen(false);
       zoomMenu.hidden = false;
       const buttonBounds = zoomMenuButton.getBoundingClientRect();
-      const menuWidth = 240;
+      const menuWidth = zoomMenu.offsetWidth;
       zoomMenu.style.left = `${Math.max(8, Math.min(window.innerWidth - menuWidth - 8, buttonBounds.left))}px`;
       zoomMenu.style.top = `${Math.max(8, buttonBounds.top - zoomMenu.offsetHeight - 6)}px`;
       zoomInput.value = String(Math.round(zoom() * 100));

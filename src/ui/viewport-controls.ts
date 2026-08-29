@@ -106,7 +106,9 @@ export function originalPreviewShortcut(key: ZoomKey): boolean {
 }
 
 export function zoomShortcut(key: ZoomKey): ZoomShortcut | null {
-  if (key.altKey || key.ctrlKey) return null;
+  if (key.altKey) return null;
+  if (!key.shiftKey && (key.metaKey || key.ctrlKey) && key.code === 'Digit0') return 'reset';
+  if (key.ctrlKey) return null;
   if (!key.metaKey && key.shiftKey && (key.code === 'Digit1' || key.code === 'Digit9')) {
     return 'fit';
   }
