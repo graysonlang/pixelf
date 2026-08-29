@@ -68,7 +68,7 @@ Cycles are rejected before evaluation.
 
 This model is intentionally not a flat Photoshop document model and not an unrestricted node canvas.
 The primary layer panel presents the ordered target children as a familiar z-stack, with the highest layer first and the target contract shown as the Composite row at the bottom.
-Sources and reversible effects remain disclosed within their owning layer, while advanced relationships remain explicit when they are useful.
+An imported bitmap source is implicit in its owning Layer row rather than appearing as a second selectable item; reversible effects remain disclosed beneath that Layer, while advanced relationships remain explicit when they are useful.
 
 Shared images remain source leaves in the owning layer branch and expose their dependency as a typed wire below that leaf.
 Their serialized cache lifetime is target, project, or editor session; cache identity includes reachable nodes, wires, and source assets plus the selected lifetime owner.

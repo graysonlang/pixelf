@@ -15,12 +15,36 @@ function primaryChildren(node: ProjectNode): readonly string[] {
   return [];
 }
 
+function layerStackChildren(project: PixelfProject, node: ProjectNode): readonly string[] {
+  if (node.type === 'target') return [];
+  return primaryChildren(node).filter(
+    childId => project.nodes[childId]?.type !== 'source/imported',
+  );
+}
+
+function importedSourceForLayer(
+  project: PixelfProject,
+  layer: ProjectNode & { type: 'layer' },
+): ProjectNode | undefined {
+  const visited = new Set<string>();
+  let childId = layer.childId;
+  while (childId !== null && !visited.has(childId)) {
+    visited.add(childId);
+    const child = project.nodes[childId];
+    if (child?.type === 'source/imported') return child;
+    if (child === undefined || !('childId' in child)) return undefined;
+    childId = child.childId;
+  }
+  return undefined;
+}
+
 export function pixelfNodeSummary(project: PixelfProject, node: ProjectNode): string {
   if (node.type === 'target') {
     return `Composite / ${node.contract.width} x ${node.contract.height} / ${node.contract.outputFormat} ${node.contract.outputBitDepth}-bit`;
   }
-  if (node.type === 'source/imported' && node.assetId !== undefined) {
-    const asset = project.assets[node.assetId];
+  const importedSource = node.type === 'layer' ? importedSourceForLayer(project, node) : node;
+  if (importedSource?.type === 'source/imported' && importedSource.assetId !== undefined) {
+    const asset = project.assets[importedSource.assetId];
     if (asset === undefined) return 'Missing asset';
     return `${asset.width} x ${asset.height} / ${asset.storage}`;
   }
@@ -36,7 +60,7 @@ function describe(
   if (node === undefined) throw new Error(`Cannot describe missing Pixelf node ${id}`);
   const parent = findPrimaryParent(snapshot.project, id);
   const isStackLayer = layerStack && parent?.node.type === 'target';
-  const children = layerStack && node.type === 'target' ? [] : primaryChildren(node);
+  const children = layerStack ? layerStackChildren(snapshot.project, node) : primaryChildren(node);
   return {
     acceptsVisualDepth: node.type === 'layer' || node.type.startsWith('process/'),
     expanded: snapshot.expanded.has(id),
@@ -75,8 +99,7 @@ export function createPixelfLayerStackAdapter(): StructureAdapter<PixelfStructur
     childOrder: 'document',
     childrenOf: (snapshot, id) => {
       const node = snapshot.project.nodes[id];
-      if (node === undefined || node.type === 'target') return [];
-      return primaryChildren(node);
+      return node === undefined ? [] : layerStackChildren(snapshot.project, node);
     },
     describe: (snapshot, id) => describe(snapshot, id, true),
     revisionOf: snapshot => snapshot.revision,

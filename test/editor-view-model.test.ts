@@ -11,6 +11,7 @@ import {
   createListModel,
   createPixelfLayerStackAdapter,
   createPixelfStructureAdapter,
+  pixelfNodeSummary,
 } from '../src/ui/structure-list/index.js';
 
 function projectWithMask() {
@@ -90,7 +91,7 @@ describe('target-first editor view model', () => {
     );
   });
 
-  it('presents layers as a top-first stack with the composite contract at the bottom', () => {
+  it('folds imported bitmap sources into a top-first layer stack', () => {
     const topSource = createNode('source/imported', 'node-top-source', 'Top source');
     assert.equal(topSource.type, 'source/imported');
     if (topSource.type !== 'source/imported') return;
@@ -119,11 +120,44 @@ describe('target-first editor view model', () => {
       model.rows.map(row => [row.nodeId, row.name, row.depth, row.relation]),
       [
         ['node-top-layer', 'Top layer', 0, 'root'],
-        ['node-top-source', 'Top source', 1, 'unary-child'],
         ['node-layer', 'View image', 0, 'root'],
-        ['node-source', 'View image', 1, 'unary-child'],
         ['node-target', 'View image', 0, 'root'],
       ],
     );
+    assert.equal(model.rows[0]?.hasChildren, false);
+    assert.equal(pixelfNodeSummary(project, topLayer), '50 x 40 / embedded');
+  });
+
+  it('keeps processors disclosed while folding their terminal bitmap source', () => {
+    const project = projectWithMask();
+    const blur = createNode('process/blur', 'node-blur', 'Soft focus');
+    const withBlur = applyProjectCommand(project, {
+      commands: [
+        { index: 0, nodeId: 'node-source', parentId: null, type: 'move-node' },
+        { node: blur, parentId: 'node-layer', type: 'insert-node' },
+        { index: 0, nodeId: 'node-source', parentId: blur.id, type: 'move-node' },
+      ],
+      type: 'batch',
+    });
+    const model = createListModel(
+      {
+        expanded: new Set(['node-layer', blur.id]),
+        project: withBlur,
+        revision: 'view-stack-processor',
+      },
+      createPixelfLayerStackAdapter(),
+      () => 48,
+    );
+    assert.deepEqual(
+      model.rows.map(row => [row.nodeId, row.depth, row.relation, row.hasChildren]),
+      [
+        ['node-layer', 0, 'root', true],
+        [blur.id, 1, 'unary-child', false],
+        ['node-target', 0, 'root', false],
+      ],
+    );
+    const layer = withBlur.nodes['node-layer'];
+    assert.ok(layer);
+    assert.equal(pixelfNodeSummary(withBlur, layer), '50 x 40 / embedded');
   });
 });

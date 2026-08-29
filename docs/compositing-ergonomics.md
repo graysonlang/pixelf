@@ -105,7 +105,9 @@ The compositor still evaluates a request in one explicit linear working space so
 ## User-interface mapping
 
 The primary layer panel is a Photoshop-like z-order stack with the topmost layer first and Composite last.
-Layer sources and attached layer effects remain disclosed beneath their owning Layer instead of becoming peer rows that obscure compositing order.
+An imported bitmap source is implicit in its owning Layer row and contributes its asset status and dimensions there rather than appearing as a second selectable row.
+This prevents the primary UI from deleting a source independently and leaving an empty Layer behind.
+Reversible processors and attached layer effects remain disclosed beneath their owning Layer, and advanced source relationships remain explicit where they are useful.
 
 Duplicate and Delete live in the layer context menu and remain available from the keyboard.
 Layer order changes by direct drag and by an equivalent keyboard gesture; persistent Up and Down buttons are not part of the panel.
