@@ -35,6 +35,17 @@ function editorNode(state: EditorState, nodeId: string) {
 }
 
 describe('EditorState', () => {
+  it('renames a composite through undoable project state', () => {
+    const state = editor();
+    assert.equal(state.project.name, 'Editor image');
+    state.dispatch({ name: 'Retouched portrait', type: 'set-project-name' });
+    assert.equal(state.project.name, 'Retouched portrait');
+    state.undo();
+    assert.equal(state.project.name, 'Editor image');
+    state.redo();
+    assert.equal(state.project.name, 'Retouched portrait');
+  });
+
   it('inserts a processor, edits it, and traverses undo and redo', () => {
     const state = editor();
     const opacity = createNode('process/opacity', 'node-opacity') as ProcessorNode;

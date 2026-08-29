@@ -14,11 +14,11 @@ It should be updated when a phase materially changes direction or is completed.
 - [x] Phase 6 - Demand-driven tiles and large images
 - [x] Phase 7 - Durable projects and faithful export
 - [x] Phase 8 - Advanced wiring and extensibility
-- [ ] Phase 9 - Canvas-first layer-stack ergonomics
+- [ ] Phase 9 - Composite-first layer-stack ergonomics
 
 The completed phases establish the architectural foundation rather than the final product surface.
 [The base editing scope](docs/base-editing-scope.md) defines the viewing and manipulation capabilities for the next product slices, while [the structure-list design](docs/structure-list.md) defines their compact primary navigation surface.
-[The compositing ergonomics note](docs/compositing-ergonomics.md) records the current pivot from an engine-shaped target tree toward a canvas-based z-stack without discarding the target-first canonical document.
+[The compositing ergonomics note](docs/compositing-ergonomics.md) records the current pivot from an engine-shaped target tree toward a Composite-based z-stack without discarding the target-first canonical document.
 
 ## Working rules
 

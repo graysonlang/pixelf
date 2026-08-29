@@ -42,7 +42,7 @@ The initial principles are:
 - Fidelity is explicit: color space, alpha semantics, resolution, precision, sampling, and export encoding are data rather than hidden renderer choices.
 
 [The base editing scope](docs/base-editing-scope.md) records the viewing, format, transform, processing, and brush capabilities that define the next product baseline.
-[The compositing ergonomics note](docs/compositing-ergonomics.md) records how the canonical target-first document is presented as a familiar canvas-based z-stack, including save/export, source bounds, effects, destructive edits, and color handling.
+[The compositing ergonomics note](docs/compositing-ergonomics.md) records how the canonical target-first document is presented as a familiar Composite-based z-stack, including save/export, source bounds, effects, destructive edits, and color handling.
 
 ## Target-first layers and wiring
 
@@ -67,7 +67,7 @@ They must not create a second hidden ownership model: the target tree owns compo
 Cycles are rejected before evaluation.
 
 This model is intentionally not a flat Photoshop document model and not an unrestricted node canvas.
-The primary layer panel presents the ordered target children as a familiar z-stack, with the highest layer first and the target contract shown as a Canvas row at the bottom.
+The primary layer panel presents the ordered target children as a familiar z-stack, with the highest layer first and the target contract shown as the Composite row at the bottom.
 Sources and reversible effects remain disclosed within their owning layer, while advanced relationships remain explicit when they are useful.
 
 Shared images remain source leaves in the owning layer branch and expose their dependency as a typed wire below that leaf.

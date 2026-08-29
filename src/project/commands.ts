@@ -14,6 +14,7 @@ export type ProjectCommand =
   | { index?: number; node: ProjectNode; parentId: string | null; type: 'insert-node' }
   | { nodeId: string; type: 'remove-node' }
   | { index: number; nodeId: string; parentId: string | null; type: 'move-node' }
+  | { name: string; type: 'set-project-name' }
   | { key: string; nodeId: string; type: 'set-parameter'; value: JsonValue }
   | { contract: TargetContract; nodeId: string; type: 'set-target-contract' }
   | { background: CanvasBackground; nodeId: string; type: 'set-target-background' }
@@ -109,6 +110,12 @@ function applyMutable(project: PixelfProject, command: ProjectCommand): void {
       removeFromParent(project, command.nodeId);
       attachToParent(project, command.nodeId, command.parentId, command.index);
       return;
+    case 'set-project-name': {
+      const name = command.name.trim();
+      if (name.length === 0) throw new Error('A composite name cannot be empty');
+      project.name = name;
+      return;
+    }
     case 'set-parameter': {
       const node = project.nodes[command.nodeId];
       if (node === undefined) throw new Error(`Cannot edit missing node ${command.nodeId}`);

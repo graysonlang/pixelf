@@ -80,6 +80,11 @@ export interface ImportedProjectIds {
   targetId: string;
 }
 
+function projectNameFromAsset(name: string): string {
+  const stripped = name.replace(/\.[^.]+$/, '').trim();
+  return stripped.length > 0 ? stripped : 'Untitled';
+}
+
 export function createImportedProject(
   asset: ImageAsset,
   ids: ImportedProjectIds = {
@@ -89,6 +94,7 @@ export function createImportedProject(
     targetId: createOpaqueId('node'),
   },
 ): PixelfProject {
+  const projectName = projectNameFromAsset(asset.name);
   const target = createNode('target', ids.targetId, asset.name) as TargetNode;
   target.contract = { ...target.contract, height: asset.height, width: asset.width };
   target.childIds = [ids.layerId];
@@ -97,7 +103,7 @@ export function createImportedProject(
   const source = createNode('source/imported', ids.sourceId, asset.name) as SourceNode;
   source.assetId = asset.id;
   const project: PixelfProject = {
-    ...createEmptyProject(asset.name, ids.projectId),
+    ...createEmptyProject(projectName, ids.projectId),
     assets: { [asset.id]: asset },
     nodes: {
       [target.id]: target,
