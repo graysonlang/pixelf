@@ -996,6 +996,17 @@ button:disabled {
   font-weight: 550;
 }
 
+.property-field.numeric-field > .property-label {
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.property-field.numeric-field[data-scrubbing="true"],
+.property-field.numeric-field[data-scrubbing="true"] input {
+  cursor: ew-resize;
+}
+
 .property-field input:not([type="checkbox"]),
 .property-field select {
   background: var(--panel-raised);

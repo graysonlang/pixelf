@@ -1227,7 +1227,8 @@ const dispose = createRoot(disposeRoot => {
     void openImage(file);
   };
   const applyCustomZoom = (): void => {
-    const percentage = zoomInput.valueAsNumber;
+    if (zoomInput.value.trim().length === 0) return;
+    const percentage = Number(zoomInput.value);
     if (!Number.isFinite(percentage)) return;
     setZoom(clampZoom(percentage / 100));
   };
@@ -1750,12 +1751,14 @@ const dispose = createRoot(disposeRoot => {
       return;
     }
     renderProperties(selectionProperties, editor.project, selectedId, {
-      onParameter: (nodeId, key, value) =>
-        runCommand(() =>
-          editor.dispatch(
-            { key, nodeId, type: 'set-parameter', value },
-            { label: `Set ${key}`, mergeKey: `${nodeId}:${key}` },
-          ),
+      onParameter: (nodeId, key, value, options) =>
+        runCommand(
+          () =>
+            editor.dispatch(
+              { key, nodeId, type: 'set-parameter', value },
+              { label: `Set ${key}`, mergeKey: `${nodeId}:${key}` },
+            ),
+          options?.preserveControls !== true,
         ),
       onProjectName: name =>
         runCommand(() =>

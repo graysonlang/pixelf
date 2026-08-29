@@ -12,6 +12,7 @@ export interface ParameterDefinition {
   label: string;
   maximum?: number;
   minimum?: number;
+  scrubStep?: number;
   values?: readonly string[];
 }
 
@@ -70,6 +71,7 @@ function numberParameter(
   defaultValue: number,
   minimum: number,
   maximum: number,
+  scrubStep?: number,
 ): ParameterDefinition {
   return {
     default: defaultValue,
@@ -79,6 +81,7 @@ function numberParameter(
     label,
     maximum,
     minimum,
+    scrubStep,
   };
 }
 
@@ -190,8 +193,8 @@ const definitions = [
     [
       numberParameter('x', 'X', 0, -100000, 100000),
       numberParameter('y', 'Y', 0, -100000, 100000),
-      numberParameter('scaleX', 'Scale X', 1, -1000, 1000),
-      numberParameter('scaleY', 'Scale Y', 1, -1000, 1000),
+      numberParameter('scaleX', 'Scale X', 1, -1000, 1000, 0.01),
+      numberParameter('scaleY', 'Scale Y', 1, -1000, 1000, 0.01),
       numberParameter('rotation', 'Rotation', 0, -36000, 36000),
       numberParameter('pivotX', 'Pivot X', 0, -100000, 100000),
       numberParameter('pivotY', 'Pivot Y', 0, -100000, 100000),
@@ -214,7 +217,7 @@ const definitions = [
   processor('process/levels', 'Levels', 'Remaps black, white, gamma, and output endpoints.', [
     numberParameter('inBlack', 'Input black', 0, 0, 1),
     numberParameter('inWhite', 'Input white', 1, 0, 1),
-    numberParameter('gamma', 'Gamma', 1, 0.01, 100),
+    numberParameter('gamma', 'Gamma', 1, 0.01, 100, 0.01),
     numberParameter('outBlack', 'Output black', 0, 0, 1),
     numberParameter('outWhite', 'Output white', 1, 0, 1),
   ]),
@@ -365,8 +368,8 @@ const definitions = [
       numberParameter('feather', 'Feather', 0, 0, 1000),
       numberParameter('x', 'X', 0, -100000, 100000),
       numberParameter('y', 'Y', 0, -100000, 100000),
-      numberParameter('scaleX', 'Scale X', 1, -1000, 1000),
-      numberParameter('scaleY', 'Scale Y', 1, -1000, 1000),
+      numberParameter('scaleX', 'Scale X', 1, -1000, 1000, 0.01),
+      numberParameter('scaleY', 'Scale Y', 1, -1000, 1000, 0.01),
       numberParameter('rotation', 'Rotation', 0, -36000, 36000),
     ],
     ports: [{ direction: 'output', key: 'mask', kind: 'mask', label: 'Mask' }],
@@ -417,8 +420,8 @@ const definitions = [
       numberParameter('feather', 'Feather', 0, 0, 1000),
       numberParameter('x', 'X', 0, -100000, 100000),
       numberParameter('y', 'Y', 0, -100000, 100000),
-      numberParameter('scaleX', 'Scale X', 1, -1000, 1000),
-      numberParameter('scaleY', 'Scale Y', 1, -1000, 1000),
+      numberParameter('scaleX', 'Scale X', 1, -1000, 1000, 0.01),
+      numberParameter('scaleY', 'Scale Y', 1, -1000, 1000, 0.01),
       numberParameter('rotation', 'Rotation', 0, -36000, 36000),
     ],
     ports: [{ direction: 'output', key: 'mask', kind: 'mask', label: 'Mask' }],

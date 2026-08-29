@@ -40,6 +40,10 @@ This governs source files (`.js`, `.mjs`, `.ts`, `.rs`, `.swift`, `.py`, `.sh`, 
 
 JSON configs are strict JSON: no comments, no trailing commas. If a config genuinely needs commentary, put it in the README rather than switching the file to JSONC.
 
+### Numeric controls
+
+Do not use native number inputs or visible increment and decrement steppers. Numeric values use text inputs with an appropriate `inputmode`; continuously adjustable values expose their visible label as a horizontal scrub target while preserving direct keyboard entry.
+
 ### Language
 
 US English spelling throughout — code, comments, UI strings, and docs. color (not colour), center, gray, behavior, license, honor, canceled, labeled, and -ize verbs (serialize, normalize, recognize).

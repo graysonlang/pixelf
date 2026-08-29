@@ -7,6 +7,7 @@ import {
   scrubDimension,
   stepDimension,
 } from './dimension-control.js';
+import { parseNumericInput, scrubNumericValue } from './numeric-control.js';
 import {
   createListModel,
   createPixelfLayerStackAdapter,
@@ -30,7 +31,12 @@ export interface TreeViewOptions {
 }
 
 export interface PropertiesViewOptions {
-  onParameter(nodeId: string, key: string, value: JsonValue): void;
+  onParameter(
+    nodeId: string,
+    key: string,
+    value: JsonValue,
+    options?: { preserveControls?: boolean },
+  ): void;
   onProjectName(name: string): void;
   onTargetContract(
     nodeId: string,
@@ -146,18 +152,91 @@ function parameterControl(
     return select;
   }
   const input = document.createElement('input');
-  input.type = definition.kind === 'number' ? 'number' : 'text';
+  input.type = 'text';
   input.value = String(value ?? '');
-  if (definition.minimum !== undefined) input.min = String(definition.minimum);
-  if (definition.maximum !== undefined) input.max = String(definition.maximum);
-  input.step = definition.integer ? '1' : 'any';
-  input.addEventListener('input', () => {
-    if (definition.kind === 'number') {
-      const numeric = Number(input.value);
-      if (Number.isFinite(numeric)) onValue(numeric);
-    } else onValue(input.value);
-  });
+  input.addEventListener('input', () => onValue(input.value));
   return input;
+}
+
+function numericParameterField(
+  node: ProjectNode,
+  definition: ParameterDefinition,
+  onValue: (value: number, options?: { preserveControls?: boolean }) => void,
+): HTMLLabelElement {
+  const initialValue = node.parameters[definition.key];
+  let appliedValue = typeof initialValue === 'number' ? initialValue : Number(definition.default);
+  const input = document.createElement('input');
+  input.autocomplete = 'off';
+  input.inputMode =
+    definition.integer === true && (definition.minimum ?? 0) >= 0 ? 'numeric' : 'decimal';
+  input.spellcheck = false;
+  input.type = 'text';
+  input.value = String(appliedValue);
+  const wrapper = field(definition.label, input, definition.description);
+  wrapper.classList.add('numeric-field');
+  const name = wrapper.querySelector<HTMLElement>('.property-label');
+  if (name === null) return wrapper;
+  name.title = `Drag to adjust ${definition.label.toLowerCase()}`;
+  const apply = (value: number): void => {
+    if (value === appliedValue) return;
+    appliedValue = value;
+    onValue(value, { preserveControls: true });
+  };
+  input.addEventListener('input', () => {
+    const value = parseNumericInput(input.value, definition);
+    if (value !== null) apply(value);
+  });
+  input.addEventListener('blur', () => {
+    const value = parseNumericInput(input.value, definition);
+    if (value === null) input.value = String(appliedValue);
+    else {
+      input.value = String(value);
+      apply(value);
+    }
+  });
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      input.blur();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      input.value = String(appliedValue);
+      input.blur();
+    }
+  });
+  let scrubPointerId: number | null = null;
+  let scrubStartX = 0;
+  let scrubStartValue = appliedValue;
+  const stopScrub = (event: PointerEvent): void => {
+    if (event.pointerId !== scrubPointerId) return;
+    scrubPointerId = null;
+    delete wrapper.dataset.scrubbing;
+    if (name.hasPointerCapture(event.pointerId)) name.releasePointerCapture(event.pointerId);
+  };
+  name.addEventListener('pointerdown', event => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    scrubPointerId = event.pointerId;
+    scrubStartX = event.clientX;
+    scrubStartValue = parseNumericInput(input.value, definition) ?? appliedValue;
+    wrapper.dataset.scrubbing = 'true';
+    name.setPointerCapture(event.pointerId);
+  });
+  name.addEventListener('click', event => event.preventDefault());
+  name.addEventListener('pointermove', event => {
+    if (event.pointerId !== scrubPointerId) return;
+    const value = scrubNumericValue(
+      scrubStartValue,
+      event.clientX - scrubStartX,
+      definition,
+      event.shiftKey,
+    );
+    input.value = String(value);
+    apply(value);
+  });
+  name.addEventListener('pointerup', stopScrub);
+  name.addEventListener('pointercancel', stopScrub);
+  return wrapper;
 }
 
 function targetFields(
@@ -327,13 +406,17 @@ export function renderProperties(
     const definition = nodeRegistry.get(node.type);
     for (const parameter of definition?.parameters ?? []) {
       fragment.append(
-        field(
-          parameter.label,
-          parameterControl(node, parameter, value =>
-            options.onParameter(node.id, parameter.key, value),
-          ),
-          parameter.description,
-        ),
+        parameter.kind === 'number'
+          ? numericParameterField(node, parameter, (value, changeOptions) =>
+              options.onParameter(node.id, parameter.key, value, changeOptions),
+            )
+          : field(
+              parameter.label,
+              parameterControl(node, parameter, value =>
+                options.onParameter(node.id, parameter.key, value),
+              ),
+              parameter.description,
+            ),
       );
     }
     if ((definition?.parameters.length ?? 0) === 0) {
