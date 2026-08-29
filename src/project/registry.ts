@@ -5,7 +5,7 @@ export type ParameterKind = 'boolean' | 'enum' | 'number' | 'string';
 
 export interface ParameterDefinition {
   default: JsonValue;
-  description: string;
+  description?: string;
   integer?: boolean;
   key: string;
   kind: ParameterKind;
@@ -129,7 +129,6 @@ const definitions = [
     parameters: [
       {
         default: 1,
-        description: 'The layer contribution from transparent to fully visible.',
         key: 'opacity',
         kind: 'number',
         label: 'Opacity',
@@ -138,7 +137,6 @@ const definitions = [
       },
       {
         default: 1,
-        description: 'The layer source contribution before adjustments and compositing effects.',
         key: 'fill',
         kind: 'number',
         label: 'Fill',
@@ -147,7 +145,6 @@ const definitions = [
       },
       {
         default: 'normal',
-        description: 'How the layer combines with the accumulated target.',
         key: 'blendMode',
         kind: 'enum',
         label: 'Blend mode',

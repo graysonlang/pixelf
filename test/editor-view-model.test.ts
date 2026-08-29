@@ -89,6 +89,10 @@ describe('target-first editor view model', () => {
       nodeRegistry.require('layer').ports.find(port => port.key === 'mask')?.kind,
       'mask',
     );
+    assert.deepEqual(
+      nodeRegistry.require('layer').parameters.map(parameter => parameter.description),
+      [undefined, undefined, undefined],
+    );
   });
 
   it('folds imported bitmap sources into a top-first layer stack', () => {
