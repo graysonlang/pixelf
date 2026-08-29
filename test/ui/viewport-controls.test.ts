@@ -9,6 +9,7 @@ import {
   originalPreviewShortcut,
   panByWheel,
   pixelGridShortcut,
+  wheelZoomModifier,
   zoomShortcut,
   type ZoomKey,
 } from '../../src/ui/viewport-controls.js';
@@ -86,6 +87,12 @@ test('panByWheel translates opposite the trackpad scroll delta', () => {
     panX: 14,
     panY: -6,
   });
+});
+
+test('wheel zoom accepts Control and Command modifiers', () => {
+  assert.equal(wheelZoomModifier(key({ ctrlKey: true })), true);
+  assert.equal(wheelZoomModifier(key({ metaKey: true })), true);
+  assert.equal(wheelZoomModifier(key({})), false);
 });
 
 test('clampZoom bounds direct and gesture zoom', () => {

@@ -89,6 +89,10 @@ export function panByWheel(
   };
 }
 
+export function wheelZoomModifier(modifiers: Pick<ZoomKey, 'ctrlKey' | 'metaKey'>): boolean {
+  return modifiers.ctrlKey || modifiers.metaKey;
+}
+
 export function pixelGridShortcut(key: ZoomKey): boolean {
   return (key.metaKey || key.ctrlKey) && !key.altKey && !key.shiftKey && key.code === 'Quote';
 }

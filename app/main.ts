@@ -71,6 +71,7 @@ import {
   originalPreviewShortcut,
   panByWheel,
   pixelGridShortcut,
+  wheelZoomModifier,
   zoomShortcut,
 } from '../src/ui/viewport-controls.js';
 import indexPath from './index.html';
@@ -1266,7 +1267,7 @@ const dispose = createRoot(disposeRoot => {
   const onStageWheel = (event: WheelEvent): void => {
     event.preventDefault();
     if (selectedImage() === null) return;
-    if (!event.ctrlKey) {
+    if (!wheelZoomModifier(event)) {
       const result = panByWheel(panX(), panY(), event.deltaX, event.deltaY);
       setPanX(result.panX);
       setPanY(result.panY);
