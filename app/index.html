@@ -59,36 +59,74 @@
     </section>
 
     <section class="workspace" aria-label="Image workspace">
-      <aside class="layers-panel">
-        <div class="panel-heading">
-          <button
-            id="menu-button"
-            class="menu-button"
-            type="button"
-            aria-label="Main menu"
-            aria-controls="app-menu"
-            aria-expanded="false"
-          >
-            <svg class="menu-icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-              <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"></path>
-            </svg>
-          </button>
-          <div id="source-identity" class="source-identity" hidden>
-            <!-- biome-ignore lint/a11y/useHeadingContent: populated before the active image identity is shown -->
-            <h1 id="source-name"></h1>
-            <p id="source-details" class="source-details"></p>
+      <aside class="tool-rail" aria-label="Tools">
+        <button
+          id="menu-button"
+          class="menu-button rail-button"
+          type="button"
+          aria-label="Main menu"
+          aria-controls="app-menu"
+          aria-expanded="false"
+        >
+          <svg class="menu-icon" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+            <path d="M3 5h12M3 9h12M3 13h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"></path>
+          </svg>
+        </button>
+        <div class="tool-rail-divider" aria-hidden="true"></div>
+        <button class="rail-button tool-button" type="button" data-tool="move" aria-label="Move and select tool" aria-pressed="true" title="Move and select">
+          <svg width="19" height="19" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M4 2.5l10.8 8.1-5.1 1.1-2.4 4.8L4 2.5Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"></path>
+          </svg>
+        </button>
+        <button class="rail-button tool-button" type="button" data-tool="brush" aria-label="Brush tool" aria-pressed="false" title="Brush">
+          <svg width="19" height="19" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M13.8 2.5l3.7 3.7-8.3 8.3-3.7-3.7 8.3-8.3Z" fill="none" stroke="currentColor" stroke-width="1.4"></path>
+            <path d="M8.2 13.5c-.4 2.8-2.1 4-5.2 4 1.5-1.5 1-3.1 2.2-4.3.8-.8 2-.7 3 .3Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"></path>
+          </svg>
+        </button>
+        <button class="rail-button tool-button" type="button" data-tool="eyedropper" aria-label="Eyedropper tool" aria-pressed="false" title="Eyedropper">
+          <svg width="19" height="19" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M11.5 3.5l5 5M13.8 6.2l1.4-1.4a1.8 1.8 0 0 1 2.5 2.5l-1.4 1.4M12.8 7.2l-7.2 7.2-.8 2.8 2.8-.8 7.2-7.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </button>
+        <div class="tool-rail-spacer"></div>
+        <fieldset class="paint-colors">
+          <legend class="visually-hidden">Paint colors</legend>
+          <div class="paint-color-stack">
+            <label class="paint-color paint-color-background" title="Background color">
+              <span class="visually-hidden">Background color</span>
+              <input id="background-paint-color" type="color" value="#ffffff">
+            </label>
+            <label class="paint-color paint-color-foreground" title="Foreground color">
+              <span class="visually-hidden">Foreground color</span>
+              <input id="foreground-paint-color" type="color" value="#171b1e">
+            </label>
           </div>
-          <button
-            id="zoom-menu-button"
-            class="zoom-menu-button"
-            type="button"
-            aria-label="Zoom options"
-            aria-controls="zoom-menu"
-            aria-expanded="false"
-          >
-            <span id="zoom-menu-label">100%</span>
-          </button>
+        </fieldset>
+      </aside>
+
+      <div class="viewport-hud">
+        <div id="source-identity" class="source-identity" hidden>
+          <strong id="source-name"></strong>
+          <span id="source-details" class="source-details"></span>
         </div>
+        <button
+          id="zoom-menu-button"
+          class="zoom-menu-button"
+          type="button"
+          aria-label="Zoom options"
+          aria-controls="zoom-menu"
+          aria-expanded="false"
+        >
+          <span id="zoom-menu-label">100%</span>
+        </button>
+      </div>
+
+      <aside class="layers-panel">
+        <header class="layers-heading">
+          <span>Document</span>
+          <h2>Layers</h2>
+        </header>
         <fieldset class="tree-actions">
           <legend class="visually-hidden">Layer actions</legend>
           <button id="add-layer-button" type="button" disabled>+ Layer</button>
@@ -98,17 +136,13 @@
           </label>
           <button id="add-operation-button" type="button" disabled>+ Operation</button>
           <button id="add-mask-button" type="button" disabled>+ Mask</button>
-          <button id="duplicate-button" type="button" disabled>Duplicate</button>
-          <button id="move-up-button" type="button" title="Move layer up" disabled>Up</button>
-          <button id="move-down-button" type="button" title="Move layer down" disabled>Down</button>
-          <button id="delete-button" type="button" disabled>Delete</button>
         </fieldset>
-        <div id="layer-tree" class="layer-tree" role="tree" aria-label="Target-first layers"></div>
+        <div id="layer-tree" class="layer-tree" role="tree" aria-label="Layers and canvas"></div>
         <div
           id="structure-toolbar"
           class="structure-toolbar"
-          role="toolbar"
-          aria-label="Selected item actions"
+          role="menu"
+          aria-label="Layer actions"
           hidden
         ></div>
         <p id="render-status" class="render-status" role="status" hidden></p>

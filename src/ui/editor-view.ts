@@ -9,7 +9,7 @@ import {
 } from './dimension-control.js';
 import {
   createListModel,
-  createPixelfStructureAdapter,
+  createPixelfLayerStackAdapter,
   pixelfNodeSummary,
   renderStructureList,
   type DensityPolicy,
@@ -19,9 +19,11 @@ export interface TreeViewOptions {
   density: DensityPolicy;
   expanded: Set<string>;
   onDelete(nodeId: string): void;
-  onOpenActions(nodeId: string): void;
+  onMoveLayer(nodeId: string, direction: -1 | 1): void;
+  onOpenActions(nodeId: string, anchor?: { x: number; y: number }): void;
   onPrimaryAction(nodeId: string): void;
   onSelect(nodeId: string): void;
+  onReorderLayer(nodeId: string, anchorNodeId: string, placement: 'after' | 'before'): void;
   onToggle(nodeId: string): void;
   revision: string;
   selectedNodeId: string | null;
@@ -44,7 +46,7 @@ export function renderProjectTree(
   const snapshot = { expanded: options.expanded, project, revision: options.revision };
   const model = createListModel(
     snapshot,
-    createPixelfStructureAdapter(),
+    createPixelfLayerStackAdapter(),
     () => options.density.rowHeight,
   );
   renderStructureList(container, model, {
@@ -52,9 +54,11 @@ export function renderProjectTree(
     dependencyCount: row => project.wires.filter(wire => wire.to.nodeId === row.nodeId).length,
     focusedNodeId: options.selectedNodeId,
     onDelete: options.onDelete,
+    onMove: options.onMoveLayer,
     onOpenActions: options.onOpenActions,
     onPrimaryAction: options.onPrimaryAction,
     onSelect: options.onSelect,
+    onReorder: options.onReorderLayer,
     onToggle: options.onToggle,
     selectedNodeId: options.selectedNodeId,
     summary: row => {
@@ -62,6 +66,42 @@ export function renderProjectTree(
       return node === undefined ? row.kind : pixelfNodeSummary(project, node);
     },
   });
+}
+
+export function renderEmptyCanvasStack(container: HTMLElement): void {
+  const shell = document.createElement('div');
+  shell.className = 'structure-row-shell';
+  shell.style.setProperty('--structure-depth', '0');
+  shell.style.setProperty('--structure-row-height', '64px');
+  shell.style.setProperty('--structure-thumbnail-size', '42px');
+  const row = document.createElement('div');
+  row.className = 'structure-chiclet kind-target';
+  row.role = 'treeitem';
+  row.tabIndex = 0;
+  row.setAttribute('aria-label', 'Canvas, export bounds not set');
+  row.setAttribute('aria-level', '1');
+  row.setAttribute('aria-selected', 'true');
+  const disclosure = document.createElement('span');
+  disclosure.className = 'structure-disclosure';
+  disclosure.setAttribute('aria-hidden', 'true');
+  const interior = document.createElement('span');
+  interior.className = 'structure-interior';
+  const glyph = document.createElement('span');
+  glyph.className = 'structure-glyph';
+  glyph.setAttribute('aria-hidden', 'true');
+  glyph.textContent = 'C';
+  const copy = document.createElement('span');
+  copy.className = 'structure-copy';
+  const name = document.createElement('strong');
+  name.textContent = 'Canvas';
+  const summary = document.createElement('span');
+  summary.textContent = 'Export bounds not set';
+  copy.append(name, summary);
+  interior.append(glyph, copy);
+  row.append(disclosure, interior);
+  shell.append(row);
+  container.dataset.density = 'standard';
+  container.replaceChildren(shell);
 }
 
 function field(labelText: string, control: HTMLElement, description?: string): HTMLLabelElement {
@@ -256,7 +296,7 @@ export function renderProperties(
   const eyebrow = document.createElement('span');
   eyebrow.textContent = nodeRegistry.get(node.type)?.kind ?? node.type;
   const title = document.createElement('h2');
-  title.textContent = node.name;
+  title.textContent = node.type === 'target' ? 'Canvas' : node.name;
   heading.append(eyebrow, title);
   fragment.append(heading);
   if (node.type === 'target') {

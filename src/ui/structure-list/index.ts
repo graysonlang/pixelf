@@ -24,6 +24,7 @@ export {
   type StructureAdapter,
 } from './model.js';
 export {
+  createPixelfLayerStackAdapter,
   createPixelfStructureAdapter,
   pixelfNodeSummary,
   type PixelfStructureSnapshot,

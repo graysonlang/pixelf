@@ -12,8 +12,10 @@ export interface StructureListViewOptions {
   dependencyCount?: (row: Row) => number;
   focusedNodeId: string | null;
   onDelete?(nodeId: string): void;
-  onOpenActions?(nodeId: string): void;
+  onMove?(nodeId: string, direction: -1 | 1): void;
+  onOpenActions?(nodeId: string, anchor?: { x: number; y: number }): void;
   onPrimaryAction?(nodeId: string): void;
+  onReorder?(nodeId: string, anchorNodeId: string, placement: 'after' | 'before'): void;
   onSelect(nodeId: string): void;
   onToggle(nodeId: string): void;
   selectedNodeId: string | null;
@@ -28,7 +30,7 @@ interface TypeaheadState {
 const typeaheadState = new WeakMap<HTMLElement, TypeaheadState>();
 
 function glyphFor(kind: string): string {
-  if (kind === 'target') return 'T';
+  if (kind === 'target') return 'C';
   if (kind === 'layer') return 'L';
   if (kind === 'source/mask' || kind === 'source/checker-mask') return 'M';
   if (kind.startsWith('process/')) return 'fx';
@@ -74,7 +76,15 @@ export function renderStructureList(
   });
   const siblingData = siblingMetadata(model);
   const fragment = document.createDocumentFragment();
+  let draggedNodeId: string | null = null;
   container.dataset.density = options.density.density;
+
+  const clearDropState = (): void => {
+    for (const element of container.querySelectorAll<HTMLElement>('.structure-chiclet')) {
+      element.classList.remove('dragging', 'drop-before', 'drop-after');
+      element.removeAttribute('aria-grabbed');
+    }
+  };
 
   for (const row of model.rows) {
     const shell = document.createElement('div');
@@ -92,6 +102,9 @@ export function renderStructureList(
     chiclet.setAttribute('aria-label', row.name);
     chiclet.setAttribute('aria-level', String(row.depth + 1));
     chiclet.setAttribute('aria-selected', String(options.selectedNodeId === row.nodeId));
+    const reorderable = row.kind === 'layer' && row.relation === 'root';
+    chiclet.draggable = reorderable;
+    if (reorderable) chiclet.dataset.reorderable = 'true';
     const siblings = siblingData.get(row.nodeId);
     if (siblings !== undefined) {
       chiclet.setAttribute('aria-posinset', String(siblings.position));
@@ -155,7 +168,8 @@ export function renderStructureList(
     actions.addEventListener('click', event => {
       event.stopPropagation();
       options.onSelect(row.nodeId);
-      options.onOpenActions?.(row.nodeId);
+      const bounds = actions.getBoundingClientRect();
+      options.onOpenActions?.(row.nodeId, { x: bounds.right, y: bounds.bottom });
     });
 
     chiclet.append(disclosure, interior, actions);
@@ -163,6 +177,51 @@ export function renderStructureList(
     chiclet.addEventListener('focus', () => {
       if (selection.focusedNodeId !== row.nodeId) options.onSelect(row.nodeId);
     });
+    chiclet.addEventListener('contextmenu', event => {
+      event.preventDefault();
+      options.onSelect(row.nodeId);
+      options.onOpenActions?.(row.nodeId, { x: event.clientX, y: event.clientY });
+    });
+    if (reorderable) {
+      chiclet.addEventListener('dragstart', event => {
+        draggedNodeId = row.nodeId;
+        chiclet.classList.add('dragging');
+        chiclet.setAttribute('aria-grabbed', 'true');
+        if (event.dataTransfer !== null) {
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('application/x-pixelf-layer', row.nodeId);
+        }
+      });
+      chiclet.addEventListener('dragover', event => {
+        if (draggedNodeId === null || draggedNodeId === row.nodeId) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.dataTransfer !== null) event.dataTransfer.dropEffect = 'move';
+        const bounds = chiclet.getBoundingClientRect();
+        const placement = event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after';
+        chiclet.classList.toggle('drop-before', placement === 'before');
+        chiclet.classList.toggle('drop-after', placement === 'after');
+      });
+      chiclet.addEventListener('dragleave', event => {
+        if (event.relatedTarget instanceof Node && chiclet.contains(event.relatedTarget)) return;
+        chiclet.classList.remove('drop-before', 'drop-after');
+      });
+      chiclet.addEventListener('drop', event => {
+        if (draggedNodeId === null || draggedNodeId === row.nodeId) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const bounds = chiclet.getBoundingClientRect();
+        const placement = event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after';
+        const movedNodeId = draggedNodeId;
+        clearDropState();
+        draggedNodeId = null;
+        options.onReorder?.(movedNodeId, row.nodeId, placement);
+      });
+      chiclet.addEventListener('dragend', () => {
+        clearDropState();
+        draggedNodeId = null;
+      });
+    }
     shell.append(chiclet);
     fragment.append(shell);
   }
@@ -180,6 +239,19 @@ export function renderStructureList(
 
     if ((event.metaKey || event.ctrlKey) && event.key === '.') {
       if (current !== undefined) options.onOpenActions?.(current.nodeId);
+      event.preventDefault();
+      return;
+    }
+
+    if (
+      event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
+      current?.kind === 'layer' &&
+      current.relation === 'root'
+    ) {
+      options.onMove?.(current.nodeId, event.key === 'ArrowUp' ? -1 : 1);
       event.preventDefault();
       return;
     }

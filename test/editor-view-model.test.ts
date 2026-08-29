@@ -7,7 +7,11 @@ import {
   createNode,
   nodeRegistry,
 } from '../src/project/index.js';
-import { createListModel, createPixelfStructureAdapter } from '../src/ui/structure-list/index.js';
+import {
+  createListModel,
+  createPixelfLayerStackAdapter,
+  createPixelfStructureAdapter,
+} from '../src/ui/structure-list/index.js';
 
 function projectWithMask() {
   const asset = createEmbeddedImageAsset({
@@ -83,6 +87,43 @@ describe('target-first editor view model', () => {
     assert.equal(
       nodeRegistry.require('layer').ports.find(port => port.key === 'mask')?.kind,
       'mask',
+    );
+  });
+
+  it('presents layers as a top-first stack with the canvas contract at the bottom', () => {
+    const topSource = createNode('source/imported', 'node-top-source', 'Top source');
+    assert.equal(topSource.type, 'source/imported');
+    if (topSource.type !== 'source/imported') return;
+    topSource.assetId = 'asset-view';
+    const topLayer = createNode('layer', 'node-top-layer', 'Top layer');
+    assert.equal(topLayer.type, 'layer');
+    if (topLayer.type !== 'layer') return;
+    topLayer.childId = topSource.id;
+    const project = applyProjectCommand(projectWithMask(), {
+      commands: [
+        { node: topSource, parentId: null, type: 'insert-node' },
+        { node: topLayer, parentId: 'node-target', type: 'insert-node' },
+      ],
+      type: 'batch',
+    });
+    const model = createListModel(
+      {
+        expanded: new Set(['node-layer', 'node-source', 'node-top-layer']),
+        project,
+        revision: 'view-stack-1',
+      },
+      createPixelfLayerStackAdapter(),
+      () => 48,
+    );
+    assert.deepEqual(
+      model.rows.map(row => [row.nodeId, row.name, row.depth, row.relation]),
+      [
+        ['node-top-layer', 'Top layer', 0, 'root'],
+        ['node-top-source', 'Top source', 1, 'unary-child'],
+        ['node-layer', 'View image', 0, 'root'],
+        ['node-source', 'View image', 1, 'unary-child'],
+        ['node-target', 'Canvas', 0, 'root'],
+      ],
     );
   });
 });

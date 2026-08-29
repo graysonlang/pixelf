@@ -48,7 +48,11 @@ import {
   colorToHex,
   resolvedCanvasBackground,
 } from '../src/ui/canvas-background.js';
-import { renderProjectTree, renderProperties } from '../src/ui/editor-view.js';
+import {
+  renderEmptyCanvasStack,
+  renderProjectTree,
+  renderProperties,
+} from '../src/ui/editor-view.js';
 import { primaryShortcutLabel } from '../src/ui/platform.js';
 import {
   isThemePreference,
@@ -57,11 +61,7 @@ import {
   type ThemePreference,
 } from '../src/ui/preferences.js';
 import { renderingStatusMessage } from '../src/ui/render-status.js';
-import {
-  densityPolicy,
-  firstEnabledAction,
-  partitionStructureActions,
-} from '../src/ui/structure-list/index.js';
+import { densityPolicy, firstEnabledAction } from '../src/ui/structure-list/index.js';
 import {
   actualSizeViewport,
   anchoredZoom,
@@ -102,6 +102,8 @@ interface StageSize {
   deviceHeight: number;
   deviceWidth: number;
 }
+
+type ActiveTool = 'brush' | 'eyedropper' | 'move';
 
 type AppAction = UiAction<undefined, never, () => unknown>;
 
@@ -248,10 +250,9 @@ const dispose = createRoot(disposeRoot => {
   const operationType = requireElement<HTMLSelectElement>('#operation-type');
   const addOperationButton = requireElement<HTMLButtonElement>('#add-operation-button');
   const addMaskButton = requireElement<HTMLButtonElement>('#add-mask-button');
-  const duplicateButton = requireElement<HTMLButtonElement>('#duplicate-button');
-  const moveUpButton = requireElement<HTMLButtonElement>('#move-up-button');
-  const moveDownButton = requireElement<HTMLButtonElement>('#move-down-button');
-  const deleteButton = requireElement<HTMLButtonElement>('#delete-button');
+  const toolButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>('.tool-button[data-tool]'),
+  );
   const fitButton = requireElement<HTMLButtonElement>('#fit-button');
   const actualSizeButton = requireElement<HTMLButtonElement>('#actual-size-button');
   const canvasBackgroundMode = requireElement<HTMLSelectElement>('#canvas-background-mode');
@@ -284,6 +285,7 @@ const dispose = createRoot(disposeRoot => {
   });
   const [pixelGrid, setPixelGrid] = createSignal(false);
   const [showingOriginal, setShowingOriginal] = createSignal(false);
+  const [activeTool, setActiveTool] = createSignal<ActiveTool>('move');
   const [theme, setTheme] = createSignal<ThemePreference>(preferences.theme);
   const expanded = new Set<string>();
   let renderer: GpuImageRenderer | null = null;
@@ -419,7 +421,8 @@ const dispose = createRoot(disposeRoot => {
 
   const deleteNode = (nodeId: string): void => {
     const editor = currentEditor();
-    if (editor === null || editor.project.nodes[nodeId] === undefined) return;
+    const node = editor?.project.nodes[nodeId];
+    if (editor === null || node === undefined || node.type === 'target') return;
     const parent = findPrimaryParent(editor.project, nodeId);
     runCommand(() => editor.dispatch({ nodeId, type: 'remove-node' }, { label: 'Delete item' }));
     const nextSelection = parent?.node.id ?? editor.project.targetIds[0] ?? null;
@@ -574,18 +577,57 @@ const dispose = createRoot(disposeRoot => {
     selectNode(mask.id);
   };
 
-  const moveLayer = (direction: -1 | 1): void => {
+  const moveLayerInStack = (nodeId: string, visualDirection: -1 | 1): void => {
     const editor = currentEditor();
-    const selectedId = selectedNodeId();
-    const selected = selectedId === null ? undefined : editor?.project.nodes[selectedId];
+    const selected = editor?.project.nodes[nodeId];
     if (editor === null || selected?.type !== 'layer') return;
     const parent = findPrimaryParent(editor.project, selected.id);
     if (parent?.node.type !== 'target') return;
-    const index = Math.max(0, Math.min(parent.node.childIds.length - 1, parent.index + direction));
+    const canonicalDirection = visualDirection === -1 ? 1 : -1;
+    const index = Math.max(
+      0,
+      Math.min(parent.node.childIds.length - 1, parent.index + canonicalDirection),
+    );
     if (index === parent.index) return;
     runCommand(() =>
       editor.dispatch(
         { index, nodeId: selected.id, parentId: parent.node.id, type: 'move-node' },
+        { label: 'Reorder layer' },
+      ),
+    );
+  };
+
+  const reorderLayerInStack = (
+    nodeId: string,
+    anchorNodeId: string,
+    placement: 'after' | 'before',
+  ): void => {
+    const editor = currentEditor();
+    const node = editor?.project.nodes[nodeId];
+    const anchor = editor?.project.nodes[anchorNodeId];
+    if (editor === null || node?.type !== 'layer' || anchor?.type !== 'layer') return;
+    const parent = findPrimaryParent(editor.project, node.id);
+    const anchorParent = findPrimaryParent(editor.project, anchor.id);
+    if (
+      parent?.node.type !== 'target' ||
+      anchorParent?.node.type !== 'target' ||
+      parent.node.id !== anchorParent.node.id
+    ) {
+      return;
+    }
+    const target = parent.node;
+    const remaining = target.childIds.filter(childId => childId !== node.id);
+    const anchorIndex = remaining.indexOf(anchor.id);
+    if (anchorIndex < 0) return;
+    const index = placement === 'before' ? anchorIndex + 1 : anchorIndex;
+    const reordered = [...remaining];
+    reordered.splice(index, 0, node.id);
+    if (reordered.every((childId, childIndex) => target.childIds[childIndex] === childId)) {
+      return;
+    }
+    runCommand(() =>
+      editor.dispatch(
+        { index, nodeId: node.id, parentId: target.id, type: 'move-node' },
         { label: 'Reorder layer' },
       ),
     );
@@ -785,7 +827,6 @@ const dispose = createRoot(disposeRoot => {
     (control ?? selectionProperties).focus();
   };
   const structureSurfaces: readonly ActionSurface[] = [
-    'context',
     'keyboard',
     'overflow',
     'quick-actions',
@@ -911,17 +952,26 @@ const dispose = createRoot(disposeRoot => {
       label: 'Duplicate selected branch',
       priority: 30,
       run: duplicateNode,
-      surfaces: structureSurfaces,
+      surfaces: [...structureSurfaces, 'context'],
     }),
     appAction({
-      enabled: () => selectedNodeId() !== null,
+      enabled: () => {
+        const editor = currentEditor();
+        const node = selectedNode();
+        return (
+          editor !== null &&
+          node !== undefined &&
+          node.type !== 'target' &&
+          findPrimaryParent(editor.project, node.id) !== null
+        );
+      },
       group: 'structure',
       id: 'delete',
       keywords: ['remove', 'selected'],
       label: 'Delete selected item',
       priority: 10,
       run: deleteSelected,
-      surfaces: structureSurfaces,
+      surfaces: [...structureSurfaces, 'context'],
     }),
     appAction({
       enabled: () => selectedNodeId() !== null,
@@ -931,7 +981,7 @@ const dispose = createRoot(disposeRoot => {
       label: 'Show properties',
       priority: 100,
       run: focusSelectionProperties,
-      surfaces: ['keyboard', 'overflow', 'rail'],
+      surfaces: ['context', 'keyboard', 'overflow', 'rail'],
     }),
     appAction({
       enabled: () => selectedImage() !== null,
@@ -1067,18 +1117,23 @@ const dispose = createRoot(disposeRoot => {
     structureToolbarOwnerId = null;
     if (restoreFocus && ownerId !== null) focusStructureRow(ownerId);
   }
-  function openStructureToolbar(nodeId: string): void {
+  function openStructureToolbar(nodeId: string, anchor?: { x: number; y: number }): void {
     structureToolbarOwnerId = nodeId;
     const label = document.createElement('span');
     label.className = 'structure-toolbar-label';
-    label.textContent = currentEditor()?.project.nodes[nodeId]?.name ?? 'Selected item';
-    const partition = partitionStructureActions(actions, undefined, 0);
+    const actionNode = currentEditor()?.project.nodes[nodeId];
+    label.textContent =
+      actionNode?.type === 'target' ? 'Canvas' : (actionNode?.name ?? 'Selected item');
+    const contextActions = actionsForSurface(actions, 'context', undefined)
+      .slice()
+      .sort((left, right) => right.priority - left.priority);
     const buttons: HTMLButtonElement[] = [];
     const fragment = document.createDocumentFragment();
     fragment.append(label);
-    for (const action of partition.overflow) {
+    for (const action of contextActions) {
       const button = document.createElement('button');
       button.type = 'button';
+      button.role = 'menuitem';
       button.dataset.action = action.id;
       button.dataset.testid = `structure-action-${action.id}`;
       button.disabled = !isActionEnabled(action, undefined);
@@ -1089,7 +1144,11 @@ const dispose = createRoot(disposeRoot => {
     }
     structureToolbar.replaceChildren(fragment);
     structureToolbar.hidden = false;
-    const first = firstEnabledAction(partition.overflow, undefined);
+    const preferredX = anchor?.x ?? window.innerWidth - 232;
+    const preferredY = anchor?.y ?? window.innerHeight / 2;
+    structureToolbar.style.left = `${Math.max(8, Math.min(window.innerWidth - 218, preferredX - 210))}px`;
+    structureToolbar.style.top = `${Math.max(8, Math.min(window.innerHeight - structureToolbar.offsetHeight - 8, preferredY + 4))}px`;
+    const first = firstEnabledAction(contextActions, undefined);
     buttons.find(button => button.dataset.action === first?.id)?.focus();
   }
   const executeActionById = (id: string, surface: ActionSurface): void => {
@@ -1182,6 +1241,12 @@ const dispose = createRoot(disposeRoot => {
     const file = input.files?.[0];
     input.value = '';
     if (file !== undefined) void openImage(file);
+  };
+  const onToolButtonClick = (event: MouseEvent): void => {
+    const button = event.currentTarget;
+    if (!(button instanceof HTMLButtonElement)) return;
+    const tool = button.dataset.tool;
+    if (tool === 'move' || tool === 'brush' || tool === 'eyedropper') setActiveTool(tool);
   };
   const resetDropTarget = (): void => {
     dragDepth = 0;
@@ -1518,10 +1583,7 @@ const dispose = createRoot(disposeRoot => {
   addLayerButton.addEventListener('click', addLayer);
   addOperationButton.addEventListener('click', addOperation);
   addMaskButton.addEventListener('click', addMask);
-  duplicateButton.addEventListener('click', duplicateNode);
-  moveUpButton.addEventListener('click', () => moveLayer(-1));
-  moveDownButton.addEventListener('click', () => moveLayer(1));
-  deleteButton.addEventListener('click', deleteSelected);
+  for (const toolButton of toolButtons) toolButton.addEventListener('click', onToolButtonClick);
   fitButton.addEventListener('click', onFitButtonClick);
   actualSizeButton.addEventListener('click', onActualSizeButtonClick);
   stage.addEventListener('wheel', onStageWheel, { passive: false });
@@ -1529,7 +1591,7 @@ const dispose = createRoot(disposeRoot => {
     if (event.button !== 0) return;
     currentEditor()?.select([]);
     setSelectedNodeId(null);
-    if (selectedImage() === null) return;
+    if (selectedImage() === null || activeTool() !== 'move') return;
     panState = {
       pointerId: event.pointerId,
       startPanX: panX(),
@@ -1584,6 +1646,9 @@ const dispose = createRoot(disposeRoot => {
     document.removeEventListener('pointerdown', onDocumentPointerDown);
     document.removeEventListener('keydown', onDocumentKeyDown);
     stage.removeEventListener('wheel', onStageWheel);
+    for (const toolButton of toolButtons) {
+      toolButton.removeEventListener('click', onToolButtonClick);
+    }
   });
   onCleanup(() => {
     stageResizeObserver.disconnect();
@@ -1597,6 +1662,14 @@ const dispose = createRoot(disposeRoot => {
     document.documentElement.dataset.theme = selectedTheme;
     for (const themeInput of themeInputs) themeInput.checked = themeInput.value === selectedTheme;
     savePreferences(localStorage, { theme: selectedTheme });
+  });
+
+  createEffect(() => {
+    const tool = activeTool();
+    stage.dataset.tool = tool;
+    for (const button of toolButtons) {
+      button.setAttribute('aria-pressed', String(button.dataset.tool === tool));
+    }
   });
 
   createEffect(() => {
@@ -1628,7 +1701,6 @@ const dispose = createRoot(disposeRoot => {
     exportButton.disabled = !enabled;
     metadataPolicy.disabled = !enabled;
     addLayerButton.disabled = !enabled;
-    deleteButton.disabled = selectedId === null;
     const selectedNode = selectedId === null ? undefined : editor?.project.nodes[selectedId];
     addOperationButton.disabled =
       selectedNode === undefined ||
@@ -1636,25 +1708,18 @@ const dispose = createRoot(disposeRoot => {
       selectedNode.type === 'source/mask' ||
       selectedNode.type === 'source/checker-mask';
     operationType.disabled = addOperationButton.disabled;
-    duplicateButton.disabled =
-      editor === null ||
-      selectedNode === undefined ||
-      selectedNode.type === 'target' ||
-      findPrimaryParent(editor.project, selectedNode.id) === null;
     const selectedMaskTarget = selectedId === null ? null : maskTargetForNode(selectedId);
     addMaskButton.disabled =
       selectedMaskTarget === null ||
       editor?.project.wires.some(
         wire => wire.to.nodeId === selectedMaskTarget.id && wire.to.port === 'mask',
       ) === true;
-    moveUpButton.disabled = selectedNode?.type !== 'layer';
-    moveDownButton.disabled = selectedNode?.type !== 'layer';
     syncMenuActions();
     if (quickActionsOverlay.classList.contains('open')) {
       renderQuickActions(quickActionsInput.value);
     }
     if (editor === null) {
-      layerTree.replaceChildren();
+      renderEmptyCanvasStack(layerTree);
       closeStructureToolbar(false);
       return;
     }
@@ -1674,12 +1739,14 @@ const dispose = createRoot(disposeRoot => {
       }),
       expanded,
       onDelete: deleteNode,
+      onMoveLayer: moveLayerInStack,
       onOpenActions: openStructureToolbar,
       onPrimaryAction: nodeId => {
         selectNode(nodeId);
         requestAnimationFrame(focusSelectionProperties);
       },
       onSelect: selectNode,
+      onReorderLayer: reorderLayerInStack,
       onToggle: toggleNode,
       revision: `${editor.project.projectId}:${projectRevision}`,
       selectedNodeId: selectedId,
@@ -1756,7 +1823,7 @@ const dispose = createRoot(disposeRoot => {
     canvasBackgroundColorRow.hidden = background.mode !== 'custom';
     canvasBackgroundColorInput.disabled = !enabled;
     canvasBackgroundColorInput.value = colorToHex(background.color ?? { a: 1, b: 1, g: 1, r: 1 });
-    if (enabled && !background.visible) stage.dataset.checker = 'true';
+    if (!enabled || !background.visible) stage.dataset.checker = 'true';
     else delete stage.dataset.checker;
     const polarity = enabled && background.visible ? canvasBackgroundPolarity(background) : null;
     if (polarity === null) delete stage.dataset.backdrop;

@@ -30,21 +30,23 @@ export function pixelfNodeSummary(project: PixelfProject, node: ProjectNode): st
 function describe(
   snapshot: PixelfStructureSnapshot,
   id: string,
+  layerStack = false,
 ): Omit<Row, 'depth' | 'documentIndex' | 'height'> {
   const node = snapshot.project.nodes[id];
   if (node === undefined) throw new Error(`Cannot describe missing Pixelf node ${id}`);
   const parent = findPrimaryParent(snapshot.project, id);
-  const children = primaryChildren(node);
+  const isStackLayer = layerStack && parent?.node.type === 'target';
+  const children = layerStack && node.type === 'target' ? [] : primaryChildren(node);
   return {
     acceptsVisualDepth: node.type === 'layer' || node.type.startsWith('process/'),
     expanded: snapshot.expanded.has(id),
     hasChildren: children.length > 0,
     kind: node.type,
-    name: node.name,
+    name: layerStack && node.type === 'target' ? 'Canvas' : node.name,
     nodeId: node.id,
-    parentId: parent?.node.id ?? null,
+    parentId: isStackLayer ? null : (parent?.node.id ?? null),
     relation:
-      node.type === 'target'
+      node.type === 'target' || isStackLayer
         ? 'root'
         : parent?.node.type === 'target'
           ? 'ordered-child'
@@ -65,5 +67,27 @@ export function createPixelfStructureAdapter(
     describe,
     revisionOf: snapshot => snapshot.revision,
     rootsOf: snapshot => snapshot.project.targetIds,
+  };
+}
+
+export function createPixelfLayerStackAdapter(): StructureAdapter<PixelfStructureSnapshot> {
+  return {
+    childOrder: 'document',
+    childrenOf: (snapshot, id) => {
+      const node = snapshot.project.nodes[id];
+      if (node === undefined || node.type === 'target') return [];
+      return primaryChildren(node);
+    },
+    describe: (snapshot, id) => describe(snapshot, id, true),
+    revisionOf: snapshot => snapshot.revision,
+    rootsOf: snapshot => {
+      const roots: string[] = [];
+      for (const targetId of snapshot.project.targetIds) {
+        const target = snapshot.project.nodes[targetId];
+        if (target?.type !== 'target') continue;
+        roots.push(...target.childIds.toReversed(), targetId);
+      }
+      return roots;
+    },
   };
 }
