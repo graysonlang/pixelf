@@ -93,6 +93,10 @@ export function wheelZoomModifier(modifiers: Pick<ZoomKey, 'ctrlKey' | 'metaKey'
   return modifiers.ctrlKey || modifiers.metaKey;
 }
 
+export function wheelZoomTarget(currentZoom: number, deltaY: number): number {
+  return currentZoom * Math.exp(-deltaY * 0.002);
+}
+
 export function pixelGridShortcut(key: ZoomKey): boolean {
   return (key.metaKey || key.ctrlKey) && !key.altKey && !key.shiftKey && key.code === 'Quote';
 }

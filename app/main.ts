@@ -72,6 +72,7 @@ import {
   panByWheel,
   pixelGridShortcut,
   wheelZoomModifier,
+  wheelZoomTarget,
   zoomShortcut,
 } from '../src/ui/viewport-controls.js';
 import indexPath from './index.html';
@@ -1278,7 +1279,7 @@ const dispose = createRoot(disposeRoot => {
     const anchorY = event.clientY - bounds.top - bounds.height / 2;
     const result = anchoredZoom(
       zoom(),
-      zoom() * Math.exp(-event.deltaY * 0.01),
+      wheelZoomTarget(zoom(), event.deltaY),
       panX(),
       panY(),
       anchorX,

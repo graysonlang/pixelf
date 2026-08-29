@@ -10,6 +10,7 @@ import {
   panByWheel,
   pixelGridShortcut,
   wheelZoomModifier,
+  wheelZoomTarget,
   zoomShortcut,
   type ZoomKey,
 } from '../../src/ui/viewport-controls.js';
@@ -93,6 +94,11 @@ test('wheel zoom accepts Control and Command modifiers', () => {
   assert.equal(wheelZoomModifier(key({ ctrlKey: true })), true);
   assert.equal(wheelZoomModifier(key({ metaKey: true })), true);
   assert.equal(wheelZoomModifier(key({})), false);
+});
+
+test('wheel zoom uses a restrained exponential scale', () => {
+  assert.equal(wheelZoomTarget(1, -50), Math.exp(0.1));
+  assert.equal(wheelZoomTarget(wheelZoomTarget(1, -50), 50), 1);
 });
 
 test('clampZoom bounds direct and gesture zoom', () => {
