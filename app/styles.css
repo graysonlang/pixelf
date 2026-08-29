@@ -422,8 +422,12 @@ button:disabled {
 }
 
 .add-menu-button {
-  font-size: 11px;
-  padding: 5px 9px;
+  align-items: center;
+  display: flex;
+  height: 26px;
+  justify-content: center;
+  padding: 0;
+  width: 26px;
 }
 
 .zoom-menu-button {
