@@ -17,7 +17,7 @@ function primaryChildren(node: ProjectNode): readonly string[] {
 
 export function pixelfNodeSummary(project: PixelfProject, node: ProjectNode): string {
   if (node.type === 'target') {
-    return `${node.contract.width} x ${node.contract.height} / ${node.contract.outputFormat} ${node.contract.outputBitDepth}-bit`;
+    return `Composite / ${node.contract.width} x ${node.contract.height} / ${node.contract.outputFormat} ${node.contract.outputBitDepth}-bit`;
   }
   if (node.type === 'source/imported' && node.assetId !== undefined) {
     const asset = project.assets[node.assetId];
@@ -42,7 +42,7 @@ function describe(
     expanded: snapshot.expanded.has(id),
     hasChildren: children.length > 0,
     kind: node.type,
-    name: layerStack && node.type === 'target' ? 'Canvas' : node.name,
+    name: layerStack && node.type === 'target' ? snapshot.project.name : node.name,
     nodeId: node.id,
     parentId: isStackLayer ? null : (parent?.node.id ?? null),
     relation:

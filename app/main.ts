@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createRoot, createSignal, onCleanup } from 'solid-js';
+import { createEffect, createRoot, createSignal, onCleanup } from 'solid-js';
 import { buildInfo } from '../src/index.js';
 import { decodeImageFile, type DecodedProjectImage } from '../src/browser/decode-image.js';
 import { firstImageFile, isFileDrag } from '../src/browser/drop-image.js';
@@ -21,13 +21,11 @@ import {
   duplicateSubtreeCommand,
   EditorState,
   findPrimaryParent,
-  nodeRegistry,
   serializeProject,
   type LayerNode,
   type CanvasBackground,
   type CanvasBackgroundMode,
   type ProcessorNode,
-  type ProjectCommand,
   type PixelfProject,
   type SourceNode,
   type TargetContract,
@@ -49,7 +47,7 @@ import {
   resolvedCanvasBackground,
 } from '../src/ui/canvas-background.js';
 import {
-  renderEmptyCanvasStack,
+  renderEmptyCompositeStack,
   renderProjectTree,
   renderProperties,
 } from '../src/ui/editor-view.js';
@@ -210,6 +208,11 @@ function download(data: BlobPart, mimeType: string, fileName: string): void {
   queueMicrotask(() => URL.revokeObjectURL(url));
 }
 
+function fileNameStem(name: string): string {
+  const stem = name.replace(/\.(?:pixelf|png|jpe?g|webp)$/i, '').trim();
+  return stem.length > 0 ? stem : 'untitled';
+}
+
 const dispose = createRoot(disposeRoot => {
   const appShell = requireElement<HTMLElement>('.app-shell');
   const menuButton = requireElement<HTMLButtonElement>('#menu-button');
@@ -236,9 +239,6 @@ const dispose = createRoot(disposeRoot => {
   const preview = requireElement<HTMLImageElement>('#image-preview');
   const canvas = requireElement<HTMLCanvasElement>('#render-preview');
   const canvasFrame = requireElement<HTMLElement>('#render-preview-frame');
-  const sourceIdentity = requireElement<HTMLElement>('#source-identity');
-  const sourceName = requireElement<HTMLElement>('#source-name');
-  const sourceDetails = requireElement<HTMLElement>('#source-details');
   const renderStatus = requireElement<HTMLElement>('#render-status');
   const layerTree = requireElement<HTMLElement>('#layer-tree');
   const structureToolbar = requireElement<HTMLElement>('#structure-toolbar');
@@ -246,9 +246,9 @@ const dispose = createRoot(disposeRoot => {
   const selectionProperties = requireElement<HTMLElement>('#selection-properties');
   const stage = requireElement<HTMLElement>('#stage');
   const stageContent = requireElement<HTMLElement>('#stage-content');
+  const addMenuButton = requireElement<HTMLButtonElement>('#add-menu-button');
+  const addMenu = requireElement<HTMLElement>('#add-menu');
   const addLayerButton = requireElement<HTMLButtonElement>('#add-layer-button');
-  const operationType = requireElement<HTMLSelectElement>('#operation-type');
-  const addOperationButton = requireElement<HTMLButtonElement>('#add-operation-button');
   const addMaskButton = requireElement<HTMLButtonElement>('#add-mask-button');
   const toolButtons = Array.from(
     document.querySelectorAll<HTMLButtonElement>('.tool-button[data-tool]'),
@@ -319,13 +319,6 @@ const dispose = createRoot(disposeRoot => {
   quickActionsShortcut.textContent = primaryShortcut('/');
   settingsShortcut.textContent = primaryShortcut(',');
 
-  for (const definition of nodeRegistry.all().filter(candidate => candidate.kind === 'processor')) {
-    const option = document.createElement('option');
-    option.value = definition.type;
-    option.textContent = definition.title;
-    operationType.append(option);
-  }
-
   const manager = new GpuDeviceManager({
     onContext: (context, generation) => {
       renderer?.dispose();
@@ -339,18 +332,6 @@ const dispose = createRoot(disposeRoot => {
     },
   });
   void manager.initialize();
-
-  const details = createMemo(() => {
-    const selected = selectedImage();
-    if (selected === null) return '';
-    const size = new Intl.NumberFormat('en-US', {
-      maximumFractionDigits: 1,
-      style: 'unit',
-      unit: 'megabyte',
-      unitDisplay: 'short',
-    }).format(selected.file.size / 1_000_000);
-    return `${size} / ${selected.asset.width} x ${selected.asset.height}`;
-  });
 
   const currentEditor = (): EditorState | null => selectedImage()?.editor ?? null;
   const refreshProject = (refreshProperties = true): void => {
@@ -465,61 +446,6 @@ const dispose = createRoot(disposeRoot => {
     expanded.add(targetId);
     expanded.add(layer.id);
     selectNode(layer.id);
-  };
-
-  const addOperation = (): void => {
-    const editor = currentEditor();
-    const selectedId = selectedNodeId();
-    if (editor === null || selectedId === null) return;
-    const selected = editor.project.nodes[selectedId];
-    if (selected === undefined || selected.type === 'target') return;
-    const wrappedId = selected.type === 'layer' ? selected.childId : selected.id;
-    const parentId =
-      selected.type === 'layer'
-        ? selected.id
-        : findPrimaryParent(editor.project, selected.id)?.node.id;
-    if (wrappedId === null || parentId === undefined) return;
-    const definition = nodeRegistry.require(operationType.value);
-    if (definition.kind !== 'processor') return;
-    const operation = createNode(definition.type, createOpaqueId('node')) as ProcessorNode;
-    const commands: ProjectCommand[] = [{ node: operation, parentId: null, type: 'insert-node' }];
-    if (operation.type === 'process/composite') {
-      const image = selectedImage();
-      if (image === null) return;
-      const secondary = createNode(
-        'source/imported',
-        createOpaqueId('node'),
-        `${image.file.name} secondary`,
-      ) as SourceNode;
-      secondary.assetId = image.asset.id;
-      commands.push(
-        { node: secondary, parentId: null, type: 'insert-node' },
-        {
-          type: 'connect',
-          wire: {
-            from: { nodeId: secondary.id, port: 'image' },
-            id: createOpaqueId('wire'),
-            to: { nodeId: operation.id, port: 'secondary' },
-          },
-        },
-      );
-    }
-    commands.push(
-      { index: 0, nodeId: wrappedId, parentId: operation.id, type: 'move-node' },
-      { index: 0, nodeId: operation.id, parentId, type: 'move-node' },
-    );
-    runCommand(() =>
-      editor.dispatch(
-        {
-          commands,
-          type: 'batch',
-        },
-        { label: `Add ${definition.title}` },
-      ),
-    );
-    expanded.add(parentId);
-    expanded.add(operation.id);
-    selectNode(operation.id);
   };
 
   const duplicateNode = (): void => {
@@ -704,7 +630,7 @@ const dispose = createRoot(disposeRoot => {
     const editor = currentEditor();
     if (editor === null) return;
     const source = serializeProject(editor.project);
-    download(source, 'application/json', `${editor.project.name || 'untitled'}.pixelf`);
+    download(source, 'application/json', `${fileNameStem(editor.project.name)}.pixelf`);
     localStorage.removeItem(`pixelf:recovery:${editor.project.projectId}`);
     editor.markSaved();
     refreshProject();
@@ -756,7 +682,7 @@ const dispose = createRoot(disposeRoot => {
               },
               { metadataPolicy: policy },
             );
-      const baseName = selected.file.name.replace(/\.[^.]+$/, '') || 'pixelf-export';
+      const baseName = fileNameStem(selected.editor.project.name);
       download(
         artifactBytes(artifact) as BlobPart,
         artifact.mimeType,
@@ -811,7 +737,7 @@ const dispose = createRoot(disposeRoot => {
     runCommand(() =>
       editor.dispatch(
         { background, nodeId: targetId, type: 'set-target-background' },
-        { label: 'Change canvas background' },
+        { label: 'Change workspace background' },
       ),
     );
   };
@@ -848,7 +774,7 @@ const dispose = createRoot(disposeRoot => {
       group: 'file',
       id: 'save-project',
       keywords: ['file', 'download'],
-      label: 'Save project',
+      label: 'Save composite',
       run: saveProject,
       surfaces: ['menu', 'quick-actions'],
     }),
@@ -857,7 +783,7 @@ const dispose = createRoot(disposeRoot => {
       group: 'file',
       id: 'export-target',
       keywords: ['file', 'download', 'render'],
-      label: 'Export target',
+      label: 'Export composite',
       run: exportTarget,
       surfaces: ['menu', 'quick-actions'],
     }),
@@ -894,24 +820,6 @@ const dispose = createRoot(disposeRoot => {
       label: 'Add layer',
       priority: 70,
       run: addLayer,
-      surfaces: structureSurfaces,
-    }),
-    appAction({
-      enabled: () => {
-        const node = selectedNode();
-        return (
-          node !== undefined &&
-          node.type !== 'target' &&
-          node.type !== 'source/mask' &&
-          node.type !== 'source/checker-mask'
-        );
-      },
-      group: 'structure',
-      id: 'add-operation',
-      keywords: ['new', 'processor', 'effect'],
-      label: 'Add operation',
-      priority: 80,
-      run: addOperation,
       surfaces: structureSurfaces,
     }),
     appAction({
@@ -1048,12 +956,32 @@ const dispose = createRoot(disposeRoot => {
   let quickActionFocus = 0;
   let structureToolbarOwnerId: string | null = null;
 
+  const setAddMenuOpen = (open: boolean, restoreFocus = false): void => {
+    if (open) {
+      addMenu.hidden = false;
+      const buttonBounds = addMenuButton.getBoundingClientRect();
+      const left = Math.max(
+        8,
+        Math.min(
+          window.innerWidth - addMenu.offsetWidth - 8,
+          buttonBounds.right - addMenu.offsetWidth,
+        ),
+      );
+      const top = Math.max(8, buttonBounds.top - addMenu.offsetHeight - 6);
+      addMenu.style.left = `${left}px`;
+      addMenu.style.top = `${top}px`;
+    } else addMenu.hidden = true;
+    addMenuButton.setAttribute('aria-expanded', String(open));
+    if (!open && restoreFocus) addMenuButton.focus();
+  };
   const setZoomMenuOpen = (open: boolean, restoreFocus = false): void => {
     if (open) {
+      setAddMenuOpen(false);
+      zoomMenu.hidden = false;
       const buttonBounds = zoomMenuButton.getBoundingClientRect();
       const menuWidth = 240;
-      zoomMenu.style.left = `${Math.max(8, Math.min(window.innerWidth - menuWidth - 8, buttonBounds.right - menuWidth))}px`;
-      zoomMenu.style.top = `${buttonBounds.bottom + 6}px`;
+      zoomMenu.style.left = `${Math.max(8, Math.min(window.innerWidth - menuWidth - 8, buttonBounds.left))}px`;
+      zoomMenu.style.top = `${Math.max(8, buttonBounds.top - zoomMenu.offsetHeight - 6)}px`;
       zoomInput.value = String(Math.round(zoom() * 100));
     }
     zoomMenu.hidden = !open;
@@ -1061,7 +989,10 @@ const dispose = createRoot(disposeRoot => {
     if (!open && restoreFocus) zoomMenuButton.focus();
   };
   const setMenuOpen = (open: boolean, focusFirst = false): void => {
-    if (open) setZoomMenuOpen(false);
+    if (open) {
+      setAddMenuOpen(false);
+      setZoomMenuOpen(false);
+    }
     appMenu.hidden = !open;
     menuButton.setAttribute('aria-expanded', String(open));
     if (open && focusFirst) {
@@ -1090,6 +1021,7 @@ const dispose = createRoot(disposeRoot => {
     closeQuickActions();
     closeStructureToolbar(false);
     setMenuOpen(false);
+    setAddMenuOpen(false);
     setZoomMenuOpen(false);
     try {
       const result = action.invoke(undefined);
@@ -1123,7 +1055,9 @@ const dispose = createRoot(disposeRoot => {
     label.className = 'structure-toolbar-label';
     const actionNode = currentEditor()?.project.nodes[nodeId];
     label.textContent =
-      actionNode?.type === 'target' ? 'Canvas' : (actionNode?.name ?? 'Selected item');
+      actionNode?.type === 'target'
+        ? (currentEditor()?.project.name ?? 'Composite')
+        : (actionNode?.name ?? 'Selected item');
     const contextActions = actionsForSurface(actions, 'context', undefined)
       .slice()
       .sort((left, right) => right.priority - left.priority);
@@ -1199,6 +1133,7 @@ const dispose = createRoot(disposeRoot => {
   }
   const openQuickActions = (): void => {
     setMenuOpen(false);
+    setAddMenuOpen(false);
     setZoomMenuOpen(false);
     quickActionsInput.value = '';
     renderQuickActions('');
@@ -1217,6 +1152,7 @@ const dispose = createRoot(disposeRoot => {
   function openSettings(): void {
     closeQuickActions();
     setMenuOpen(false);
+    setAddMenuOpen(false);
     setZoomMenuOpen(false);
     for (const themeInput of themeInputs) themeInput.checked = themeInput.value === theme();
     settingsOverlay.inert = false;
@@ -1292,6 +1228,50 @@ const dispose = createRoot(disposeRoot => {
     if (!Number.isFinite(percentage)) return;
     setZoom(clampZoom(percentage / 100));
   };
+  const onAddMenuButtonClick = (): void => {
+    setMenuOpen(false);
+    setZoomMenuOpen(false);
+    setAddMenuOpen(addMenu.hidden);
+  };
+  const onAddMenuButtonKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== 'ArrowDown') return;
+    event.preventDefault();
+    setMenuOpen(false);
+    setZoomMenuOpen(false);
+    setAddMenuOpen(true);
+    addMenu.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+  };
+  const onAddMenuKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      setAddMenuOpen(false, true);
+      return;
+    }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    const buttons = Array.from(
+      addMenu.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
+    );
+    if (buttons.length === 0) return;
+    event.preventDefault();
+    const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    let nextIndex = currentIndex;
+    if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = buttons.length - 1;
+    else {
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      nextIndex = (Math.max(0, currentIndex) + direction + buttons.length) % buttons.length;
+    }
+    buttons[nextIndex]?.focus();
+  };
+  const onAddLayerButtonClick = (): void => {
+    setAddMenuOpen(false);
+    addLayer();
+  };
+  const onAddMaskButtonClick = (): void => {
+    setAddMenuOpen(false);
+    addMask();
+  };
   const onZoomMenuButtonClick = (): void => {
     setMenuOpen(false);
     setZoomMenuOpen(zoomMenu.hidden);
@@ -1329,6 +1309,7 @@ const dispose = createRoot(disposeRoot => {
   };
   const onWindowResize = (): void => {
     if (!zoomMenu.hidden) setZoomMenuOpen(true);
+    if (!addMenu.hidden) setAddMenuOpen(true);
   };
   const onStageWheel = (event: WheelEvent): void => {
     event.preventDefault();
@@ -1470,6 +1451,9 @@ const dispose = createRoot(disposeRoot => {
     if (!zoomMenu.hidden && !zoomMenu.contains(target) && !zoomMenuButton.contains(target)) {
       setZoomMenuOpen(false);
     }
+    if (!addMenu.hidden && !addMenu.contains(target) && !addMenuButton.contains(target)) {
+      setAddMenuOpen(false);
+    }
     if (
       !structureToolbar.hidden &&
       !structureToolbar.contains(target) &&
@@ -1503,6 +1487,7 @@ const dispose = createRoot(disposeRoot => {
         menuButton.focus();
       }
       if (!zoomMenu.hidden) setZoomMenuOpen(false, true);
+      if (!addMenu.hidden) setAddMenuOpen(false, true);
       return;
     }
     if (quickActionsOverlay.classList.contains('open')) return;
@@ -1558,6 +1543,9 @@ const dispose = createRoot(disposeRoot => {
   appShell.addEventListener('drop', onDrop);
   menuButton.addEventListener('click', onMenuButtonClick);
   menuButton.addEventListener('keydown', onMenuButtonKeyDown);
+  addMenuButton.addEventListener('click', onAddMenuButtonClick);
+  addMenuButton.addEventListener('keydown', onAddMenuButtonKeyDown);
+  addMenu.addEventListener('keydown', onAddMenuKeyDown);
   zoomMenuButton.addEventListener('click', onZoomMenuButtonClick);
   zoomMenuButton.addEventListener('keydown', onZoomMenuButtonKeyDown);
   zoomMenu.addEventListener('keydown', onZoomMenuKeyDown);
@@ -1580,9 +1568,8 @@ const dispose = createRoot(disposeRoot => {
   canvasBackgroundColorInput.addEventListener('change', onCanvasBackgroundColorChange);
   document.addEventListener('pointerdown', onDocumentPointerDown);
   document.addEventListener('keydown', onDocumentKeyDown);
-  addLayerButton.addEventListener('click', addLayer);
-  addOperationButton.addEventListener('click', addOperation);
-  addMaskButton.addEventListener('click', addMask);
+  addLayerButton.addEventListener('click', onAddLayerButtonClick);
+  addMaskButton.addEventListener('click', onAddMaskButtonClick);
   for (const toolButton of toolButtons) toolButton.addEventListener('click', onToolButtonClick);
   fitButton.addEventListener('click', onFitButtonClick);
   actualSizeButton.addEventListener('click', onActualSizeButtonClick);
@@ -1623,6 +1610,9 @@ const dispose = createRoot(disposeRoot => {
     appShell.removeEventListener('drop', onDrop);
     menuButton.removeEventListener('click', onMenuButtonClick);
     menuButton.removeEventListener('keydown', onMenuButtonKeyDown);
+    addMenuButton.removeEventListener('click', onAddMenuButtonClick);
+    addMenuButton.removeEventListener('keydown', onAddMenuButtonKeyDown);
+    addMenu.removeEventListener('keydown', onAddMenuKeyDown);
     zoomMenuButton.removeEventListener('click', onZoomMenuButtonClick);
     zoomMenuButton.removeEventListener('keydown', onZoomMenuButtonKeyDown);
     zoomMenu.removeEventListener('keydown', onZoomMenuKeyDown);
@@ -1645,6 +1635,8 @@ const dispose = createRoot(disposeRoot => {
     canvasBackgroundColorInput.removeEventListener('change', onCanvasBackgroundColorChange);
     document.removeEventListener('pointerdown', onDocumentPointerDown);
     document.removeEventListener('keydown', onDocumentKeyDown);
+    addLayerButton.removeEventListener('click', onAddLayerButtonClick);
+    addMaskButton.removeEventListener('click', onAddMaskButtonClick);
     stage.removeEventListener('wheel', onStageWheel);
     for (const toolButton of toolButtons) {
       toolButton.removeEventListener('click', onToolButtonClick);
@@ -1690,9 +1682,6 @@ const dispose = createRoot(disposeRoot => {
     const availableStructureWidth = structureWidth();
     const selectedId = selectedNodeId();
     const editor = selected?.editor ?? null;
-    sourceIdentity.hidden = selected === null;
-    sourceName.textContent = selected?.file.name ?? '';
-    sourceDetails.textContent = details();
     const canvasSelected = selectedId === null;
     canvasProperties.hidden = !canvasSelected;
     selectionProperties.hidden = canvasSelected;
@@ -1701,13 +1690,6 @@ const dispose = createRoot(disposeRoot => {
     exportButton.disabled = !enabled;
     metadataPolicy.disabled = !enabled;
     addLayerButton.disabled = !enabled;
-    const selectedNode = selectedId === null ? undefined : editor?.project.nodes[selectedId];
-    addOperationButton.disabled =
-      selectedNode === undefined ||
-      selectedNode.type === 'target' ||
-      selectedNode.type === 'source/mask' ||
-      selectedNode.type === 'source/checker-mask';
-    operationType.disabled = addOperationButton.disabled;
     const selectedMaskTarget = selectedId === null ? null : maskTargetForNode(selectedId);
     addMaskButton.disabled =
       selectedMaskTarget === null ||
@@ -1719,7 +1701,7 @@ const dispose = createRoot(disposeRoot => {
       renderQuickActions(quickActionsInput.value);
     }
     if (editor === null) {
-      renderEmptyCanvasStack(layerTree);
+      renderEmptyCompositeStack(layerTree);
       closeStructureToolbar(false);
       return;
     }
@@ -1772,12 +1754,19 @@ const dispose = createRoot(disposeRoot => {
             { label: `Set ${key}`, mergeKey: `${nodeId}:${key}` },
           ),
         ),
+      onProjectName: name =>
+        runCommand(() =>
+          editor.dispatch(
+            { name, type: 'set-project-name' },
+            { label: 'Rename composite', mergeKey: 'project:name' },
+          ),
+        ),
       onTargetContract: (nodeId, contract, options) =>
         runCommand(
           () =>
             editor.dispatch(
               { contract: normalizedContract(contract), nodeId, type: 'set-target-contract' },
-              { label: 'Set target output', mergeKey: `${nodeId}:contract` },
+              { label: 'Set composite output', mergeKey: `${nodeId}:contract` },
             ),
           options?.preserveControls !== true,
         ),

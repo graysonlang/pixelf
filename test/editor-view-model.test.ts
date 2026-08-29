@@ -90,7 +90,7 @@ describe('target-first editor view model', () => {
     );
   });
 
-  it('presents layers as a top-first stack with the canvas contract at the bottom', () => {
+  it('presents layers as a top-first stack with the composite contract at the bottom', () => {
     const topSource = createNode('source/imported', 'node-top-source', 'Top source');
     assert.equal(topSource.type, 'source/imported');
     if (topSource.type !== 'source/imported') return;
@@ -122,7 +122,7 @@ describe('target-first editor view model', () => {
         ['node-top-source', 'Top source', 1, 'unary-child'],
         ['node-layer', 'View image', 0, 'root'],
         ['node-source', 'View image', 1, 'unary-child'],
-        ['node-target', 'Canvas', 0, 'root'],
+        ['node-target', 'View image', 0, 'root'],
       ],
     );
   });

@@ -31,6 +31,7 @@ export interface TreeViewOptions {
 
 export interface PropertiesViewOptions {
   onParameter(nodeId: string, key: string, value: JsonValue): void;
+  onProjectName(name: string): void;
   onTargetContract(
     nodeId: string,
     contract: TargetContract,
@@ -68,7 +69,7 @@ export function renderProjectTree(
   });
 }
 
-export function renderEmptyCanvasStack(container: HTMLElement): void {
+export function renderEmptyCompositeStack(container: HTMLElement): void {
   const shell = document.createElement('div');
   shell.className = 'structure-row-shell';
   shell.style.setProperty('--structure-depth', '0');
@@ -78,7 +79,7 @@ export function renderEmptyCanvasStack(container: HTMLElement): void {
   row.className = 'structure-chiclet kind-target';
   row.role = 'treeitem';
   row.tabIndex = 0;
-  row.setAttribute('aria-label', 'Canvas, export bounds not set');
+  row.setAttribute('aria-label', 'Untitled composite, export bounds not set');
   row.setAttribute('aria-level', '1');
   row.setAttribute('aria-selected', 'true');
   const disclosure = document.createElement('span');
@@ -93,9 +94,9 @@ export function renderEmptyCanvasStack(container: HTMLElement): void {
   const copy = document.createElement('span');
   copy.className = 'structure-copy';
   const name = document.createElement('strong');
-  name.textContent = 'Canvas';
+  name.textContent = 'Untitled';
   const summary = document.createElement('span');
-  summary.textContent = 'Export bounds not set';
+  summary.textContent = 'Composite / export bounds not set';
   copy.append(name, summary);
   interior.append(glyph, copy);
   row.append(disclosure, interior);
@@ -162,9 +163,27 @@ function parameterControl(
 function targetFields(
   fragment: DocumentFragment,
   node: ProjectNode & { type: 'target' },
+  projectName: string,
+  onName: (name: string) => void,
   onContract: (contract: TargetContract, options?: { preserveControls?: boolean }) => void,
 ): void {
   let currentContract = node.contract;
+  const nameInput = document.createElement('input');
+  nameInput.autocomplete = 'off';
+  nameInput.spellcheck = false;
+  nameInput.type = 'text';
+  nameInput.value = projectName;
+  nameInput.addEventListener('change', () => {
+    const name = nameInput.value.trim();
+    if (name.length === 0) {
+      nameInput.value = projectName;
+      return;
+    }
+    onName(name);
+  });
+  fragment.append(
+    field('File name', nameInput, 'Save and Export add the selected file extension.'),
+  );
   const numberField = (key: 'height' | 'width', label: string): void => {
     const wrapper = document.createElement('div');
     wrapper.className = 'property-field dimension-field';
@@ -294,13 +313,14 @@ export function renderProperties(
   const heading = document.createElement('div');
   heading.className = 'properties-heading';
   const eyebrow = document.createElement('span');
-  eyebrow.textContent = nodeRegistry.get(node.type)?.kind ?? node.type;
+  eyebrow.textContent =
+    node.type === 'target' ? 'Composite' : (nodeRegistry.get(node.type)?.kind ?? node.type);
   const title = document.createElement('h2');
-  title.textContent = node.type === 'target' ? 'Canvas' : node.name;
+  title.textContent = node.type === 'target' ? project.name : node.name;
   heading.append(eyebrow, title);
   fragment.append(heading);
   if (node.type === 'target') {
-    targetFields(fragment, node, (contract, changeOptions) =>
+    targetFields(fragment, node, project.name, options.onProjectName, (contract, changeOptions) =>
       options.onTargetContract(node.id, contract, changeOptions),
     );
   } else {

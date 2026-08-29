@@ -17,7 +17,7 @@
         <kbd>Shift+O</kbd>
       </button>
       <button id="save-project-button" class="menu-item" type="button" data-action="save-project" disabled>
-        <span>Save project</span>
+        <span>Save composite</span>
       </button>
       <label class="menu-select">
         <span>Export metadata</span>
@@ -28,7 +28,7 @@
         </select>
       </label>
       <button id="export-button" class="menu-item" type="button" data-action="export-target" disabled>
-        <span>Export target</span>
+        <span>Export composite</span>
       </button>
       <div class="menu-separator" aria-hidden="true"></div>
       <button class="menu-item" type="button" data-action="settings">
@@ -104,11 +104,7 @@
         </fieldset>
       </aside>
 
-      <div class="viewport-hud">
-        <div id="source-identity" class="source-identity" hidden>
-          <strong id="source-name"></strong>
-          <span id="source-details" class="source-details"></span>
-        </div>
+      <div class="zoom-hud">
         <button
           id="zoom-menu-button"
           class="zoom-menu-button"
@@ -123,20 +119,16 @@
 
       <aside class="layers-panel">
         <header class="layers-heading">
-          <span>Document</span>
           <h2>Layers</h2>
+          <button
+            id="add-menu-button"
+            class="add-menu-button"
+            type="button"
+            aria-controls="add-menu"
+            aria-expanded="false"
+          >Add</button>
         </header>
-        <fieldset class="tree-actions">
-          <legend class="visually-hidden">Layer actions</legend>
-          <button id="add-layer-button" type="button" disabled>+ Layer</button>
-          <label class="operation-picker">
-            <span class="visually-hidden">Operation type</span>
-            <select id="operation-type" aria-label="Operation type"></select>
-          </label>
-          <button id="add-operation-button" type="button" disabled>+ Operation</button>
-          <button id="add-mask-button" type="button" disabled>+ Mask</button>
-        </fieldset>
-        <div id="layer-tree" class="layer-tree" role="tree" aria-label="Layers and canvas"></div>
+        <div id="layer-tree" class="layer-tree" role="tree" aria-label="Layers and composite"></div>
         <div
           id="structure-toolbar"
           class="structure-toolbar"
@@ -146,6 +138,30 @@
         ></div>
         <p id="render-status" class="render-status" role="status" hidden></p>
       </aside>
+
+      <div id="add-menu" class="add-menu" role="menu" aria-label="Add to composite" hidden>
+        <button id="add-layer-button" class="add-menu-item" type="button" role="menuitem" disabled>
+          <span>Layer</span>
+          <small>Paint or imported pixels</small>
+        </button>
+        <button class="add-menu-item" type="button" role="menuitem" disabled>
+          <span>Group</span>
+          <small>Organize and scope layers</small>
+        </button>
+        <button class="add-menu-item" type="button" role="menuitem" disabled>
+          <span>Content Layer</span>
+          <small>Fill, gradient, or pattern</small>
+        </button>
+        <button class="add-menu-item" type="button" role="menuitem" disabled>
+          <span>Filter Layer</span>
+          <small>Adjustment, blur, or clarity</small>
+        </button>
+        <div class="menu-separator" aria-hidden="true"></div>
+        <button id="add-mask-button" class="add-menu-item" type="button" role="menuitem" disabled>
+          <span>Mask on Selection</span>
+          <small>Limit the selected layer or effect</small>
+        </button>
+      </div>
 
       <section class="stage-column">
         <section id="stage" class="stage" aria-label="Image preview">
@@ -160,10 +176,10 @@
       <aside id="properties-panel" class="properties-panel" aria-label="Properties">
         <section id="canvas-properties" class="canvas-properties">
           <div class="properties-heading">
-            <h2>Canvas</h2>
+            <h2>Workspace</h2>
           </div>
           <fieldset class="canvas-view-options">
-            <legend class="visually-hidden">Canvas view options</legend>
+            <legend class="visually-hidden">Workspace background options</legend>
             <div class="canvas-view-row">
               <label class="property-label" for="canvas-background-mode">Background</label>
               <div class="canvas-background-controls">
