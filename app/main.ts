@@ -241,6 +241,7 @@ const dispose = createRoot(disposeRoot => {
   const canvas = requireElement<HTMLCanvasElement>('#render-preview');
   const canvasFrame = requireElement<HTMLElement>('#render-preview-frame');
   const renderStatus = requireElement<HTMLElement>('#render-status');
+  const layersPanel = requireElement<HTMLElement>('.layers-panel');
   const layerTree = requireElement<HTMLElement>('#layer-tree');
   const structureToolbar = requireElement<HTMLElement>('#structure-toolbar');
   const canvasProperties = requireElement<HTMLElement>('#canvas-properties');
@@ -1081,10 +1082,21 @@ const dispose = createRoot(disposeRoot => {
     }
     structureToolbar.replaceChildren(fragment);
     structureToolbar.hidden = false;
-    const preferredX = anchor?.x ?? window.innerWidth - 232;
     const preferredY = anchor?.y ?? window.innerHeight / 2;
-    structureToolbar.style.left = `${Math.max(8, Math.min(window.innerWidth - 218, preferredX - 210))}px`;
-    structureToolbar.style.top = `${Math.max(8, Math.min(window.innerHeight - structureToolbar.offsetHeight - 8, preferredY + 4))}px`;
+    const panelBounds = layersPanel.getBoundingClientRect();
+    const left = Math.max(
+      8,
+      Math.min(
+        window.innerWidth - structureToolbar.offsetWidth - 8,
+        panelBounds.left - structureToolbar.offsetWidth - 6,
+      ),
+    );
+    const top = Math.max(
+      8,
+      Math.min(window.innerHeight - structureToolbar.offsetHeight - 8, preferredY + 4),
+    );
+    structureToolbar.style.left = `${left}px`;
+    structureToolbar.style.top = `${top}px`;
     const first = firstEnabledAction(contextActions, undefined);
     buttons.find(button => button.dataset.action === first?.id)?.focus();
   }

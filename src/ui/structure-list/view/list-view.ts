@@ -167,8 +167,8 @@ export function renderStructureList(
     actions.textContent = '...';
     actions.addEventListener('click', event => {
       event.stopPropagation();
-      options.onSelect(row.nodeId);
       const bounds = actions.getBoundingClientRect();
+      options.onSelect(row.nodeId);
       options.onOpenActions?.(row.nodeId, { x: bounds.right, y: bounds.bottom });
     });
 
