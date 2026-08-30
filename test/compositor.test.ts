@@ -17,6 +17,7 @@ import {
   type Region,
 } from '../src/compositor/index.js';
 import {
+  applyProjectCommand,
   cloneProject,
   createEmbeddedImageAsset,
   createImportedProject,
@@ -331,5 +332,45 @@ describe('CPU reference compositor', () => {
     const visible = projectTargetToGraph(project, target.id, decoded);
     assert.equal(visible.graph.entities.length, 1);
     assert.equal(visible.graph.filters?.length, 1);
+  });
+
+  it('projects nested pass-through groups as bounded stack scopes', () => {
+    const asset = createEmbeddedImageAsset({
+      bytesBase64: 'AA==',
+      contentHash: `sha256:${'f'.repeat(64)}`,
+      height: 1,
+      id: 'asset-group',
+      mediaType: 'image/png',
+      name: 'Grouped pixel',
+      width: 1,
+    });
+    const base = createImportedProject(asset, {
+      layerId: 'node-grouped-layer',
+      projectId: 'project-group',
+      sourceId: 'node-grouped-source',
+      targetId: 'node-group-target',
+    });
+    const group = createNode('group', 'node-group', 'Pass-through group');
+    const project = applyProjectCommand(base, {
+      commands: [
+        { index: 0, nodeId: 'node-grouped-layer', parentId: null, type: 'move-node' },
+        { node: group, parentId: 'node-group-target', type: 'insert-node' },
+        { index: 0, nodeId: 'node-grouped-layer', parentId: group.id, type: 'move-node' },
+      ],
+      type: 'batch',
+    });
+    const decoded = new Map([
+      [asset.id, { data: new Float32Array([1, 0, 0, 1]), height: 1, revision: '1', width: 1 }],
+    ]);
+    const projection = projectTargetToGraph(project, 'node-group-target', decoded);
+    const groupEntity = projection.graph.entities[0];
+    assert.equal(groupEntity?.source.kind, 'graph');
+    if (groupEntity?.source.kind !== 'graph') return;
+    assert.equal(groupEntity.source.passThrough, true);
+    assert.equal(groupEntity.source.graph.entities[0]?.id, 'node-grouped-layer');
+    assert.deepEqual(
+      [...renderRegion(projection.graph, { h: 1, w: 1, x: 0, y: 0 }, 1).data],
+      [1, 0, 0, 1],
+    );
   });
 });

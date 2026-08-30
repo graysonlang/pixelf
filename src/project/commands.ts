@@ -42,8 +42,9 @@ function removeFromParent(project: PixelfProject, nodeId: string): void {
     if (rootIndex >= 0) project.targetIds.splice(rootIndex, 1);
     return;
   }
-  if (parent.node.type === 'target') parent.node.childIds.splice(parent.index, 1);
-  else parent.node.childId = null;
+  if (parent.node.type === 'target' || parent.node.type === 'group') {
+    parent.node.childIds.splice(parent.index, 1);
+  } else parent.node.childId = null;
 }
 
 function attachToParent(
@@ -61,7 +62,7 @@ function attachToParent(
   }
   const parent = project.nodes[parentId];
   if (parent === undefined) throw new Error(`Cannot attach to missing parent ${parentId}`);
-  if (parent.type === 'target') {
+  if (parent.type === 'target' || parent.type === 'group') {
     parent.childIds.splice(Math.min(index, parent.childIds.length), 0, nodeId);
     return;
   }
@@ -81,7 +82,7 @@ function descendants(
   if (found.has(nodeId)) return found;
   found.add(nodeId);
   const node = project.nodes[nodeId];
-  if (node?.type === 'target')
+  if (node?.type === 'target' || node?.type === 'group')
     for (const childId of node.childIds) descendants(project, childId, found);
   else if (node && 'childId' in node && node.childId) {
     descendants(project, node.childId, found);
@@ -137,7 +138,7 @@ function applyMutable(project: PixelfProject, command: ProjectCommand): void {
     }
     case 'set-stack-item-visibility': {
       const node = project.nodes[command.nodeId];
-      if (node?.type !== 'layer' && node?.type !== 'filter') {
+      if (node?.type !== 'layer' && node?.type !== 'filter' && node?.type !== 'group') {
         throw new Error(`Cannot change visibility for non-layer ${command.nodeId}`);
       }
       node.visible = command.visible;
@@ -145,7 +146,7 @@ function applyMutable(project: PixelfProject, command: ProjectCommand): void {
     }
     case 'set-stack-item-lock': {
       const node = project.nodes[command.nodeId];
-      if (node?.type !== 'layer' && node?.type !== 'filter') {
+      if (node?.type !== 'layer' && node?.type !== 'filter' && node?.type !== 'group') {
         throw new Error(`Cannot change lock state for non-layer ${command.nodeId}`);
       }
       node.locked = command.locked;
@@ -258,7 +259,7 @@ export function duplicateSubtreeCommand(project: PixelfProject, nodeId: string):
     const copy = structuredClone(source);
     copy.id = replacementId;
     copy.name = copiedId === nodeId ? `${copy.name} copy` : copy.name;
-    if (copy.type === 'target') {
+    if (copy.type === 'target' || copy.type === 'group') {
       copy.childIds = copy.childIds.map(childId => replacements.get(childId) ?? childId);
     } else if ('childId' in copy && copy.childId !== null) {
       copy.childId = replacements.get(copy.childId) ?? copy.childId;

@@ -117,6 +117,26 @@ describe('EditorState', () => {
     assert.equal(state.project.nodes['node-layer-two'], undefined);
   });
 
+  it('reparents stack items into groups as one undoable command', () => {
+    const state = editor();
+    const group = createNode('group', 'node-group', 'Retouch group');
+    state.dispatch(
+      { node: group, parentId: 'node-target', type: 'insert-node' },
+      { label: 'Add group' },
+    );
+    state.dispatch(
+      { index: 0, nodeId: 'node-layer', parentId: group.id, type: 'move-node' },
+      { label: 'Move item into group' },
+    );
+    const movedGroup = editorNode(state, group.id);
+    assert.equal(movedGroup.type, 'group');
+    if (movedGroup.type === 'group') assert.deepEqual(movedGroup.childIds, ['node-layer']);
+    state.undo();
+    const target = editorNode(state, 'node-target');
+    assert.equal(target.type, 'target');
+    if (target.type === 'target') assert.deepEqual(target.childIds, ['node-layer', group.id]);
+  });
+
   it('adds an imported image and its layer as one undoable command', () => {
     const state = editor();
     const asset = createEmbeddedImageAsset({

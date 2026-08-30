@@ -4,6 +4,7 @@ import {
   PIXELF_PROJECT_VERSION,
   type ImageAsset,
   type FilterLayerNode,
+  type GroupNode,
   type JsonValue,
   type LayerNode,
   type PixelfProject,
@@ -76,6 +77,18 @@ export function createNode(
       visible: true,
     } as FilterLayerNode;
   }
+  if (type === 'group') {
+    return {
+      childIds: [],
+      effectIds: [],
+      id,
+      locked: false,
+      name,
+      parameters,
+      type: 'group',
+      visible: true,
+    } as GroupNode;
+  }
   if (type.startsWith('process/')) {
     return { childId: null, id, name, parameters, type } as ProcessorNode;
   }
@@ -128,7 +141,8 @@ function importedColorSpaces(project: PixelfProject, target: TargetNode): Projec
       const asset = project.assets[node.assetId];
       if (asset !== undefined) spaces.add(asset.colorSpace);
     }
-    if ('childId' in node && node.childId !== null) pending.push(node.childId);
+    if ('childIds' in node) pending.push(...node.childIds);
+    else if ('childId' in node && node.childId !== null) pending.push(node.childId);
   }
   return [...spaces].sort();
 }
@@ -331,12 +345,12 @@ export function parseProject(source: string): PixelfProject {
 
 export interface PrimaryParent {
   index: number;
-  node: TargetNode | LayerNode | ProcessorNode;
+  node: GroupNode | TargetNode | LayerNode | ProcessorNode;
 }
 
 export function findPrimaryParent(project: PixelfProject, childId: string): PrimaryParent | null {
   for (const node of Object.values(project.nodes)) {
-    if (node.type === 'target') {
+    if (node.type === 'target' || node.type === 'group') {
       const index = node.childIds.indexOf(childId);
       if (index >= 0) return { index, node };
     } else if ('childId' in node && node.childId === childId) {

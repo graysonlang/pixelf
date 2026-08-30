@@ -529,6 +529,10 @@ button:disabled {
   --structure-type: #78cfff;
 }
 
+.structure-chiclet.kind-group {
+  --structure-type: #f0cf72;
+}
+
 .structure-chiclet[class*="kind-process-"] {
   --structure-type: #c69cff;
 }
@@ -584,6 +588,11 @@ button:disabled {
 
 .structure-chiclet.drop-after::after {
   bottom: -1px;
+}
+
+.structure-chiclet.drop-inside {
+  outline: 1px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .structure-disclosure,

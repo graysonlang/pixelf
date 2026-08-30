@@ -25,7 +25,11 @@ export interface TreeViewOptions {
   onOpenActions(nodeId: string, anchor?: { x: number; y: number }): void;
   onPrimaryAction(nodeId: string): void;
   onSelect(nodeId: string): void;
-  onReorderLayer(nodeId: string, anchorNodeId: string, placement: 'after' | 'before'): void;
+  onReorderLayer(
+    nodeId: string,
+    anchorNodeId: string,
+    placement: 'after' | 'before' | 'inside',
+  ): void;
   onToggle(nodeId: string): void;
   onVisibilityChange(nodeId: string, visible: boolean): void;
   revision: string;
@@ -74,7 +78,7 @@ export function renderProjectTree(
     onVisibilityChange: options.onVisibilityChange,
     rowState: row => {
       const node = project.nodes[row.nodeId];
-      return node?.type === 'layer' || node?.type === 'filter'
+      return node?.type === 'layer' || node?.type === 'filter' || node?.type === 'group'
         ? { locked: node.locked, visible: node.visible }
         : null;
     },

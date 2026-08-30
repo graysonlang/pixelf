@@ -25,7 +25,7 @@ export interface PortDefinition {
   multiple?: boolean;
 }
 
-export type PrimaryChildPolicy = 'layers' | 'none' | 'one';
+export type PrimaryChildPolicy = 'layers' | 'none' | 'one' | 'stack';
 
 export interface RegionBehavior {
   kind: 'halo' | 'identity' | 'source' | 'spatial';
@@ -43,7 +43,7 @@ export interface NodeDefinition {
   description: string;
   execution?: ExecutionBehavior;
   interchangeGroup?: string;
-  kind: 'filter' | 'layer' | 'processor' | 'source' | 'target';
+  kind: 'filter' | 'group' | 'layer' | 'processor' | 'source' | 'target';
   parameters: readonly ParameterDefinition[];
   ports: readonly PortDefinition[];
   region: RegionBehavior;
@@ -183,6 +183,43 @@ const definitions = [
     region: { kind: 'identity' },
     title: 'Filter Layer',
     type: 'filter',
+  }),
+  defineNode({
+    childPolicy: 'stack',
+    description: 'An ordered compositing scope for layers, filters, and nested groups.',
+    kind: 'group',
+    parameters: [
+      {
+        default: 1,
+        key: 'opacity',
+        kind: 'number',
+        label: 'Opacity',
+        maximum: 1,
+        minimum: 0,
+        presentation: 'percentage',
+      },
+      {
+        default: 'pass-through',
+        key: 'compositing',
+        kind: 'enum',
+        label: 'Compositing',
+        values: ['pass-through', 'isolated'],
+      },
+      {
+        default: 'normal',
+        key: 'blendMode',
+        kind: 'enum',
+        label: 'Blend mode',
+        values: BLEND_MODES,
+      },
+    ],
+    ports: [
+      { direction: 'input', key: 'mask', kind: 'mask', label: 'Mask' },
+      { direction: 'output', key: 'image', kind: 'image', label: 'Image' },
+    ],
+    region: { kind: 'identity' },
+    title: 'Group',
+    type: 'group',
   }),
   processor(
     'process/crop',

@@ -10,13 +10,14 @@ export interface PixelfStructureSnapshot {
 }
 
 function primaryChildren(node: ProjectNode): readonly string[] {
-  if (node.type === 'target') return node.childIds;
+  if (node.type === 'target' || node.type === 'group') return node.childIds;
   if ('childId' in node && node.childId !== null) return [node.childId];
   return [];
 }
 
 function layerStackChildren(project: PixelfProject, node: ProjectNode): readonly string[] {
   if (node.type === 'target') return [];
+  if (node.type === 'group') return node.childIds.toReversed();
   return primaryChildren(node).filter(
     childId => project.nodes[childId]?.type !== 'source/imported',
   );
@@ -68,7 +69,10 @@ function describe(
   const children = layerStack ? layerStackChildren(snapshot.project, node) : primaryChildren(node);
   return {
     acceptsVisualDepth:
-      node.type === 'filter' || node.type === 'layer' || node.type.startsWith('process/'),
+      node.type === 'filter' ||
+      node.type === 'group' ||
+      node.type === 'layer' ||
+      node.type.startsWith('process/'),
     expanded: snapshot.expanded.has(id),
     hasChildren: children.length > 0,
     kind: node.type,
@@ -78,7 +82,7 @@ function describe(
     relation:
       node.type === 'target' || isStackLayer
         ? 'root'
-        : parent?.node.type === 'target'
+        : parent?.node.type === 'target' || parent?.node.type === 'group'
           ? 'ordered-child'
           : 'unary-child',
     selectable: true,

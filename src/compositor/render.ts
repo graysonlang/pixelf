@@ -89,7 +89,11 @@ export function evalEntity(entity: Entity, output: Region, scale: number): Surfa
   }
   const sourceRegion = regions[0];
   if (sourceRegion === undefined) throw new Error('Missing source region');
-  let surface = rasterSource(entity, sourceRegion, scale);
+  let surface =
+    entity.source.kind === 'graph'
+      ? renderRegion(entity.source.graph, sourceRegion, scale)
+      : rasterSource(entity, sourceRegion, scale);
+  if (entity.source.kind === 'graph') multiplySurface(surface, Math.max(0, entity.fill ?? 1));
   for (let index = 0; index < entity.effects.length; index += 1) {
     const effect = entity.effects[index];
     const effectOutput = regions[index + 1];
@@ -143,13 +147,66 @@ function graphStack(graph: Graph): GraphStackItem[] {
   return items;
 }
 
-function renderStack(items: readonly GraphStackItem[], output: Region, scale: number): Surface {
+function copySurface(surface: Surface, region: Region): Surface {
+  return cropSurface(surface, region);
+}
+
+function mixPassThroughGroup(
+  before: Surface,
+  after: Surface,
+  entity: Entity,
+  output: Region,
+  scale: number,
+): Surface {
+  const result = makeSurface(output);
+  const maskSurface =
+    entity.mask === undefined ? null : evaluateMask(entity.id, entity.mask, output, scale);
+  const maskPixel = new Float32Array(4);
+  for (let y = 0; y < output.h; y += 1) {
+    for (let x = 0; x < output.w; x += 1) {
+      const offset = (y * output.w + x) * 4;
+      const mask =
+        entity.mask === undefined || maskSurface === null
+          ? 1
+          : maskAmount(entity.mask, maskSurface, output.x + x, output.y + y, maskPixel);
+      const amount = Math.max(0, Math.min(1, entity.opacity * mask));
+      for (let channel = 0; channel < 4; channel += 1) {
+        result.data[offset + channel] =
+          (before.data[offset + channel] ?? 0) * (1 - amount) +
+          (after.data[offset + channel] ?? 0) * amount;
+      }
+    }
+  }
+  return result;
+}
+
+function blendStackEntity(
+  accumulator: Surface,
+  entity: Entity,
+  output: Region,
+  scale: number,
+): Surface {
+  if (entity.source.kind !== 'graph' || !entity.source.passThrough) {
+    blendOnto(accumulator, evalEntity(entity, output, scale), entity.blend);
+    return accumulator;
+  }
+  const before = copySurface(accumulator, output);
+  const after = renderStack(graphStack(entity.source.graph), output, scale, before);
+  return mixPassThroughGroup(before, after, entity, output, scale);
+}
+
+function renderStack(
+  items: readonly GraphStackItem[],
+  output: Region,
+  scale: number,
+  initial?: Surface,
+): Surface {
   const lastFilterIndex = items.findLastIndex(item => item.kind === 'filter');
   if (lastFilterIndex < 0) {
-    const accumulator = makeSurface(output);
+    let accumulator = initial === undefined ? makeSurface(output) : copySurface(initial, output);
     for (const item of items) {
       if (item.kind === 'entity') {
-        blendOnto(accumulator, evalEntity(item.entity, output, scale), item.entity.blend);
+        accumulator = blendStackEntity(accumulator, item.entity, output, scale);
       }
     }
     return accumulator;
@@ -157,7 +214,7 @@ function renderStack(items: readonly GraphStackItem[], output: Region, scale: nu
   const item = items[lastFilterIndex];
   if (item?.kind !== 'filter') throw new Error('Invalid filter stack');
   const inputRegion = effectInputRegion(item.filter.effect, output, scale);
-  const input = renderStack(items.slice(0, lastFilterIndex), inputRegion, scale);
+  const input = renderStack(items.slice(0, lastFilterIndex), inputRegion, scale, initial);
   const original = item.filter.effect.mask === undefined ? null : cropSurface(input, output);
   let accumulator = applyEffect(item.filter.effect, input, output, scale);
   if (item.filter.effect.mask !== undefined && original !== null) {
@@ -172,7 +229,7 @@ function renderStack(items: readonly GraphStackItem[], output: Region, scale: nu
   }
   for (const upper of items.slice(lastFilterIndex + 1)) {
     if (upper.kind === 'entity') {
-      blendOnto(accumulator, evalEntity(upper.entity, output, scale), upper.entity.blend);
+      accumulator = blendStackEntity(accumulator, upper.entity, output, scale);
     }
   }
   return accumulator;

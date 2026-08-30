@@ -100,6 +100,14 @@ export interface FilterLayerNode extends BaseNode {
   visible: boolean;
 }
 
+export interface GroupNode extends BaseNode {
+  childIds: string[];
+  effectIds: string[];
+  locked: boolean;
+  type: 'group';
+  visible: boolean;
+}
+
 export interface ProcessorNode extends BaseNode {
   childId: string | null;
   type: `process/${string}`;
@@ -110,8 +118,15 @@ export interface SourceNode extends BaseNode {
   type: `source/${string}`;
 }
 
-export type ProjectNode = TargetNode | LayerNode | FilterLayerNode | ProcessorNode | SourceNode;
+export type ProjectNode =
+  | TargetNode
+  | LayerNode
+  | FilterLayerNode
+  | GroupNode
+  | ProcessorNode
+  | SourceNode;
 export type UnaryNode = LayerNode | ProcessorNode;
+export type StackItemNode = LayerNode | FilterLayerNode | GroupNode;
 
 export type PortKind = 'image' | 'mask' | 'scalar';
 

@@ -16,7 +16,7 @@ export interface StructureListViewOptions {
   onMove?(nodeId: string, direction: -1 | 1): void;
   onOpenActions?(nodeId: string, anchor?: { x: number; y: number }): void;
   onPrimaryAction?(nodeId: string): void;
-  onReorder?(nodeId: string, anchorNodeId: string, placement: 'after' | 'before'): void;
+  onReorder?(nodeId: string, anchorNodeId: string, placement: 'after' | 'before' | 'inside'): void;
   onSelect(nodeId: string): void;
   onToggle(nodeId: string): void;
   onVisibilityChange?(nodeId: string, visible: boolean): void;
@@ -36,6 +36,7 @@ function glyphFor(kind: string): string {
   if (kind === 'target') return 'C';
   if (kind === 'layer') return 'L';
   if (kind === 'filter') return 'fx';
+  if (kind === 'group') return 'G';
   if (kind === 'source/mask' || kind === 'source/checker-mask') return 'M';
   if (kind.startsWith('process/')) return 'fx';
   return 'S';
@@ -112,7 +113,7 @@ export function renderStructureList(
 
   const clearDropState = (): void => {
     for (const element of container.querySelectorAll<HTMLElement>('.structure-chiclet')) {
-      element.classList.remove('dragging', 'drop-before', 'drop-after');
+      element.classList.remove('dragging', 'drop-before', 'drop-after', 'drop-inside');
       element.removeAttribute('aria-grabbed');
     }
   };
@@ -142,7 +143,9 @@ export function renderStructureList(
       chiclet.dataset.hidden = String(!rowState.visible);
       chiclet.dataset.locked = String(rowState.locked);
     }
-    const reorderable = (row.kind === 'filter' || row.kind === 'layer') && row.relation === 'root';
+    const reorderable =
+      (row.kind === 'filter' || row.kind === 'group' || row.kind === 'layer') &&
+      row.relation !== 'unary-child';
     chiclet.draggable = reorderable;
     if (reorderable) chiclet.dataset.reorderable = 'true';
     const siblings = siblingData.get(row.nodeId);
@@ -257,20 +260,33 @@ export function renderStructureList(
         event.stopPropagation();
         if (event.dataTransfer !== null) event.dataTransfer.dropEffect = 'move';
         const bounds = chiclet.getBoundingClientRect();
-        const placement = event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after';
+        const relativeY = (event.clientY - bounds.top) / bounds.height;
+        const placement =
+          row.kind === 'group' && relativeY >= 0.25 && relativeY <= 0.75
+            ? 'inside'
+            : relativeY < 0.5
+              ? 'before'
+              : 'after';
         chiclet.classList.toggle('drop-before', placement === 'before');
         chiclet.classList.toggle('drop-after', placement === 'after');
+        chiclet.classList.toggle('drop-inside', placement === 'inside');
       });
       chiclet.addEventListener('dragleave', event => {
         if (event.relatedTarget instanceof Node && chiclet.contains(event.relatedTarget)) return;
-        chiclet.classList.remove('drop-before', 'drop-after');
+        chiclet.classList.remove('drop-before', 'drop-after', 'drop-inside');
       });
       chiclet.addEventListener('drop', event => {
         if (draggedNodeId === null || draggedNodeId === row.nodeId) return;
         event.preventDefault();
         event.stopPropagation();
         const bounds = chiclet.getBoundingClientRect();
-        const placement = event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after';
+        const relativeY = (event.clientY - bounds.top) / bounds.height;
+        const placement =
+          row.kind === 'group' && relativeY >= 0.25 && relativeY <= 0.75
+            ? 'inside'
+            : relativeY < 0.5
+              ? 'before'
+              : 'after';
         const movedNodeId = draggedNodeId;
         clearDropState();
         draggedNodeId = null;
@@ -307,8 +323,8 @@ export function renderStructureList(
       !event.ctrlKey &&
       !event.metaKey &&
       (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
-      current?.kind === 'layer' &&
-      current.relation === 'root'
+      (current?.kind === 'filter' || current?.kind === 'group' || current?.kind === 'layer') &&
+      current.relation !== 'unary-child'
     ) {
       options.onMove?.(current.nodeId, event.key === 'ArrowUp' ? -1 : 1);
       event.preventDefault();

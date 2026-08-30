@@ -12,6 +12,7 @@ import {
   checker,
   graphHash,
   image,
+  nestedGraph,
   solid,
   type BlendMode,
   type Effect,
@@ -369,54 +370,81 @@ export function projectTargetToGraph(
   const resolvedContract = resolveTargetContract(project, authoredTarget);
   if (resolvedContract === null) throw new Error('The Composite export bounds are not set');
   const target: ResolvedTargetNode = { ...authoredTarget, contract: resolvedContract };
+  const graph = projectStackToGraph(project, target.childIds, decodedAssets, target);
+  return {
+    graph,
+    target,
+    targetKey: targetCacheKey(target),
+  };
+}
+
+function projectStackToGraph(
+  project: PixelfProject,
+  stackItemIds: readonly string[],
+  decodedAssets: DecodedAssetStore,
+  target: ResolvedTargetNode,
+): Graph {
   const entities: Entity[] = [];
   const filters: GraphFilter[] = [];
-  for (const stackItemId of target.childIds) {
-    const layer = requireNode(project, stackItemId);
-    if (layer.type === 'filter') {
-      if (layer.visible && layer.parameters.bypass !== true) {
-        const effect = operationEffect(layer, layer.filterType, target);
-        const mask = maskForNode(project, layer.id, target);
+  for (const stackItemId of stackItemIds) {
+    const item = requireNode(project, stackItemId);
+    if (item.type === 'filter') {
+      if (item.visible && item.parameters.bypass !== true) {
+        const effect = operationEffect(item, item.filterType, target);
+        const mask = maskForNode(project, item.id, target);
         filters.push({
           effect: mask === undefined ? effect : { ...effect, mask },
-          id: layer.id,
+          id: item.id,
           position: entities.length,
         });
       }
       continue;
     }
-    if (layer.type !== 'layer') throw new Error(`${stackItemId} is not a stack item`);
-    if (!layer.visible) continue;
-    if (layer.childId === null) continue;
+    if (item.type === 'group') {
+      if (!item.visible) continue;
+      const compositing = stringParameter(item, 'compositing');
+      if (compositing !== 'pass-through' && compositing !== 'isolated') {
+        throw new Error(`${item.id}.compositing is unsupported`);
+      }
+      entities.push({
+        blend: stringParameter(item, 'blendMode') as BlendMode,
+        effects: [],
+        fill: 1,
+        h: target.contract.height,
+        id: item.id,
+        mask: maskForNode(project, item.id, target),
+        opacity: numberParameter(item, 'opacity'),
+        source: nestedGraph(
+          projectStackToGraph(project, item.childIds, decodedAssets, target),
+          compositing === 'pass-through',
+        ),
+        w: target.contract.width,
+        x: 0,
+        y: 0,
+      });
+      continue;
+    }
+    if (item.type !== 'layer') throw new Error(`${stackItemId} is not a stack item`);
+    if (!item.visible || item.childId === null) continue;
     const source = sourceForLayer(
       project,
-      requireNode(project, layer.childId),
+      requireNode(project, item.childId),
       decodedAssets,
       target,
     );
-    const layerOpacity = layer.parameters.opacity;
-    if (typeof layerOpacity !== 'number') throw new Error(`${layer.id}.opacity must be numeric`);
-    const blendMode = layer.parameters.blendMode;
-    if (typeof blendMode !== 'string') throw new Error(`${layer.id}.blendMode must be text`);
-    const layerFill = layer.parameters.fill;
-    if (typeof layerFill !== 'number') throw new Error(`${layer.id}.fill must be numeric`);
     entities.push({
-      blend: blendMode as BlendMode,
+      blend: stringParameter(item, 'blendMode') as BlendMode,
       effects: source.effects,
-      fill: layerFill,
+      fill: numberParameter(item, 'fill'),
       h: target.contract.height,
-      id: layer.id,
-      opacity: layerOpacity,
-      mask: maskForNode(project, layer.id, target),
+      id: item.id,
+      mask: maskForNode(project, item.id, target),
+      opacity: numberParameter(item, 'opacity'),
       source: source.source,
       w: target.contract.width,
       x: 0,
       y: 0,
     });
   }
-  return {
-    graph: { entities, filters: filters.length > 0 ? filters : undefined },
-    target,
-    targetKey: targetCacheKey(target),
-  };
+  return { entities, filters: filters.length > 0 ? filters : undefined };
 }

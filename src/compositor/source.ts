@@ -71,10 +71,12 @@ export function rasterSource(entity: Entity, region: Region, scale: number): Sur
         sampled[1] = value;
         sampled[2] = value;
         sampled[3] = 1;
-      } else {
+      } else if (entity.source.kind === 'image') {
         const u = (localX / entity.w) * entity.source.width;
         const v = (localY / entity.h) * entity.source.height;
         sampleImageMip(entity.source, u, v, lod, sampled);
+      } else {
+        throw new Error('Nested graph sources are evaluated by the stack renderer');
       }
       const offset = (y * region.w + x) * 4;
       for (let channel = 0; channel < 4; channel += 1) {

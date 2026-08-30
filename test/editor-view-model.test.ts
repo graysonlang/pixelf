@@ -168,4 +168,34 @@ describe('target-first editor view model', () => {
     assert.ok(layer);
     assert.equal(pixelfNodeSummary(withBlur, layer), '50 x 40 / embedded');
   });
+
+  it('shows nested group stacks in reversed visual order without changing ownership', () => {
+    const group = createNode('group', 'node-group', 'Retouch group');
+    const nested = createNode('layer', 'node-nested-layer', 'Nested layer');
+    const project = applyProjectCommand(projectWithMask(), {
+      commands: [
+        { node: group, parentId: 'node-target', type: 'insert-node' },
+        { node: nested, parentId: group.id, type: 'insert-node' },
+      ],
+      type: 'batch',
+    });
+    const model = createListModel(
+      {
+        expanded: new Set([group.id]),
+        project,
+        revision: 'view-group',
+      },
+      createPixelfLayerStackAdapter(),
+      () => 48,
+    );
+    assert.deepEqual(
+      model.rows.map(row => [row.nodeId, row.depth, row.relation]),
+      [
+        [group.id, 0, 'root'],
+        [nested.id, 1, 'ordered-child'],
+        ['node-layer', 0, 'root'],
+        ['node-target', 0, 'root'],
+      ],
+    );
+  });
 });

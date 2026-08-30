@@ -210,11 +210,11 @@ function checkNodeShape(node: UnknownRecord, key: string, issues: string[]): voi
         issues.push(`${path}.parameters.${key} is not declared by ${parameterDefinition.type}`);
     }
   }
-  if (node.type === 'layer' || node.type === 'filter') {
+  if (node.type === 'layer' || node.type === 'filter' || node.type === 'group') {
     if (typeof node.visible !== 'boolean') issues.push(`${path}.visible must be a boolean`);
     if (typeof node.locked !== 'boolean') issues.push(`${path}.locked must be a boolean`);
   }
-  if (node.type === 'layer') {
+  if (node.type === 'layer' || node.type === 'group') {
     if (!Array.isArray(node.effectIds) || !node.effectIds.every(id => typeof id === 'string')) {
       issues.push(`${path}.effectIds must be an array of effect IDs`);
     }
@@ -226,6 +226,10 @@ function checkNodeShape(node: UnknownRecord, key: string, issues: string[]): voi
     checkTargetContract(node.contract, `${path}.contract`, issues);
     if (node.background !== undefined) {
       checkCanvasBackground(node.background, `${path}.background`, issues);
+    }
+  } else if (definition.childPolicy === 'stack') {
+    if (!Array.isArray(node.childIds) || !node.childIds.every(id => typeof id === 'string')) {
+      issues.push(`${path}.childIds must be an array of stack-item IDs`);
     }
   } else if (definition.childPolicy === 'one') {
     if (node.childId !== null && typeof node.childId !== 'string') {
@@ -258,7 +262,7 @@ function checkWireShape(value: unknown, index: number, issues: string[]): void {
 }
 
 function primaryChildren(node: ProjectNode): readonly string[] {
-  if (node.type === 'target') return node.childIds;
+  if (node.type === 'target' || node.type === 'group') return node.childIds;
   if ('childId' in node) {
     return node.childId === null ? [] : [node.childId];
   }
@@ -320,12 +324,21 @@ function checkTreeAndWires(project: PixelfProject, issues: string[]): void {
         issues.push(`nodes.${nodeId} references missing primary child ${childId}`);
         continue;
       }
-      if (node.type === 'target' && child.type !== 'layer' && child.type !== 'filter') {
-        issues.push(`target ${nodeId} may contain only stack items, not ${child.type}`);
+      if (
+        (node.type === 'target' || node.type === 'group') &&
+        child.type !== 'layer' &&
+        child.type !== 'filter' &&
+        child.type !== 'group'
+      ) {
+        issues.push(`${node.type} ${nodeId} may contain only stack items, not ${child.type}`);
       }
       if (
         node.type !== 'target' &&
-        (child.type === 'target' || child.type === 'layer' || child.type === 'filter')
+        node.type !== 'group' &&
+        (child.type === 'target' ||
+          child.type === 'layer' ||
+          child.type === 'filter' ||
+          child.type === 'group')
       ) {
         issues.push(
           `${node.type} ${nodeId} cannot use ${child.type} ${childId} as its unary child`,

@@ -25,7 +25,13 @@ export interface CheckerSource {
   size: number;
 }
 
-export type Source = CheckerSource | ImageSource | SolidSource;
+export interface GraphSource {
+  graph: Graph;
+  kind: 'graph';
+  passThrough: boolean;
+}
+
+export type Source = CheckerSource | GraphSource | ImageSource | SolidSource;
 export type { BlendMode } from '../image/blend-modes.js';
 
 export interface EffectBase {
@@ -246,6 +252,10 @@ export function checker(
   return { first, kind: 'checker', offsetX, offsetY, second, size };
 }
 
+export function nestedGraph(graph: Graph, passThrough: boolean): GraphSource {
+  return { graph, kind: 'graph', passThrough };
+}
+
 export function blur(sigma: number): BlurEffect {
   return { kind: 'blur', sigma };
 }
@@ -282,6 +292,11 @@ function mixText(text: string, mix: (value: number) => void): void {
 }
 
 function mixSource(source: Source, mix: (value: number) => void): void {
+  if (source.kind === 'graph') {
+    mixText(source.passThrough ? 'pass-through' : 'isolated', mix);
+    mixText(graphHash(source.graph), mix);
+    return;
+  }
   if (source.kind === 'checker') {
     mixText('checker', mix);
     for (const value of [

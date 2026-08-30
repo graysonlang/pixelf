@@ -152,7 +152,10 @@ export function renderTiles(request: TileRequest, cache = new TileCache()): Rend
         x: tileX * TILE_SIZE,
         y: tileY * TILE_SIZE,
       };
-      if ((request.graph.filters?.length ?? 0) > 0) {
+      if (
+        (request.graph.filters?.length ?? 0) > 0 ||
+        request.graph.entities.some(entity => entity.source.kind === 'graph')
+      ) {
         let filteredSurface = cache.get(key);
         if (filteredSurface === undefined) {
           filteredSurface = renderRegion(request.graph, tileRegion, request.scale);

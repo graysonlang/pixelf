@@ -26,6 +26,7 @@ import {
   resolveTargetContract,
   serializeProject,
   type FilterLayerNode,
+  type GroupNode,
   type LayerNode,
   type CanvasBackground,
   type CanvasBackgroundMode,
@@ -277,6 +278,7 @@ const dispose = createRoot(disposeRoot => {
   const addMenuButton = requireElement<HTMLButtonElement>('#add-menu-button');
   const addMenu = requireElement<HTMLElement>('#add-menu');
   const addLayerButton = requireElement<HTMLButtonElement>('#add-layer-button');
+  const addGroupButton = requireElement<HTMLButtonElement>('#add-group-button');
   const addFilterLayerButton = requireElement<HTMLButtonElement>('#add-filter-layer-button');
   const addMaskButton = requireElement<HTMLButtonElement>('#add-mask-button');
   const toolButtons = Array.from(
@@ -429,7 +431,12 @@ const dispose = createRoot(disposeRoot => {
   const setStackItemVisibility = (nodeId: string, visible: boolean): void => {
     const editor = currentEditor();
     const node = editor?.project.nodes[nodeId];
-    if (editor === null || (node?.type !== 'layer' && node?.type !== 'filter')) return;
+    if (
+      editor === null ||
+      (node?.type !== 'layer' && node?.type !== 'filter' && node?.type !== 'group')
+    ) {
+      return;
+    }
     runCommand(() =>
       editor.dispatch(
         { nodeId, type: 'set-stack-item-visibility', visible },
@@ -441,7 +448,12 @@ const dispose = createRoot(disposeRoot => {
   const setStackItemLocked = (nodeId: string, locked: boolean): void => {
     const editor = currentEditor();
     const node = editor?.project.nodes[nodeId];
-    if (editor === null || (node?.type !== 'layer' && node?.type !== 'filter')) return;
+    if (
+      editor === null ||
+      (node?.type !== 'layer' && node?.type !== 'filter' && node?.type !== 'group')
+    ) {
+      return;
+    }
     runCommand(() =>
       editor.dispatch(
         { locked, nodeId, type: 'set-stack-item-lock' },
@@ -477,10 +489,11 @@ const dispose = createRoot(disposeRoot => {
 
   const maskTargetForNode = (
     nodeId: string,
-  ): FilterLayerNode | LayerNode | ProcessorNode | null => {
+  ): FilterLayerNode | GroupNode | LayerNode | ProcessorNode | null => {
     const editor = currentEditor();
     const node = editor?.project.nodes[nodeId];
     if (node?.type === 'filter') return node;
+    if (node?.type === 'group') return node;
     if (node?.type.startsWith('process/')) return node as ProcessorNode;
     return layerForNode(nodeId);
   };
@@ -499,34 +512,61 @@ const dispose = createRoot(disposeRoot => {
   const addLayer = (): void => {
     const editor = currentEditor();
     if (editor === null) return;
-    const targetId =
-      (selectedNodeId() === null ? null : targetForNode(selectedNodeId() ?? '')) ??
-      editor.project.targetIds[0];
-    if (targetId === undefined || targetId === null) return;
-    const target = editor.project.nodes[targetId];
-    const layerNumber = target?.type === 'target' ? target.childIds.length + 1 : 1;
+    const selected = selectedNode();
+    const parentId =
+      selected?.type === 'group'
+        ? selected.id
+        : ((selectedNodeId() === null ? null : targetForNode(selectedNodeId() ?? '')) ??
+          editor.project.targetIds[0]);
+    if (parentId === undefined || parentId === null) return;
+    const parent = editor.project.nodes[parentId];
+    const layerNumber =
+      parent?.type === 'target' || parent?.type === 'group' ? parent.childIds.length + 1 : 1;
     const layer = createNode('layer', createOpaqueId('node'), `Layer ${layerNumber}`) as LayerNode;
     runCommand(() =>
-      editor.dispatch(
-        { node: layer, parentId: targetId, type: 'insert-node' },
-        { label: 'Add layer' },
-      ),
+      editor.dispatch({ node: layer, parentId, type: 'insert-node' }, { label: 'Add layer' }),
     );
-    expanded.add(targetId);
+    expanded.add(parentId);
     expanded.add(layer.id);
     selectNode(layer.id);
+  };
+
+  const addGroup = (): void => {
+    const editor = currentEditor();
+    if (editor === null) return;
+    const selected = selectedNode();
+    const parentId =
+      selected?.type === 'group'
+        ? selected.id
+        : ((selectedNodeId() === null ? null : targetForNode(selectedNodeId() ?? '')) ??
+          editor.project.targetIds[0]);
+    if (parentId === undefined || parentId === null) return;
+    const parent = editor.project.nodes[parentId];
+    const groupNumber =
+      parent?.type === 'target' || parent?.type === 'group' ? parent.childIds.length + 1 : 1;
+    const group = createNode('group', createOpaqueId('node'), `Group ${groupNumber}`) as GroupNode;
+    runCommand(() =>
+      editor.dispatch({ node: group, parentId, type: 'insert-node' }, { label: 'Add group' }),
+    );
+    expanded.add(parentId);
+    expanded.add(group.id);
+    selectNode(group.id);
   };
 
   const addFilterLayer = (): void => {
     const editor = currentEditor();
     const selectedId = selectedNodeId();
-    const targetId =
-      (selectedId === null ? null : targetForNode(selectedId)) ?? editor?.project.targetIds[0];
-    if (editor === null || targetId === undefined || targetId === null) return;
+    const selected = selectedNode();
+    const parentId =
+      selected?.type === 'group'
+        ? selected.id
+        : ((selectedId === null ? null : targetForNode(selectedId)) ??
+          editor?.project.targetIds[0]);
+    if (editor === null || parentId === undefined || parentId === null) return;
     const filter = createNode('filter', createOpaqueId('node')) as FilterLayerNode;
     runCommand(() =>
       editor.dispatch(
-        { node: filter, parentId: targetId, type: 'insert-node' },
+        { node: filter, parentId, type: 'insert-node' },
         { label: 'Add filter layer' },
       ),
     );
@@ -591,11 +631,14 @@ const dispose = createRoot(disposeRoot => {
   const moveLayerInStack = (nodeId: string, visualDirection: -1 | 1): void => {
     const editor = currentEditor();
     const selected = editor?.project.nodes[nodeId];
-    if (editor === null || (selected?.type !== 'layer' && selected?.type !== 'filter')) {
+    if (
+      editor === null ||
+      (selected?.type !== 'layer' && selected?.type !== 'filter' && selected?.type !== 'group')
+    ) {
       return;
     }
     const parent = findPrimaryParent(editor.project, selected.id);
-    if (parent?.node.type !== 'target') return;
+    if (parent?.node.type !== 'target' && parent?.node.type !== 'group') return;
     const canonicalDirection = visualDirection === -1 ? 1 : -1;
     const index = Math.max(
       0,
@@ -613,40 +656,61 @@ const dispose = createRoot(disposeRoot => {
   const reorderLayerInStack = (
     nodeId: string,
     anchorNodeId: string,
-    placement: 'after' | 'before',
+    placement: 'after' | 'before' | 'inside',
   ): void => {
     const editor = currentEditor();
     const node = editor?.project.nodes[nodeId];
     const anchor = editor?.project.nodes[anchorNodeId];
     if (
       editor === null ||
-      (node?.type !== 'layer' && node?.type !== 'filter') ||
-      (anchor?.type !== 'layer' && anchor?.type !== 'filter')
+      (node?.type !== 'layer' && node?.type !== 'filter' && node?.type !== 'group') ||
+      (anchor?.type !== 'layer' && anchor?.type !== 'filter' && anchor?.type !== 'group')
     ) {
       return;
     }
     const parent = findPrimaryParent(editor.project, node.id);
     const anchorParent = findPrimaryParent(editor.project, anchor.id);
+    if (placement === 'inside') {
+      if (anchor.type !== 'group') return;
+      runCommand(() =>
+        editor.dispatch(
+          {
+            index: anchor.childIds.length,
+            nodeId: node.id,
+            parentId: anchor.id,
+            type: 'move-node',
+          },
+          { label: 'Move item into group' },
+        ),
+      );
+      expanded.add(anchor.id);
+      refreshTree();
+      return;
+    }
     if (
-      parent?.node.type !== 'target' ||
-      anchorParent?.node.type !== 'target' ||
-      parent.node.id !== anchorParent.node.id
+      parent === null ||
+      anchorParent === null ||
+      (parent.node.type !== 'target' && parent.node.type !== 'group') ||
+      (anchorParent.node.type !== 'target' && anchorParent.node.type !== 'group')
     ) {
       return;
     }
-    const target = parent.node;
-    const remaining = target.childIds.filter(childId => childId !== node.id);
+    const destination = anchorParent.node;
+    const remaining = destination.childIds.filter(childId => childId !== node.id);
     const anchorIndex = remaining.indexOf(anchor.id);
     if (anchorIndex < 0) return;
     const index = placement === 'before' ? anchorIndex + 1 : anchorIndex;
     const reordered = [...remaining];
     reordered.splice(index, 0, node.id);
-    if (reordered.every((childId, childIndex) => target.childIds[childIndex] === childId)) {
+    if (
+      parent.node.id === destination.id &&
+      reordered.every((childId, childIndex) => destination.childIds[childIndex] === childId)
+    ) {
       return;
     }
     runCommand(() =>
       editor.dispatch(
-        { index, nodeId: node.id, parentId: target.id, type: 'move-node' },
+        { index, nodeId: node.id, parentId: destination.id, type: 'move-node' },
         { label: 'Reorder layer' },
       ),
     );
@@ -1002,6 +1066,16 @@ const dispose = createRoot(disposeRoot => {
       label: 'Add layer',
       priority: 70,
       run: addLayer,
+      surfaces: structureSurfaces,
+    }),
+    appAction({
+      enabled: () => currentEditor() !== null,
+      group: 'structure',
+      id: 'add-group',
+      keywords: ['new', 'folder', 'scope'],
+      label: 'Add group',
+      priority: 68,
+      run: addGroup,
       surfaces: structureSurfaces,
     }),
     appAction({
@@ -1619,6 +1693,10 @@ const dispose = createRoot(disposeRoot => {
     setAddMenuOpen(false);
     addLayer();
   };
+  const onAddGroupButtonClick = (): void => {
+    setAddMenuOpen(false);
+    addGroup();
+  };
   const onAddFilterLayerButtonClick = (): void => {
     setAddMenuOpen(false);
     addFilterLayer();
@@ -2006,6 +2084,7 @@ const dispose = createRoot(disposeRoot => {
   document.addEventListener('pointerdown', onDocumentPointerDown);
   document.addEventListener('keydown', onDocumentKeyDown);
   addLayerButton.addEventListener('click', onAddLayerButtonClick);
+  addGroupButton.addEventListener('click', onAddGroupButtonClick);
   addFilterLayerButton.addEventListener('click', onAddFilterLayerButtonClick);
   addMaskButton.addEventListener('click', onAddMaskButtonClick);
   for (const toolButton of toolButtons) toolButton.addEventListener('click', onToolButtonClick);
@@ -2082,6 +2161,7 @@ const dispose = createRoot(disposeRoot => {
     document.removeEventListener('pointerdown', onDocumentPointerDown);
     document.removeEventListener('keydown', onDocumentKeyDown);
     addLayerButton.removeEventListener('click', onAddLayerButtonClick);
+    addGroupButton.removeEventListener('click', onAddGroupButtonClick);
     addFilterLayerButton.removeEventListener('click', onAddFilterLayerButtonClick);
     addMaskButton.removeEventListener('click', onAddMaskButtonClick);
     stage.removeEventListener('wheel', onStageWheel);
@@ -2137,6 +2217,7 @@ const dispose = createRoot(disposeRoot => {
     saveProjectButton.disabled = !enabled;
     exportButton.disabled = !enabled || resolvedCurrentTarget() === null;
     addLayerButton.disabled = !enabled;
+    addGroupButton.disabled = !enabled;
     addFilterLayerButton.disabled = !enabled;
     const selectedMaskTarget = selectedId === null ? null : maskTargetForNode(selectedId);
     addMaskButton.disabled =
