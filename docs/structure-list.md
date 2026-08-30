@@ -412,15 +412,15 @@ Badges use fixed anchors and a fixed priority so adapters cannot create conflict
 
 | Slot | Meaning | Notes |
 | --- | --- | --- |
-| Edge tint or border | Type identity | Always present and independent of selection. |
+| Interior glyph | Type identity | Uses a quiet type tint without outlining the complete row. |
 | NW corner | Primary structure | Disclosure and optional child count. |
 | NE corner | Ownership or link state | Shared source, external asset, or relink needed. |
 | SE corner | Secondary dependencies | Mask, effect, or wire dependency. |
 | SW corner | Runtime state | Evaluating, stale, warning, or error. |
 | Interior scrim | Whole-item state | Hidden, bypassed, or locked when those semantics exist. |
 
-Selection uses an offset ring outside the chiclet so it does not erase type identity.
-At micro density, only the edge identity, disclosure, and whole-item scrim are retained.
+Selection uses a quiet fill and inset leading marker so it cannot be clipped by a panel edge.
+At micro density, the compact glyph, disclosure, state controls, and whole-item scrim are retained.
 
 The structure list does not assume that every host supports visibility, locking, grouping, or isolation.
 Those badges and actions appear only when the adapter declares real semantics for them.

@@ -494,10 +494,10 @@ button:disabled {
 .layer-tree {
   display: grid;
   flex: 1 1 auto;
-  gap: 2px;
+  gap: 0;
   min-height: 0;
   overflow: auto;
-  padding: 2px;
+  padding: 2px 0;
 }
 
 .structure-row-shell {
@@ -507,19 +507,16 @@ button:disabled {
 .structure-chiclet {
   --structure-type: var(--muted);
   align-items: center;
-  background: color-mix(in srgb, var(--panel-raised) 72%, transparent);
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--structure-type);
-  border-radius: 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
   display: grid;
-  gap: 6px;
-  grid-template-columns: 26px minmax(0, 1fr) 30px;
+  gap: 3px;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
   min-height: var(--structure-row-height);
-  padding: 5px 5px 5px 4px;
+  padding: 3px 2px;
   position: relative;
-  transition:
-    background 100ms ease,
-    border-color 100ms ease;
+  transition: background 100ms ease;
   width: 100%;
 }
 
@@ -546,20 +543,16 @@ button:disabled {
 
 .structure-chiclet:hover {
   background: var(--panel-hover);
-  border-color: var(--line-strong);
 }
 
 .structure-chiclet[aria-selected="true"] {
-  background: var(--panel-hover);
-  box-shadow:
-    0 0 0 2px var(--panel-glass),
-    0 0 0 4px var(--accent);
-  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .structure-chiclet:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
 }
 
 .structure-chiclet[data-reorderable="true"] {
@@ -593,16 +586,17 @@ button:disabled {
 }
 
 .structure-disclosure,
-.structure-actions-trigger {
+.structure-actions-trigger,
+.structure-state-button {
   align-items: center;
   background: transparent;
-  border-color: transparent;
+  border: 0;
   color: var(--muted);
   display: flex;
-  height: 28px;
+  height: 24px;
   justify-content: center;
   padding: 0;
-  width: 28px;
+  width: 24px;
 }
 
 .structure-disclosure {
@@ -618,12 +612,60 @@ button:disabled {
 .structure-actions-trigger {
   font-size: 13px;
   letter-spacing: 1px;
-  opacity: 0.48;
+  opacity: 0;
+  pointer-events: none;
 }
 
+.structure-row-actions {
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.structure-state-button {
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    background 100ms ease,
+    color 100ms ease,
+    opacity 100ms ease;
+}
+
+.structure-state-button svg {
+  fill: none;
+  height: 14px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.2;
+  width: 14px;
+}
+
+.structure-state-button.state-active,
+.structure-state-button:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.structure-state-button.state-active {
+  color: var(--text);
+}
+
+.structure-state-button:hover,
+.structure-state-button:focus-visible {
+  background: var(--panel-hover);
+  color: var(--text);
+}
+
+.structure-chiclet:hover .structure-state-button,
+.structure-chiclet:focus-within .structure-state-button,
 .structure-chiclet:hover .structure-actions-trigger,
+.structure-chiclet:focus-within .structure-actions-trigger,
+.structure-chiclet[aria-selected="true"] .structure-state-button,
 .structure-chiclet[aria-selected="true"] .structure-actions-trigger {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .structure-interior {
@@ -634,11 +676,15 @@ button:disabled {
   min-width: 0;
 }
 
+.structure-chiclet[data-hidden="true"] .structure-interior {
+  opacity: 0.42;
+}
+
 .structure-glyph {
   align-items: center;
   background: color-mix(in srgb, var(--structure-type) 14%, var(--panel));
-  border: 1px solid color-mix(in srgb, var(--structure-type) 46%, var(--line));
-  border-radius: 6px;
+  border: 0;
+  border-radius: 4px;
   color: var(--text);
   display: flex;
   font-family: var(--mono);
@@ -693,7 +739,7 @@ button:disabled {
 
 .layer-tree[data-density="micro"] .structure-chiclet {
   gap: 3px;
-  grid-template-columns: 22px minmax(0, 1fr) 28px;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
 }
 
 .layer-tree[data-density="micro"] .structure-interior {

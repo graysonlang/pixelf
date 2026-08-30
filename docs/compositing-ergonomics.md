@@ -115,6 +115,12 @@ An imported bitmap source is implicit in its owning Layer row and contributes it
 This prevents the primary UI from deleting a source independently and leaving an empty Layer behind.
 Reversible processors and attached layer effects remain disclosed beneath their owning Layer, and advanced source relationships remain explicit where they are useful.
 
+Layer and Filter Layer rows use a quiet borderless treatment with hover and selection fills rather than individual card outlines.
+Each stack item stores authored visibility and lock state.
+Visibility removes that item from Composite evaluation without discarding its content or settings.
+Lock follows the Figma and Place3D interaction meaning: it excludes the item from direct-canvas picking and manipulation, while the layer panel remains able to select, reorder, inspect, unlock, or otherwise edit it.
+Inactive visibility and lock controls may recede until row hover or selection, while hidden and locked states remain visibly indicated.
+
 Duplicate and Delete live in the layer context menu and remain available from the keyboard.
 Layer order changes by direct drag and by an equivalent keyboard gesture; persistent Up and Down buttons are not part of the panel.
 

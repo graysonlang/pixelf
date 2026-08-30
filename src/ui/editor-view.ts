@@ -20,12 +20,14 @@ export interface TreeViewOptions {
   density: DensityPolicy;
   expanded: Set<string>;
   onDelete(nodeId: string): void;
+  onLockChange(nodeId: string, locked: boolean): void;
   onMoveLayer(nodeId: string, direction: -1 | 1): void;
   onOpenActions(nodeId: string, anchor?: { x: number; y: number }): void;
   onPrimaryAction(nodeId: string): void;
   onSelect(nodeId: string): void;
   onReorderLayer(nodeId: string, anchorNodeId: string, placement: 'after' | 'before'): void;
   onToggle(nodeId: string): void;
+  onVisibilityChange(nodeId: string, visible: boolean): void;
   revision: string;
   selectedNodeId: string | null;
 }
@@ -62,12 +64,20 @@ export function renderProjectTree(
     dependencyCount: row => project.wires.filter(wire => wire.to.nodeId === row.nodeId).length,
     focusedNodeId: options.selectedNodeId,
     onDelete: options.onDelete,
+    onLockChange: options.onLockChange,
     onMove: options.onMoveLayer,
     onOpenActions: options.onOpenActions,
     onPrimaryAction: options.onPrimaryAction,
     onSelect: options.onSelect,
     onReorder: options.onReorderLayer,
     onToggle: options.onToggle,
+    onVisibilityChange: options.onVisibilityChange,
+    rowState: row => {
+      const node = project.nodes[row.nodeId];
+      return node?.type === 'layer' || node?.type === 'filter'
+        ? { locked: node.locked, visible: node.visible }
+        : null;
+    },
     selectedNodeId: options.selectedNodeId,
     summary: row => {
       const node = project.nodes[row.nodeId];
@@ -80,8 +90,8 @@ export function renderEmptyCompositeStack(container: HTMLElement): void {
   const shell = document.createElement('div');
   shell.className = 'structure-row-shell';
   shell.style.setProperty('--structure-depth', '0');
-  shell.style.setProperty('--structure-row-height', '48px');
-  shell.style.setProperty('--structure-thumbnail-size', '28px');
+  shell.style.setProperty('--structure-row-height', '44px');
+  shell.style.setProperty('--structure-thumbnail-size', '18px');
   const row = document.createElement('div');
   row.className = 'structure-chiclet kind-target';
   row.role = 'treeitem';
@@ -106,7 +116,7 @@ export function renderEmptyCompositeStack(container: HTMLElement): void {
   interior.append(glyph, copy);
   row.append(disclosure, interior);
   shell.append(row);
-  container.dataset.density = 'compact';
+  container.dataset.density = 'micro';
   container.replaceChildren(shell);
 }
 

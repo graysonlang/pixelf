@@ -12,12 +12,15 @@ export interface StructureListViewOptions {
   dependencyCount?: (row: Row) => number;
   focusedNodeId: string | null;
   onDelete?(nodeId: string): void;
+  onLockChange?(nodeId: string, locked: boolean): void;
   onMove?(nodeId: string, direction: -1 | 1): void;
   onOpenActions?(nodeId: string, anchor?: { x: number; y: number }): void;
   onPrimaryAction?(nodeId: string): void;
   onReorder?(nodeId: string, anchorNodeId: string, placement: 'after' | 'before'): void;
   onSelect(nodeId: string): void;
   onToggle(nodeId: string): void;
+  onVisibilityChange?(nodeId: string, visible: boolean): void;
+  rowState?: (row: Row) => { locked: boolean; visible: boolean } | null;
   selectedNodeId: string | null;
   summary?: (row: Row) => string;
 }
@@ -36,6 +39,33 @@ function glyphFor(kind: string): string {
   if (kind === 'source/mask' || kind === 'source/checker-mask') return 'M';
   if (kind.startsWith('process/')) return 'fx';
   return 'S';
+}
+
+function stateIcon(pathData: string): SVGSVGElement {
+  const namespace = 'http://www.w3.org/2000/svg';
+  const icon = document.createElementNS(namespace, 'svg');
+  icon.setAttribute('aria-hidden', 'true');
+  icon.setAttribute('viewBox', '0 0 16 16');
+  const path = document.createElementNS(namespace, 'path');
+  path.setAttribute('d', pathData);
+  icon.append(path);
+  return icon;
+}
+
+function visibilityIcon(visible: boolean): SVGSVGElement {
+  return stateIcon(
+    visible
+      ? 'M1.5 8s2.35-3.75 6.5-3.75S14.5 8 14.5 8 12.15 11.75 8 11.75 1.5 8 1.5 8zM8 6.25a1.75 1.75 0 110 3.5 1.75 1.75 0 010-3.5z'
+      : 'M2.25 3l11.5 10M5.1 4.8A7.1 7.1 0 018 4.25C12.15 4.25 14.5 8 14.5 8a9.6 9.6 0 01-2.15 2.35M9.65 11.55A7.4 7.4 0 018 11.75C3.85 11.75 1.5 8 1.5 8a9.8 9.8 0 011.7-1.95M6.65 6.8a1.75 1.75 0 002.55 2.35',
+  );
+}
+
+function lockIcon(locked: boolean): SVGSVGElement {
+  return stateIcon(
+    locked
+      ? 'M4 7V5a4 4 0 018 0v2M3 7h10v7H3zM8 10v1.75'
+      : 'M5 7V5a3 3 0 015.7-1.3M3 7h10v7H3zM8 10v1.75',
+  );
 }
 
 function siblingMetadata(model: ListModel): Map<string, { position: number; size: number }> {
@@ -100,9 +130,18 @@ export function renderStructureList(
     chiclet.dataset.testid = `structure-row-${row.nodeId}`;
     chiclet.role = 'treeitem';
     chiclet.tabIndex = selection.focusedNodeId === row.nodeId ? 0 : -1;
-    chiclet.setAttribute('aria-label', row.name);
+    const rowState = options.rowState?.(row) ?? null;
+    const stateDescription =
+      rowState === null
+        ? ''
+        : `${rowState.visible ? '' : ', hidden'}${rowState.locked ? ', locked' : ''}`;
+    chiclet.setAttribute('aria-label', `${row.name}${stateDescription}`);
     chiclet.setAttribute('aria-level', String(row.depth + 1));
     chiclet.setAttribute('aria-selected', String(options.selectedNodeId === row.nodeId));
+    if (rowState !== null) {
+      chiclet.dataset.hidden = String(!rowState.visible);
+      chiclet.dataset.locked = String(rowState.locked);
+    }
     const reorderable = (row.kind === 'filter' || row.kind === 'layer') && row.relation === 'root';
     chiclet.draggable = reorderable;
     if (reorderable) chiclet.dataset.reorderable = 'true';
@@ -173,7 +212,40 @@ export function renderStructureList(
       options.onOpenActions?.(row.nodeId, { x: bounds.right, y: bounds.bottom });
     });
 
-    chiclet.append(disclosure, interior, actions);
+    const rowActions = document.createElement('span');
+    rowActions.className = 'structure-row-actions';
+    if (rowState !== null) {
+      const lock = document.createElement('button');
+      lock.className = `structure-state-button lock${rowState.locked ? ' state-active' : ''}`;
+      lock.type = 'button';
+      lock.dataset.testid = `structure-lock-${row.nodeId}`;
+      lock.setAttribute('aria-label', `${rowState.locked ? 'Unlock' : 'Lock'} ${row.name}`);
+      lock.setAttribute('aria-pressed', String(rowState.locked));
+      lock.title = rowState.locked ? 'Unlock layer' : 'Lock layer';
+      lock.append(lockIcon(rowState.locked));
+      lock.addEventListener('click', event => {
+        event.stopPropagation();
+        options.onLockChange?.(row.nodeId, !rowState.locked);
+      });
+      const visibility = document.createElement('button');
+      visibility.className = `structure-state-button visibility${
+        rowState.visible ? '' : ' state-active'
+      }`;
+      visibility.type = 'button';
+      visibility.dataset.testid = `structure-visibility-${row.nodeId}`;
+      visibility.setAttribute('aria-label', `${rowState.visible ? 'Hide' : 'Show'} ${row.name}`);
+      visibility.setAttribute('aria-pressed', String(!rowState.visible));
+      visibility.title = rowState.visible ? 'Hide layer' : 'Show layer';
+      visibility.append(visibilityIcon(rowState.visible));
+      visibility.addEventListener('click', event => {
+        event.stopPropagation();
+        options.onVisibilityChange?.(row.nodeId, !rowState.visible);
+      });
+      rowActions.append(lock, visibility);
+    }
+    rowActions.append(actions);
+
+    chiclet.append(disclosure, interior, rowActions);
     chiclet.addEventListener('click', () => options.onSelect(row.nodeId));
     chiclet.addEventListener('focus', () => {
       if (selection.focusedNodeId !== row.nodeId) options.onSelect(row.nodeId);

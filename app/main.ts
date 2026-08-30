@@ -403,6 +403,30 @@ const dispose = createRoot(disposeRoot => {
     refreshTree();
   };
 
+  const setStackItemVisibility = (nodeId: string, visible: boolean): void => {
+    const editor = currentEditor();
+    const node = editor?.project.nodes[nodeId];
+    if (editor === null || (node?.type !== 'layer' && node?.type !== 'filter')) return;
+    runCommand(() =>
+      editor.dispatch(
+        { nodeId, type: 'set-stack-item-visibility', visible },
+        { label: visible ? 'Show layer' : 'Hide layer' },
+      ),
+    );
+  };
+
+  const setStackItemLocked = (nodeId: string, locked: boolean): void => {
+    const editor = currentEditor();
+    const node = editor?.project.nodes[nodeId];
+    if (editor === null || (node?.type !== 'layer' && node?.type !== 'filter')) return;
+    runCommand(() =>
+      editor.dispatch(
+        { locked, nodeId, type: 'set-stack-item-lock' },
+        { label: locked ? 'Lock layer' : 'Unlock layer' },
+      ),
+    );
+  };
+
   const targetForNode = (nodeId: string): string | null => {
     const editor = currentEditor();
     if (editor === null) return null;
@@ -2057,10 +2081,11 @@ const dispose = createRoot(disposeRoot => {
     renderProjectTree(layerTree, editor.project, {
       density: densityPolicy({
         availableWidth: availableStructureWidth,
-        desiredRowHeight: 48,
+        desiredRowHeight: 40,
       }),
       expanded,
       onDelete: deleteNode,
+      onLockChange: setStackItemLocked,
       onMoveLayer: moveLayerInStack,
       onOpenActions: openStructureToolbar,
       onPrimaryAction: nodeId => {
@@ -2070,6 +2095,7 @@ const dispose = createRoot(disposeRoot => {
       onSelect: selectNode,
       onReorderLayer: reorderLayerInStack,
       onToggle: toggleNode,
+      onVisibilityChange: setStackItemVisibility,
       revision: `${editor.project.projectId}:${projectRevision}`,
       selectedNodeId: selectedId,
     });
