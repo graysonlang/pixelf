@@ -3,5 +3,5 @@ function isApplePlatform(platform: string): boolean {
 }
 
 export function primaryShortcutLabel(platform: string, key: string): string {
-  return `${isApplePlatform(platform) ? 'Command' : 'Ctrl'}+${key}`;
+  return `${isApplePlatform(platform) ? '\u2318' : 'Ctrl+'}${key}`;
 }

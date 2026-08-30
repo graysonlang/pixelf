@@ -37,6 +37,6 @@ test('preferences persist as a device-local JSON record', () => {
 });
 
 test('shortcut labels use the primary modifier for the current platform', () => {
-  assert.equal(primaryShortcutLabel('MacIntel', '/'), 'Command+/');
+  assert.equal(primaryShortcutLabel('MacIntel', '/'), '\u2318/');
   assert.equal(primaryShortcutLabel('Win32', '/'), 'Ctrl+/');
 });
