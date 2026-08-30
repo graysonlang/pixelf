@@ -8,7 +8,9 @@ import {
   type LayerNode,
   type PixelfProject,
   type ProcessorNode,
+  type ProjectColorSpace,
   type ProjectNode,
+  type ResolvedTargetContract,
   type SourceNode,
   type TargetContract,
   type TargetNode,
@@ -21,11 +23,11 @@ type UnknownRecord = Record<string, unknown>;
 export const DEFAULT_TARGET_CONTRACT: Readonly<TargetContract> = Object.freeze({
   alphaPolicy: 'preserve',
   channels: 'rgba',
-  colorSpace: 'srgb',
-  height: 1024,
+  colorSpace: 'automatic',
+  height: null,
   outputBitDepth: 8,
   outputFormat: 'png',
-  width: 1024,
+  width: null,
   workingFormat: 'rgba16float',
 });
 
@@ -51,7 +53,16 @@ export function createNode(
     };
   }
   if (type === 'layer') {
-    return { childId: null, id, locked: false, name, parameters, type: 'layer', visible: true };
+    return {
+      childId: null,
+      effectIds: [],
+      id,
+      locked: false,
+      name,
+      parameters,
+      type: 'layer',
+      visible: true,
+    };
   }
   if (type === 'filter') {
     const filterType = 'process/exposure';
@@ -85,6 +96,59 @@ export function createEmptyProject(
     targetIds: [],
     version: PIXELF_PROJECT_VERSION,
     wires: [],
+  };
+}
+
+export function createUntitledCompositeProject(
+  name = 'Untitled',
+  projectId = createOpaqueId('project'),
+  targetId = createOpaqueId('node'),
+): PixelfProject {
+  const target = createNode('target', targetId, name) as TargetNode;
+  const project = {
+    ...createEmptyProject(name, projectId),
+    nodes: { [target.id]: target },
+    targetIds: [target.id],
+  };
+  validateProject(project);
+  return project;
+}
+
+function importedColorSpaces(project: PixelfProject, target: TargetNode): ProjectColorSpace[] {
+  const spaces = new Set<ProjectColorSpace>();
+  const pending = [...target.childIds];
+  const visited = new Set<string>();
+  while (pending.length > 0) {
+    const nodeId = pending.pop();
+    if (nodeId === undefined || visited.has(nodeId)) continue;
+    visited.add(nodeId);
+    const node = project.nodes[nodeId];
+    if (node === undefined) continue;
+    if (node.type === 'source/imported' && node.assetId !== undefined) {
+      const asset = project.assets[node.assetId];
+      if (asset !== undefined) spaces.add(asset.colorSpace);
+    }
+    if ('childId' in node && node.childId !== null) pending.push(node.childId);
+  }
+  return [...spaces].sort();
+}
+
+export function resolveTargetContract(
+  project: PixelfProject,
+  target: TargetNode,
+): ResolvedTargetContract | null {
+  if (target.contract.width === null || target.contract.height === null) return null;
+  const colorSpace =
+    target.contract.colorSpace === 'automatic'
+      ? importedColorSpaces(project, target).includes('display-p3')
+        ? 'display-p3'
+        : 'srgb'
+      : target.contract.colorSpace;
+  return {
+    ...target.contract,
+    colorSpace,
+    height: target.contract.height,
+    width: target.contract.width,
   };
 }
 
@@ -211,10 +275,24 @@ function migrateVersionTwo(value: UnknownRecord): UnknownRecord {
   return migrated;
 }
 
+function migrateVersionThree(value: UnknownRecord): UnknownRecord {
+  const migrated = structuredClone(value);
+  migrated.version = 4;
+  if (typeof migrated.nodes === 'object' && migrated.nodes !== null) {
+    for (const node of Object.values(migrated.nodes as UnknownRecord)) {
+      if (typeof node !== 'object' || node === null) continue;
+      const record = node as UnknownRecord;
+      if (record.type === 'layer' && record.effectIds === undefined) record.effectIds = [];
+    }
+  }
+  return migrated;
+}
+
 const migrations = new Map<number, (value: UnknownRecord) => UnknownRecord>([
   [0, migrateVersionZero],
   [1, migrateVersionOne],
   [2, migrateVersionTwo],
+  [3, migrateVersionThree],
 ]);
 
 export function migrateProject(value: unknown): unknown {

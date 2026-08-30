@@ -1,5 +1,5 @@
 export const PIXELF_PROJECT_SCHEMA = 'pixelf.project';
-export const PIXELF_PROJECT_VERSION = 3;
+export const PIXELF_PROJECT_VERSION = 4;
 
 export type JsonPrimitive = boolean | number | string | null;
 export type JsonValue =
@@ -10,6 +10,7 @@ export type JsonValue =
 export type ChannelLayout = 'gray' | 'gray-alpha' | 'rgb' | 'rgba';
 export type WorkingFormat = 'rgba8unorm' | 'rgba16float' | 'rgba32float';
 export type ProjectColorSpace = 'srgb' | 'display-p3';
+export type AuthoredColorSpace = 'automatic' | ProjectColorSpace;
 export type OutputFileFormat = 'png' | 'jpeg' | 'webp';
 export type OutputBitDepth = 8 | 16;
 export type AlphaPolicy = 'preserve' | 'opaque';
@@ -31,12 +32,19 @@ export interface CanvasBackground {
 export interface TargetContract {
   alphaPolicy: AlphaPolicy;
   channels: ChannelLayout;
-  colorSpace: ProjectColorSpace;
-  height: number;
+  colorSpace: AuthoredColorSpace;
+  height: number | null;
   outputBitDepth: OutputBitDepth;
   outputFormat: OutputFileFormat;
-  width: number;
+  width: number | null;
   workingFormat: WorkingFormat;
+}
+
+export interface ResolvedTargetContract
+  extends Omit<TargetContract, 'colorSpace' | 'height' | 'width'> {
+  colorSpace: ProjectColorSpace;
+  height: number;
+  width: number;
 }
 
 export interface BaseAsset {
@@ -79,6 +87,7 @@ export interface TargetNode extends BaseNode {
 
 export interface LayerNode extends BaseNode {
   childId: string | null;
+  effectIds: string[];
   locked: boolean;
   type: 'layer';
   visible: boolean;

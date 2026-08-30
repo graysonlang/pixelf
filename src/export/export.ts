@@ -1,17 +1,17 @@
 import type { Graph } from '../compositor/graph.js';
 import { renderRegion } from '../compositor/render.js';
 import type { Surface } from '../compositor/surface.js';
-import type { TargetContract } from '../project/types.js';
+import type { ResolvedTargetContract } from '../project/types.js';
 
 export type MetadataPolicy = 'discard' | 'preserve' | 'rewrite';
 
 export interface ExportPlan {
   alpha: 'opaque-black' | 'preserve';
   bitDepth: 8 | 16;
-  channels: TargetContract['channels'];
-  colorSpace: TargetContract['colorSpace'];
+  channels: ResolvedTargetContract['channels'];
+  colorSpace: ResolvedTargetContract['colorSpace'];
   encoder: 'browser-raster' | 'native-png';
-  format: TargetContract['outputFormat'];
+  format: ResolvedTargetContract['outputFormat'];
   height: number;
   metadataPolicy: MetadataPolicy;
   mimeType: string;
@@ -42,7 +42,7 @@ export interface BrowserRasterEncoder {
 }
 
 export function buildExportPlan(
-  contract: TargetContract,
+  contract: ResolvedTargetContract,
   metadataPolicy: MetadataPolicy = 'discard',
 ): ExportPlan {
   const mimeType =
@@ -199,7 +199,7 @@ function metadataChunks(
 
 export function exportTargetPng(
   graph: Graph,
-  contract: TargetContract,
+  contract: ResolvedTargetContract,
   options: ExportOptions = {},
 ): ExportArtifact {
   const plan = buildExportPlan(contract, options.metadataPolicy);
@@ -257,7 +257,7 @@ export function artifactBytes(artifact: ExportArtifact): Uint8Array {
 
 export async function exportTargetWithBrowserEncoder(
   graph: Graph,
-  contract: TargetContract,
+  contract: ResolvedTargetContract,
   encoder: BrowserRasterEncoder,
   options: ExportOptions & { maximumPixels?: number } = {},
 ): Promise<ExportArtifact> {

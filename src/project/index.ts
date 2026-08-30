@@ -28,10 +28,12 @@ export {
   createImportedProject,
   createNode,
   createOpaqueId,
+  createUntitledCompositeProject,
   DEFAULT_TARGET_CONTRACT,
   findPrimaryParent,
   migrateProject,
   parseProject,
+  resolveTargetContract,
   serializeProject,
 } from './project.js';
 export type * from './types.js';

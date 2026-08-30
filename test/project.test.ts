@@ -7,8 +7,10 @@ import {
   createImportedProject,
   createLinkedImageAsset,
   createNode,
+  createUntitledCompositeProject,
   parseProject,
   ProjectValidationError,
+  resolveTargetContract,
   serializeProject,
   validateProject,
   type PixelfProject,
@@ -57,7 +59,7 @@ describe('Pixelf project document', () => {
       contract: {
         alphaPolicy: 'preserve',
         channels: 'rgba',
-        colorSpace: 'srgb',
+        colorSpace: 'automatic',
         height: 600,
         outputBitDepth: 8,
         outputFormat: 'png',
@@ -72,6 +74,7 @@ describe('Pixelf project document', () => {
     const layer = projectNode(parsed, 'node-layer');
     assert.equal(layer.type, 'layer');
     if (layer.type === 'layer') {
+      assert.deepEqual(layer.effectIds, []);
       assert.equal(layer.visible, true);
       assert.equal(layer.locked, false);
     }
@@ -88,7 +91,7 @@ describe('Pixelf project document', () => {
     delete contract.outputBitDepth;
 
     const migrated = parseProject(JSON.stringify(legacy));
-    assert.equal(migrated.version, 3);
+    assert.equal(migrated.version, 4);
     const target = projectNode(migrated, 'node-target');
     assert.equal(target.type, 'target');
     if (target.type === 'target') {
@@ -98,9 +101,32 @@ describe('Pixelf project document', () => {
     assert.equal(layer.parameters.fill, 1);
     assert.equal(layer.type, 'layer');
     if (layer.type === 'layer') {
+      assert.deepEqual(layer.effectIds, []);
       assert.equal(layer.visible, true);
       assert.equal(layer.locked, false);
     }
+  });
+
+  it('starts with an unresolved Composite and resolves color independently from source data', () => {
+    const empty = createUntitledCompositeProject('Untitled', 'project-empty', 'node-composite');
+    const target = projectNode(empty, 'node-composite');
+    assert.equal(target.type, 'target');
+    if (target.type !== 'target') return;
+    assert.equal(target.contract.width, null);
+    assert.equal(target.contract.height, null);
+    assert.equal(target.contract.colorSpace, 'automatic');
+    assert.equal(resolveTargetContract(empty, target), null);
+
+    const imported = importedProject();
+    const importedTarget = projectNode(imported, 'node-target');
+    assert.equal(importedTarget.type, 'target');
+    if (importedTarget.type !== 'target') return;
+    assert.deepEqual(resolveTargetContract(imported, importedTarget), {
+      ...importedTarget.contract,
+      colorSpace: 'srgb',
+      height: 600,
+      width: 800,
+    });
   });
 
   it('migrates layer visibility and lock defaults from version two', () => {

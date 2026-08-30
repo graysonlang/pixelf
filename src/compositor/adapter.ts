@@ -1,5 +1,12 @@
+import { resolveTargetContract } from '../project/project.js';
 import { nodeRegistry } from '../project/registry.js';
-import type { PixelfProject, ProcessorNode, ProjectNode, TargetNode } from '../project/types.js';
+import type {
+  PixelfProject,
+  ProcessorNode,
+  ProjectNode,
+  ResolvedTargetContract,
+  TargetNode,
+} from '../project/types.js';
 import { validateProject } from '../project/validation.js';
 import {
   checker,
@@ -29,11 +36,15 @@ export interface DecodedAssetStore {
 
 export interface ProjectGraph {
   graph: Graph;
-  target: TargetNode;
+  target: ResolvedTargetNode;
   targetKey: string;
 }
 
-function targetCacheKey(target: TargetNode): string {
+export type ResolvedTargetNode = Omit<TargetNode, 'contract'> & {
+  contract: ResolvedTargetContract;
+};
+
+function targetCacheKey(target: ResolvedTargetNode): string {
   const contract = target.contract;
   return [
     target.id,
@@ -65,7 +76,11 @@ function stringParameter(node: ProjectNode, key: string): string {
   return value;
 }
 
-function operationEffect(node: ProjectNode, operationType: string, target: TargetNode): Effect {
+function operationEffect(
+  node: ProjectNode,
+  operationType: string,
+  target: ResolvedTargetNode,
+): Effect {
   nodeRegistry.require(operationType);
   switch (operationType) {
     case 'process/opacity':
@@ -180,7 +195,7 @@ function sourceForLayer(
   project: PixelfProject,
   root: ProjectNode,
   decodedAssets: DecodedAssetStore,
-  target: TargetNode,
+  target: ResolvedTargetNode,
   visited = new Set<string>(),
 ): { effects: Effect[]; source: ImageSource } {
   const effects: Effect[] = [];
@@ -259,7 +274,7 @@ function sourceForLayer(
 
 function flattenBranch(
   branch: { effects: Effect[]; source: ImageSource },
-  target: TargetNode,
+  target: ResolvedTargetNode,
 ): ImageSource {
   const graph: Graph = {
     entities: [
@@ -296,7 +311,7 @@ function flattenBranch(
 function maskForNode(
   project: PixelfProject,
   nodeId: string,
-  target: TargetNode,
+  target: ResolvedTargetNode,
 ): EntityMask | undefined {
   const wire = project.wires.find(
     candidate => candidate.to.nodeId === nodeId && candidate.to.port === 'mask',
@@ -349,8 +364,11 @@ export function projectTargetToGraph(
   decodedAssets: DecodedAssetStore,
 ): ProjectGraph {
   validateProject(project);
-  const target = requireNode(project, targetId);
-  if (target.type !== 'target') throw new Error(`${targetId} is not a target`);
+  const authoredTarget = requireNode(project, targetId);
+  if (authoredTarget.type !== 'target') throw new Error(`${targetId} is not a target`);
+  const resolvedContract = resolveTargetContract(project, authoredTarget);
+  if (resolvedContract === null) throw new Error('The Composite export bounds are not set');
+  const target: ResolvedTargetNode = { ...authoredTarget, contract: resolvedContract };
   const entities: Entity[] = [];
   const filters: GraphFilter[] = [];
   for (const stackItemId of target.childIds) {
@@ -369,7 +387,7 @@ export function projectTargetToGraph(
     }
     if (layer.type !== 'layer') throw new Error(`${stackItemId} is not a stack item`);
     if (!layer.visible) continue;
-    if (layer.childId === null) throw new Error(`Layer ${layer.id} has no source child`);
+    if (layer.childId === null) continue;
     const source = sourceForLayer(
       project,
       requireNode(project, layer.childId),

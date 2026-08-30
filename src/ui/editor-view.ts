@@ -317,32 +317,42 @@ function targetFields(
     input.pattern = '[0-9]*';
     input.role = 'spinbutton';
     input.type = 'text';
-    input.value = String(node.contract[key]);
+    input.placeholder = 'Unset';
+    input.value = node.contract[key] === null ? '' : String(node.contract[key]);
     input.setAttribute('aria-valuemax', String(MAX_DIMENSION));
     input.setAttribute('aria-valuemin', String(MIN_DIMENSION));
-    input.setAttribute('aria-valuenow', input.value);
+    if (input.value !== '') input.setAttribute('aria-valuenow', input.value);
     name.htmlFor = input.id;
     let appliedValue = node.contract[key];
-    const apply = (value: number): void => {
+    const apply = (value: number | null): void => {
       if (value === appliedValue) return;
       appliedValue = value;
-      input.setAttribute('aria-valuenow', String(value));
+      if (value === null) input.removeAttribute('aria-valuenow');
+      else input.setAttribute('aria-valuenow', String(value));
       currentContract = { ...currentContract, [key]: value };
       onContract(currentContract, { preserveControls: true });
     };
     input.addEventListener('input', () => {
+      if (input.value.trim() === '') {
+        apply(null);
+        return;
+      }
       const value = parseDimension(input.value);
       if (value !== null) apply(value);
     });
     input.addEventListener('blur', () => {
+      if (input.value.trim() === '') {
+        apply(null);
+        return;
+      }
       const value = parseDimension(input.value);
-      if (value === null) input.value = String(appliedValue);
+      if (value === null) input.value = appliedValue === null ? '' : String(appliedValue);
       else apply(value);
     });
     input.addEventListener('keydown', event => {
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
         event.preventDefault();
-        const current = parseDimension(input.value) ?? appliedValue;
+        const current = parseDimension(input.value) ?? appliedValue ?? MIN_DIMENSION;
         const value = stepDimension(current, event.key === 'ArrowUp' ? 1 : -1);
         input.value = String(value);
         apply(value);
@@ -351,7 +361,7 @@ function targetFields(
         input.blur();
       } else if (event.key === 'Escape') {
         event.preventDefault();
-        input.value = String(appliedValue);
+        input.value = appliedValue === null ? '' : String(appliedValue);
         input.blur();
       }
     });
@@ -369,7 +379,7 @@ function targetFields(
       event.preventDefault();
       scrubPointerId = event.pointerId;
       scrubStartX = event.clientX;
-      scrubStartValue = parseDimension(input.value) ?? appliedValue;
+      scrubStartValue = parseDimension(input.value) ?? appliedValue ?? MIN_DIMENSION;
       wrapper.dataset.scrubbing = 'true';
       name.setPointerCapture(event.pointerId);
     });
@@ -410,7 +420,7 @@ function targetFields(
   numberField('width', 'Width');
   numberField('height', 'Height');
   selectField('workingFormat', 'Working precision', ['rgba8unorm', 'rgba16float', 'rgba32float']);
-  selectField('colorSpace', 'Color space', ['srgb', 'display-p3']);
+  selectField('colorSpace', 'Color space', ['automatic', 'srgb', 'display-p3']);
   selectField('outputBitDepth', 'Output bit depth', [8, 16]);
   selectField('alphaPolicy', 'Alpha', ['preserve', 'opaque']);
 }

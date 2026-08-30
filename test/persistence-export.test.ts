@@ -19,7 +19,7 @@ import {
   serializeProject,
   type PixelfProject,
   type RecoveryStorage,
-  type TargetContract,
+  type ResolvedTargetContract,
 } from '../src/project/index.js';
 
 function projectFixture(): PixelfProject {
@@ -58,7 +58,7 @@ function graphFixture(): Graph {
   };
 }
 
-function contract(overrides: Partial<TargetContract> = {}): TargetContract {
+function contract(overrides: Partial<ResolvedTargetContract> = {}): ResolvedTargetContract {
   return {
     alphaPolicy: 'preserve',
     channels: 'rgba',

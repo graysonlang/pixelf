@@ -18,6 +18,7 @@ const ID_PATTERNS = {
 const CHANNEL_LAYOUTS = new Set(['gray', 'gray-alpha', 'rgb', 'rgba']);
 const WORKING_FORMATS = new Set(['rgba8unorm', 'rgba16float', 'rgba32float']);
 const COLOR_SPACES = new Set(['srgb', 'display-p3']);
+const AUTHORED_COLOR_SPACES = new Set(['automatic', ...COLOR_SPACES]);
 const OUTPUT_FORMATS = new Set(['png', 'jpeg', 'webp']);
 const ALPHA_POLICIES = new Set(['preserve', 'opaque']);
 const CANVAS_BACKGROUND_MODES = new Set(['theme', 'light', 'dark', 'custom']);
@@ -69,13 +70,15 @@ function checkTargetContract(value: unknown, path: string, issues: string[]): vo
     return;
   }
   const contract = value as unknown as TargetContract;
-  checkPositiveInteger(contract.width, `${path}.width`, issues);
-  checkPositiveInteger(contract.height, `${path}.height`, issues);
+  if (contract.width !== null) checkPositiveInteger(contract.width, `${path}.width`, issues);
+  if (contract.height !== null) checkPositiveInteger(contract.height, `${path}.height`, issues);
   if (!CHANNEL_LAYOUTS.has(contract.channels)) issues.push(`${path}.channels is unsupported`);
   if (!WORKING_FORMATS.has(contract.workingFormat)) {
     issues.push(`${path}.workingFormat is unsupported`);
   }
-  if (!COLOR_SPACES.has(contract.colorSpace)) issues.push(`${path}.colorSpace is unsupported`);
+  if (!AUTHORED_COLOR_SPACES.has(contract.colorSpace)) {
+    issues.push(`${path}.colorSpace is unsupported`);
+  }
   if (!OUTPUT_FORMATS.has(contract.outputFormat)) {
     issues.push(`${path}.outputFormat is unsupported`);
   }
@@ -210,6 +213,11 @@ function checkNodeShape(node: UnknownRecord, key: string, issues: string[]): voi
   if (node.type === 'layer' || node.type === 'filter') {
     if (typeof node.visible !== 'boolean') issues.push(`${path}.visible must be a boolean`);
     if (typeof node.locked !== 'boolean') issues.push(`${path}.locked must be a boolean`);
+  }
+  if (node.type === 'layer') {
+    if (!Array.isArray(node.effectIds) || !node.effectIds.every(id => typeof id === 'string')) {
+      issues.push(`${path}.effectIds must be an array of effect IDs`);
+    }
   }
   if (definition.childPolicy === 'layers') {
     if (!Array.isArray(node.childIds) || !node.childIds.every(id => typeof id === 'string')) {

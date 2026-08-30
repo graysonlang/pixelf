@@ -18,16 +18,19 @@ import {
 import {
   createNode,
   createOpaqueId,
+  createUntitledCompositeProject,
   duplicateSubtreeCommand,
   EditorState,
   findPrimaryParent,
   nodeRegistry,
+  resolveTargetContract,
   serializeProject,
   type FilterLayerNode,
   type LayerNode,
   type CanvasBackground,
   type CanvasBackgroundMode,
   type ProcessorNode,
+  type ProjectCommand,
   type PixelfProject,
   type SourceNode,
   type TargetContract,
@@ -84,11 +87,14 @@ export function getFilePaths(): { index: string } {
   return { index: indexPath };
 }
 
-interface SelectedImage extends DecodedProjectImage {
+interface SelectedImage {
   decodedAssets: Map<string, DecodedImageAsset>;
   editor: EditorState;
-  file: File;
-  url: string;
+  original: null | {
+    asset: DecodedProjectImage['asset'];
+    file: File;
+    url: string;
+  };
 }
 
 interface PanState {
@@ -132,11 +138,11 @@ function requireElement<ElementType extends Element>(selector: string): ElementT
   return element;
 }
 
-function normalizedContract(contract: TargetContract): TargetContract {
+function normalizedContract<Contract extends TargetContract>(contract: Contract): Contract {
   if (contract.outputFormat === 'jpeg') {
-    return { ...contract, alphaPolicy: 'opaque', outputBitDepth: 8 };
+    return { ...contract, alphaPolicy: 'opaque', outputBitDepth: 8 } as Contract;
   }
-  if (contract.outputFormat === 'webp') return { ...contract, outputBitDepth: 8 };
+  if (contract.outputFormat === 'webp') return { ...contract, outputBitDepth: 8 } as Contract;
   return contract;
 }
 
@@ -286,8 +292,16 @@ const dispose = createRoot(disposeRoot => {
   const canvasBackgroundColorInput = requireElement<HTMLInputElement>('#canvas-background-color');
   const preferences = loadPreferences(localStorage);
   const primaryShortcut = (key: string): string => primaryShortcutLabel(navigator.platform, key);
-  const [selectedImage, setSelectedImage] = createSignal<SelectedImage | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = createSignal<string | null>(null);
+  const initialProject = createUntitledCompositeProject();
+  const initialEditor = new EditorState(initialProject);
+  const initialTargetId = initialProject.targetIds[0] ?? null;
+  if (initialTargetId !== null) initialEditor.select([initialTargetId]);
+  const [selectedImage, setSelectedImage] = createSignal<SelectedImage | null>({
+    decodedAssets: new Map(),
+    editor: initialEditor,
+    original: null,
+  });
+  const [selectedNodeId, setSelectedNodeId] = createSignal<string | null>(initialTargetId);
   const [projectGeneration, setProjectGeneration] = createSignal(0);
   const [propertiesGeneration, setPropertiesGeneration] = createSignal(0);
   const [treeGeneration, setTreeGeneration] = createSignal(0);
@@ -363,6 +377,14 @@ const dispose = createRoot(disposeRoot => {
   void manager.initialize();
 
   const currentEditor = (): EditorState | null => selectedImage()?.editor ?? null;
+  const resolvedCurrentTarget = () => {
+    const editor = currentEditor();
+    const targetId = editor?.project.targetIds[0];
+    const target = targetId === undefined ? undefined : editor?.project.nodes[targetId];
+    return editor !== null && target?.type === 'target'
+      ? resolveTargetContract(editor.project, target)
+      : null;
+  };
   const refreshProject = (refreshProperties = true): void => {
     setProjectGeneration(generation => generation + 1);
     if (refreshProperties) setPropertiesGeneration(generation => generation + 1);
@@ -475,34 +497,18 @@ const dispose = createRoot(disposeRoot => {
   };
 
   const addLayer = (): void => {
-    const selected = selectedImage();
-    if (selected === null) return;
-    const editor = selected.editor;
+    const editor = currentEditor();
+    if (editor === null) return;
     const targetId =
       (selectedNodeId() === null ? null : targetForNode(selectedNodeId() ?? '')) ??
       editor.project.targetIds[0];
     if (targetId === undefined || targetId === null) return;
-    const source = createNode(
-      'source/imported',
-      createOpaqueId('node'),
-      selected.file.name,
-    ) as SourceNode;
-    source.assetId = selected.asset.id;
-    const layer = createNode(
-      'layer',
-      createOpaqueId('node'),
-      `Layer ${Date.now().toString(36)}`,
-    ) as LayerNode;
-    layer.childId = source.id;
+    const target = editor.project.nodes[targetId];
+    const layerNumber = target?.type === 'target' ? target.childIds.length + 1 : 1;
+    const layer = createNode('layer', createOpaqueId('node'), `Layer ${layerNumber}`) as LayerNode;
     runCommand(() =>
       editor.dispatch(
-        {
-          commands: [
-            { node: source, parentId: null, type: 'insert-node' },
-            { node: layer, parentId: targetId, type: 'insert-node' },
-          ],
-          type: 'batch',
-        },
+        { node: layer, parentId: targetId, type: 'insert-node' },
         { label: 'Add layer' },
       ),
     );
@@ -649,9 +655,14 @@ const dispose = createRoot(disposeRoot => {
   const fitStage = (): void => {
     const selected = selectedImage();
     if (selected === null) return;
+    const targetId = selected.editor.project.targetIds[0];
+    const target = targetId === undefined ? undefined : selected.editor.project.nodes[targetId];
+    const contract =
+      target?.type === 'target' ? resolveTargetContract(selected.editor.project, target) : null;
+    if (contract === null) return;
     const availableWidth = Math.max(1, stage.clientWidth - 48);
     const availableHeight = Math.max(1, stage.clientHeight - 48);
-    setZoom(fitZoom(selected.asset.width, selected.asset.height, availableWidth, availableHeight));
+    setZoom(fitZoom(contract.width, contract.height, availableWidth, availableHeight));
     setPanX(0);
     setPanY(0);
   };
@@ -659,13 +670,13 @@ const dispose = createRoot(disposeRoot => {
   const placeInitialImage = (): void => {
     const selected = selectedImage();
     if (selected === null) return;
+    const targetId = selected.editor.project.targetIds[0];
+    const target = targetId === undefined ? undefined : selected.editor.project.nodes[targetId];
+    const contract =
+      target?.type === 'target' ? resolveTargetContract(selected.editor.project, target) : null;
+    if (contract === null) return;
     setZoom(
-      initialImageZoom(
-        selected.asset.width,
-        selected.asset.height,
-        stage.clientWidth,
-        stage.clientHeight,
-      ),
+      initialImageZoom(contract.width, contract.height, stage.clientWidth, stage.clientHeight),
     );
     setPanX(0);
     setPanY(0);
@@ -677,11 +688,9 @@ const dispose = createRoot(disposeRoot => {
     expanded.clear();
     for (const nodeId of Object.keys(decoded.project.nodes)) expanded.add(nodeId);
     setSelectedImage({
-      ...decoded,
       decodedAssets: new Map([[decoded.asset.id, decoded.decoded]]),
       editor,
-      file,
-      url: URL.createObjectURL(file),
+      original: { asset: decoded.asset, file, url: URL.createObjectURL(file) },
     });
     setShowingOriginal(false);
     setSelectedNodeId(targetId);
@@ -717,6 +726,8 @@ const dispose = createRoot(disposeRoot => {
       if (generation !== selectionGeneration || selectedImage() !== selected) return;
       const targetId = selected.editor.project.targetIds[0];
       if (targetId === undefined) throw new Error('The active Composite has no target');
+      const target = selected.editor.project.nodes[targetId];
+      if (target?.type !== 'target') throw new Error('The active Composite target is invalid');
       const source = createNode(
         'source/imported',
         createOpaqueId('node'),
@@ -727,13 +738,25 @@ const dispose = createRoot(disposeRoot => {
       layer.childId = source.id;
       selected.decodedAssets.set(decoded.asset.id, decoded.decoded);
       try {
+        const commands: ProjectCommand[] = [
+          { asset: decoded.asset, type: 'insert-asset' },
+          { node: source, parentId: null, type: 'insert-node' },
+          { node: layer, parentId: targetId, type: 'insert-node' },
+        ];
+        if (target.contract.width === null || target.contract.height === null) {
+          commands.push({
+            contract: {
+              ...target.contract,
+              height: target.contract.height ?? decoded.asset.height,
+              width: target.contract.width ?? decoded.asset.width,
+            },
+            nodeId: targetId,
+            type: 'set-target-contract',
+          });
+        }
         selected.editor.dispatch(
           {
-            commands: [
-              { asset: decoded.asset, type: 'insert-asset' },
-              { node: source, parentId: null, type: 'insert-node' },
-              { node: layer, parentId: targetId, type: 'insert-node' },
-            ],
+            commands,
             type: 'batch',
           },
           { label: 'Add image layer' },
@@ -866,7 +889,7 @@ const dispose = createRoot(disposeRoot => {
     setPixelGrid(value => !value);
   };
   const toggleOriginalPreview = (): void => {
-    if (selectedImage() !== null) setShowingOriginal(value => !value);
+    if (selectedImage()?.original != null) setShowingOriginal(value => !value);
   };
   const currentCanvasBackground = (): CanvasBackground => {
     const editor = currentEditor();
@@ -924,7 +947,7 @@ const dispose = createRoot(disposeRoot => {
       surfaces: ['menu', 'quick-actions'],
     }),
     appAction({
-      enabled: () => currentEditor() !== null,
+      enabled: () => resolvedCurrentTarget() !== null,
       group: 'file',
       id: 'export-target',
       keywords: ['file', 'download', 'format', 'metadata', 'render'],
@@ -1061,7 +1084,7 @@ const dispose = createRoot(disposeRoot => {
       surfaces: ['context', 'keyboard', 'overflow', 'rail'],
     }),
     appAction({
-      enabled: () => selectedImage() !== null,
+      enabled: () => resolvedCurrentTarget() !== null,
       group: 'view',
       id: 'fit-preview',
       keywords: ['zoom', 'view'],
@@ -1095,7 +1118,7 @@ const dispose = createRoot(disposeRoot => {
       surfaces: ['keyboard', 'quick-actions'],
     }),
     appAction({
-      enabled: () => selectedImage() !== null,
+      enabled: () => selectedImage()?.original != null,
       group: 'view',
       id: 'original-preview',
       keywords: ['before', 'after', 'compare', 'source', 'view'],
@@ -1406,12 +1429,17 @@ const dispose = createRoot(disposeRoot => {
     const selected = selectedImage();
     const targetId = selected?.editor.project.targetIds[0];
     const target = targetId === undefined ? undefined : selected?.editor.project.nodes[targetId];
-    if (target?.type !== 'target') {
+    if (selected === null || target?.type !== 'target') {
+      exportSummary.textContent = '';
+      return;
+    }
+    const resolved = resolveTargetContract(selected.editor.project, target);
+    if (resolved === null) {
       exportSummary.textContent = '';
       return;
     }
     const contract = normalizedContract({
-      ...target.contract,
+      ...resolved,
       outputFormat: exportFormat.value as OutputFileFormat,
     });
     const colorSpace = contract.colorSpace === 'display-p3' ? 'Display P3' : 'sRGB';
@@ -1440,7 +1468,8 @@ const dispose = createRoot(disposeRoot => {
     const selected = selectedImage();
     const targetId = selected?.editor.project.targetIds[0];
     const target = targetId === undefined ? undefined : selected?.editor.project.nodes[targetId];
-    if (target?.type !== 'target') return;
+    if (selected === null || target?.type !== 'target') return;
+    if (resolveTargetContract(selected.editor.project, target) === null) return;
     closeQuickActions();
     closeHistory();
     closeSettings();
@@ -2090,7 +2119,8 @@ const dispose = createRoot(disposeRoot => {
 
   createEffect(() => {
     const selected = selectedImage();
-    if (selected !== null) onCleanup(() => URL.revokeObjectURL(selected.url));
+    const url = selected?.original?.url;
+    if (url !== undefined) onCleanup(() => URL.revokeObjectURL(url));
   });
 
   createEffect(() => {
@@ -2105,7 +2135,7 @@ const dispose = createRoot(disposeRoot => {
     selectionProperties.hidden = canvasSelected;
     const enabled = editor !== null;
     saveProjectButton.disabled = !enabled;
-    exportButton.disabled = !enabled;
+    exportButton.disabled = !enabled || resolvedCurrentTarget() === null;
     addLayerButton.disabled = !enabled;
     addFilterLayerButton.disabled = !enabled;
     const selectedMaskTarget = selectedId === null ? null : maskTargetForNode(selectedId);
@@ -2281,14 +2311,21 @@ const dispose = createRoot(disposeRoot => {
       preview.removeAttribute('src');
       return;
     }
-    preview.src = selected.url;
+    const originalSource = selected.original;
+    if (originalSource !== null) preview.src = originalSource.url;
+    else preview.removeAttribute('src');
     preview.style.maxHeight = 'none';
     preview.style.maxWidth = 'none';
     stage.setAttribute('aria-label', original ? 'Original image preview' : 'Edited image preview');
-    if (original || mode !== 'ready' || manager.current === null || renderer === null) {
+    if (
+      (original && originalSource !== null) ||
+      mode !== 'ready' ||
+      manager.current === null ||
+      renderer === null
+    ) {
       canvas.hidden = true;
       canvasFrame.hidden = true;
-      preview.hidden = false;
+      preview.hidden = originalSource === null;
       return;
     }
     const targetId = selected.editor.project.targetIds[0];
@@ -2296,6 +2333,17 @@ const dispose = createRoot(disposeRoot => {
       canvas.hidden = true;
       canvasFrame.hidden = true;
       preview.hidden = false;
+      return;
+    }
+    const authoredTarget = selected.editor.project.nodes[targetId];
+    if (
+      authoredTarget?.type !== 'target' ||
+      resolveTargetContract(selected.editor.project, authoredTarget) === null
+    ) {
+      canvas.hidden = true;
+      canvasFrame.hidden = true;
+      preview.hidden = true;
+      delete canvas.dataset.presentationKey;
       return;
     }
     try {
