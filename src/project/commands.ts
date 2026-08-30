@@ -13,6 +13,7 @@ import type {
 import { validateProject } from './validation.js';
 
 export type ProjectCommand =
+  | { asset: ImageAsset; type: 'insert-asset' }
   | { index?: number; node: ProjectNode; parentId: string | null; type: 'insert-node' }
   | { nodeId: string; type: 'remove-node' }
   | { index: number; nodeId: string; parentId: string | null; type: 'move-node' }
@@ -90,6 +91,13 @@ function descendants(
 
 function applyMutable(project: PixelfProject, command: ProjectCommand): void {
   switch (command.type) {
+    case 'insert-asset': {
+      if (project.assets[command.asset.id] !== undefined) {
+        throw new Error(`Asset ${command.asset.id} already exists`);
+      }
+      project.assets[command.asset.id] = structuredClone(command.asset);
+      return;
+    }
     case 'insert-node': {
       if (project.nodes[command.node.id] !== undefined) {
         throw new Error(`Node ${command.node.id} already exists`);

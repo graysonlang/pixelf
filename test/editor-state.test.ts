@@ -5,7 +5,9 @@ import {
   createImportedProject,
   createNode,
   EditorState,
+  type LayerNode,
   type ProcessorNode,
+  type SourceNode,
 } from '../src/project/index.js';
 
 function editor(): EditorState {
@@ -113,6 +115,46 @@ describe('EditorState', () => {
     }
     state.dispatch({ nodeId: 'node-layer-two', type: 'remove-node' });
     assert.equal(state.project.nodes['node-layer-two'], undefined);
+  });
+
+  it('adds an imported image and its layer as one undoable command', () => {
+    const state = editor();
+    const asset = createEmbeddedImageAsset({
+      bytesBase64: 'AQ==',
+      contentHash: `sha256:${'f'.repeat(64)}`,
+      height: 32,
+      id: 'asset-dropped',
+      mediaType: 'image/png',
+      name: 'Dropped image',
+      width: 48,
+    });
+    const source = createNode('source/imported', 'node-dropped-source', asset.name) as SourceNode;
+    source.assetId = asset.id;
+    const layer = createNode('layer', 'node-dropped-layer', asset.name) as LayerNode;
+    layer.childId = source.id;
+
+    state.dispatch(
+      {
+        commands: [
+          { asset, type: 'insert-asset' },
+          { node: source, parentId: null, type: 'insert-node' },
+          { node: layer, parentId: 'node-target', type: 'insert-node' },
+        ],
+        type: 'batch',
+      },
+      { label: 'Add image layer' },
+    );
+    const target = editorNode(state, 'node-target');
+    assert.equal(target.type, 'target');
+    if (target.type === 'target') {
+      assert.deepEqual(target.childIds, ['node-layer', 'node-dropped-layer']);
+    }
+    assert.equal(state.project.assets[asset.id]?.name, 'Dropped image');
+
+    state.undo();
+    assert.equal(state.project.assets[asset.id], undefined);
+    assert.equal(state.project.nodes[layer.id], undefined);
+    assert.equal(state.project.nodes[source.id], undefined);
   });
 
   it('keeps ephemeral selection, panels, playback, and renderer state out of dirty tracking', () => {

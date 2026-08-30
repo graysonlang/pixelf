@@ -2,7 +2,7 @@ import { createEffect, createRoot, createSignal, onCleanup } from 'solid-js';
 import { buildInfo } from '../src/index.js';
 import { decodeImageFile, type DecodedProjectImage } from '../src/browser/decode-image.js';
 import { firstImageFile, isFileDrag } from '../src/browser/drop-image.js';
-import { projectTargetToGraph } from '../src/compositor/index.js';
+import { projectTargetToGraph, type DecodedImageAsset } from '../src/compositor/index.js';
 import {
   artifactBytes,
   exportTargetPng,
@@ -85,6 +85,7 @@ export function getFilePaths(): { index: string } {
 }
 
 interface SelectedImage extends DecodedProjectImage {
+  decodedAssets: Map<string, DecodedImageAsset>;
   editor: EditorState;
   file: File;
   url: string;
@@ -675,7 +676,13 @@ const dispose = createRoot(disposeRoot => {
     const targetId = decoded.project.targetIds[0] ?? null;
     expanded.clear();
     for (const nodeId of Object.keys(decoded.project.nodes)) expanded.add(nodeId);
-    setSelectedImage({ ...decoded, editor, file, url: URL.createObjectURL(file) });
+    setSelectedImage({
+      ...decoded,
+      decodedAssets: new Map([[decoded.asset.id, decoded.decoded]]),
+      editor,
+      file,
+      url: URL.createObjectURL(file),
+    });
     setShowingOriginal(false);
     setSelectedNodeId(targetId);
     if (targetId !== null) editor.select([targetId]);
@@ -692,6 +699,53 @@ const dispose = createRoot(disposeRoot => {
       const decoded = await decodeImageFile(file);
       if (generation !== selectionGeneration) return;
       adoptDecodedImage(decoded, file);
+    } catch (error) {
+      if (generation === selectionGeneration) reportError(error);
+    }
+  };
+
+  const addDroppedImageLayer = async (file: File): Promise<void> => {
+    const selected = selectedImage();
+    if (selected === null) {
+      await openImage(file);
+      return;
+    }
+    const generation = ++selectionGeneration;
+    setStatusMessage(`Decoding ${file.name} for a new layer...`);
+    try {
+      const decoded = await decodeImageFile(file);
+      if (generation !== selectionGeneration || selectedImage() !== selected) return;
+      const targetId = selected.editor.project.targetIds[0];
+      if (targetId === undefined) throw new Error('The active Composite has no target');
+      const source = createNode(
+        'source/imported',
+        createOpaqueId('node'),
+        decoded.asset.name,
+      ) as SourceNode;
+      source.assetId = decoded.asset.id;
+      const layer = createNode('layer', createOpaqueId('node'), decoded.asset.name) as LayerNode;
+      layer.childId = source.id;
+      selected.decodedAssets.set(decoded.asset.id, decoded.decoded);
+      try {
+        selected.editor.dispatch(
+          {
+            commands: [
+              { asset: decoded.asset, type: 'insert-asset' },
+              { node: source, parentId: null, type: 'insert-node' },
+              { node: layer, parentId: targetId, type: 'insert-node' },
+            ],
+            type: 'batch',
+          },
+          { label: 'Add image layer' },
+        );
+      } catch (error) {
+        selected.decodedAssets.delete(decoded.asset.id);
+        throw error;
+      }
+      expanded.add(layer.id);
+      selectNode(layer.id);
+      refreshProject();
+      setStatusMessage('');
     } catch (error) {
       if (generation === selectionGeneration) reportError(error);
     }
@@ -731,7 +785,7 @@ const dispose = createRoot(disposeRoot => {
     const projection = projectTargetToGraph(
       selected.editor.project,
       targetId,
-      new Map([[selected.asset.id, selected.decoded]]),
+      selected.decodedAssets,
     );
     const policy = metadataPolicy.value as MetadataPolicy;
     const contract = normalizedContract({
@@ -1460,7 +1514,7 @@ const dispose = createRoot(disposeRoot => {
     event.preventDefault();
     dragDepth += 1;
     appShell.classList.add('drop-target');
-    setStatusMessage('Drop image to open');
+    setStatusMessage(selectedImage() === null ? 'Drop image to open' : 'Drop image to add a layer');
   };
   const onDragOver = (event: DragEvent): void => {
     if (!isFileDrag(event.dataTransfer?.types ?? [])) return;
@@ -1488,7 +1542,7 @@ const dispose = createRoot(disposeRoot => {
       setStatusMessage('The dropped files do not include a supported image');
       return;
     }
-    void openImage(file);
+    void addDroppedImageLayer(file);
   };
   const applyCustomZoom = (): void => {
     if (zoomInput.value.trim().length === 0) return;
@@ -2248,7 +2302,7 @@ const dispose = createRoot(disposeRoot => {
       const projection = projectTargetToGraph(
         selected.editor.project,
         targetId,
-        new Map([[selected.asset.id, selected.decoded]]),
+        selected.decodedAssets,
       );
       const target = attachCanvas(
         manager.current,
