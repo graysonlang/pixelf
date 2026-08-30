@@ -52,7 +52,7 @@ import {
   renderProjectTree,
   renderProperties,
 } from '../src/ui/editor-view.js';
-import { primaryShortcutLabel } from '../src/ui/platform.js';
+import { primaryShortcutLabel, shortcutLabel } from '../src/ui/platform.js';
 import {
   isThemePreference,
   loadPreferences,
@@ -798,7 +798,7 @@ const dispose = createRoot(disposeRoot => {
       keywords: ['file', 'import'],
       label: 'Open image...',
       run: () => input.click(),
-      shortcut: 'Shift+O',
+      shortcut: shortcutLabel(['shift'], 'O'),
       surfaces: ['keyboard', 'menu', 'quick-actions'],
     }),
     appAction({
