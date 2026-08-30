@@ -122,7 +122,11 @@ Lock follows the Figma and Place3D interaction meaning: it excludes the item fro
 Inactive visibility and lock controls may recede until row hover or selection, while hidden and locked states remain visibly indicated.
 
 Duplicate and Delete live in the layer context menu and remain available from the keyboard.
+Rows do not reserve a persistent overflow button for that menu; right-click and the keyboard context-menu gesture open the same hovering action surface.
 Layer order changes by direct drag and by an equivalent keyboard gesture; persistent Up and Down buttons are not part of the panel.
+
+Opening an image through the file picker starts a new Composite.
+Dropping an image while a Composite is already active imports that file as a new topmost Layer in one undoable command, preserving the existing Composite name, export bounds, color intent, and other target settings.
 
 The left tool rail owns the main menu, move/select, brush, eyedropper, and foreground/background paint colors.
 Properties remain separate from the layer stack so choosing Composite exposes the file name, export contract, and color settings without making them look like pixels.

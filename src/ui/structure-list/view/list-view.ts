@@ -198,23 +198,9 @@ export function renderStructureList(
       interior.append(badge);
     }
 
-    const actions = document.createElement('button');
-    actions.className = 'structure-actions-trigger';
-    actions.type = 'button';
-    actions.tabIndex = -1;
-    actions.dataset.testid = `structure-action-menu-${row.nodeId}`;
-    actions.setAttribute('aria-label', `Actions for ${row.name}`);
-    actions.textContent = '...';
-    actions.addEventListener('click', event => {
-      event.stopPropagation();
-      const bounds = actions.getBoundingClientRect();
-      options.onSelect(row.nodeId);
-      options.onOpenActions?.(row.nodeId, { x: bounds.right, y: bounds.bottom });
-    });
-
-    const rowActions = document.createElement('span');
-    rowActions.className = 'structure-row-actions';
     if (rowState !== null) {
+      const rowActions = document.createElement('span');
+      rowActions.className = 'structure-row-actions';
       const lock = document.createElement('button');
       lock.className = `structure-state-button lock${rowState.locked ? ' state-active' : ''}`;
       lock.type = 'button';
@@ -242,10 +228,10 @@ export function renderStructureList(
         options.onVisibilityChange?.(row.nodeId, !rowState.visible);
       });
       rowActions.append(lock, visibility);
+      chiclet.append(disclosure, interior, rowActions);
+    } else {
+      chiclet.append(disclosure, interior);
     }
-    rowActions.append(actions);
-
-    chiclet.append(disclosure, interior, rowActions);
     chiclet.addEventListener('click', () => options.onSelect(row.nodeId));
     chiclet.addEventListener('focus', () => {
       if (selection.focusedNodeId !== row.nodeId) options.onSelect(row.nodeId);
