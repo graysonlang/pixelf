@@ -209,8 +209,15 @@ export interface EntityMask {
   y: number;
 }
 
+export interface GraphFilter {
+  effect: Effect;
+  id: string;
+  position: number;
+}
+
 export interface Graph {
   entities: Entity[];
+  filters?: GraphFilter[];
 }
 
 export function solid(r: number, g: number, b: number, a = 1): SolidSource {
@@ -342,6 +349,11 @@ export function graphHash(graph: Graph): string {
     mixSource(entity.source, mix);
     for (const effect of entity.effects) mixEffect(effect, mix);
     if (entity.mask !== undefined) mixMask(entity.mask, mix);
+  }
+  for (const filter of graph.filters ?? []) {
+    mixText(filter.id, mix);
+    mix(filter.position);
+    mixEffect(filter.effect, mix);
   }
   return hash.toString(16).padStart(8, '0');
 }

@@ -14,6 +14,7 @@ export {
   type Entity,
   type EntityMatrix,
   type Graph,
+  type GraphFilter,
   type ImageSource,
   type Source,
 } from './graph.js';

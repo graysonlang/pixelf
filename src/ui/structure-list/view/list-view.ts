@@ -32,6 +32,7 @@ const typeaheadState = new WeakMap<HTMLElement, TypeaheadState>();
 function glyphFor(kind: string): string {
   if (kind === 'target') return 'C';
   if (kind === 'layer') return 'L';
+  if (kind === 'filter') return 'fx';
   if (kind === 'source/mask' || kind === 'source/checker-mask') return 'M';
   if (kind.startsWith('process/')) return 'fx';
   return 'S';
@@ -102,7 +103,7 @@ export function renderStructureList(
     chiclet.setAttribute('aria-label', row.name);
     chiclet.setAttribute('aria-level', String(row.depth + 1));
     chiclet.setAttribute('aria-selected', String(options.selectedNodeId === row.nodeId));
-    const reorderable = row.kind === 'layer' && row.relation === 'root';
+    const reorderable = (row.kind === 'filter' || row.kind === 'layer') && row.relation === 'root';
     chiclet.draggable = reorderable;
     if (reorderable) chiclet.dataset.reorderable = 'true';
     const siblings = siblingData.get(row.nodeId);

@@ -1,5 +1,5 @@
 import { applyEffect, effectInputRegion } from './effects.js';
-import type { Entity, Graph } from './graph.js';
+import type { Entity, Graph, GraphFilter } from './graph.js';
 import { rasterSource } from './source.js';
 import {
   blendOnto,
@@ -124,10 +124,60 @@ export function evalEntity(entity: Entity, output: Region, scale: number): Surfa
   return surface;
 }
 
-export function renderRegion(graph: Graph, output: Region, scale: number): Surface {
-  const accumulator = makeSurface(output);
-  for (const entity of graph.entities) {
-    blendOnto(accumulator, evalEntity(entity, output, scale), entity.blend);
+type GraphStackItem = { entity: Entity; kind: 'entity' } | { filter: GraphFilter; kind: 'filter' };
+
+function graphStack(graph: Graph): GraphStackItem[] {
+  const filters = graph.filters ?? [];
+  const items: GraphStackItem[] = [];
+  let filterIndex = 0;
+  for (let position = 0; position <= graph.entities.length; position += 1) {
+    while (filters[filterIndex]?.position === position) {
+      const filter = filters[filterIndex];
+      if (filter !== undefined) items.push({ filter, kind: 'filter' });
+      filterIndex += 1;
+    }
+    const entity = graph.entities[position];
+    if (entity !== undefined) items.push({ entity, kind: 'entity' });
+  }
+  if (filterIndex !== filters.length) throw new Error('Filter stack positions are out of order');
+  return items;
+}
+
+function renderStack(items: readonly GraphStackItem[], output: Region, scale: number): Surface {
+  const lastFilterIndex = items.findLastIndex(item => item.kind === 'filter');
+  if (lastFilterIndex < 0) {
+    const accumulator = makeSurface(output);
+    for (const item of items) {
+      if (item.kind === 'entity') {
+        blendOnto(accumulator, evalEntity(item.entity, output, scale), item.entity.blend);
+      }
+    }
+    return accumulator;
+  }
+  const item = items[lastFilterIndex];
+  if (item?.kind !== 'filter') throw new Error('Invalid filter stack');
+  const inputRegion = effectInputRegion(item.filter.effect, output, scale);
+  const input = renderStack(items.slice(0, lastFilterIndex), inputRegion, scale);
+  const original = item.filter.effect.mask === undefined ? null : cropSurface(input, output);
+  let accumulator = applyEffect(item.filter.effect, input, output, scale);
+  if (item.filter.effect.mask !== undefined && original !== null) {
+    accumulator = mixEffectMask(
+      original,
+      accumulator,
+      item.filter.effect.mask,
+      item.filter.id,
+      output,
+      scale,
+    );
+  }
+  for (const upper of items.slice(lastFilterIndex + 1)) {
+    if (upper.kind === 'entity') {
+      blendOnto(accumulator, evalEntity(upper.entity, output, scale), upper.entity.blend);
+    }
   }
   return accumulator;
+}
+
+export function renderRegion(graph: Graph, output: Region, scale: number): Surface {
+  return renderStack(graphStack(graph), output, scale);
 }

@@ -42,6 +42,9 @@ export function pixelfNodeSummary(project: PixelfProject, node: ProjectNode): st
   if (node.type === 'target') {
     return `Composite / ${node.contract.width} x ${node.contract.height} / ${node.contract.outputFormat} ${node.contract.outputBitDepth}-bit`;
   }
+  if (node.type === 'filter') {
+    return nodeRegistry.get(node.filterType)?.title ?? node.filterType;
+  }
   const importedSource = node.type === 'layer' ? importedSourceForLayer(project, node) : node;
   if (importedSource?.type === 'source/imported' && importedSource.assetId !== undefined) {
     const asset = project.assets[importedSource.assetId];
@@ -62,7 +65,8 @@ function describe(
   const isStackLayer = layerStack && parent?.node.type === 'target';
   const children = layerStack ? layerStackChildren(snapshot.project, node) : primaryChildren(node);
   return {
-    acceptsVisualDepth: node.type === 'layer' || node.type.startsWith('process/'),
+    acceptsVisualDepth:
+      node.type === 'filter' || node.type === 'layer' || node.type.startsWith('process/'),
     expanded: snapshot.expanded.has(id),
     hasChildren: children.length > 0,
     kind: node.type,

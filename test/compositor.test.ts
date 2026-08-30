@@ -82,6 +82,29 @@ describe('CPU reference compositor', () => {
       region,
     );
     assertPixelsEqual(tiled.data, full.data);
+    const filterGraph: Graph = {
+      entities: [
+        entity(solid(0.8, 0.2, 0.1), {
+          h: 100,
+          w: 170,
+          x: 90,
+          y: 80,
+        }),
+      ],
+      filters: [{ effect, id: 'filter-blur', position: 1 }],
+    };
+    const filteredFull = renderRegion(filterGraph, region, 1);
+    const filteredTiles = assembleTiles(
+      renderTiles({
+        graph: filterGraph,
+        quality: 'final',
+        region,
+        scale: 1,
+        targetKey: 'rgba16float-filter',
+      }),
+      region,
+    );
+    assertPixelsEqual(filteredTiles.data, filteredFull.data);
   });
 
   it('minifies transparent edges in premultiplied linear space without color bleed', () => {
@@ -126,6 +149,27 @@ describe('CPU reference compositor', () => {
       1,
     );
     assert.deepEqual([...blended.data], [0.8125, 0.8125, 0.8125, 1]);
+  });
+
+  it('applies a filter layer to the accumulated stack below but not layers above', () => {
+    const filtered = renderRegion(
+      {
+        entities: [
+          entity(solid(0.25, 0.25, 0.25), { h: 1, id: 'below', w: 1 }),
+          entity(solid(1, 0, 0, 0.5), { h: 1, id: 'above', w: 1 }),
+        ],
+        filters: [
+          {
+            effect: { amount: 1, kind: 'brightness' },
+            id: 'filter-brightness',
+            position: 1,
+          },
+        ],
+      },
+      { h: 1, w: 1, x: 0, y: 0 },
+      1,
+    );
+    assert.deepEqual([...filtered.data], [0.75, 0.25, 0.25, 1]);
   });
 
   it('evaluates every Photoshop-style blend mode deterministically', () => {

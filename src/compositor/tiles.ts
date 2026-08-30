@@ -1,5 +1,5 @@
 import { graphHash, type Graph } from './graph.js';
-import { evalEntity } from './render.js';
+import { evalEntity, renderRegion } from './render.js';
 import {
   blendOnto,
   cropSurface,
@@ -90,7 +90,10 @@ export class TileCache {
   }
 
   releaseGraph(graph: Graph): number {
-    const hashes = new Set(graph.entities.map(entity => graphHash({ entities: [entity] })));
+    const hashes = new Set([
+      graphHash(graph),
+      ...graph.entities.map(entity => graphHash({ entities: [entity] })),
+    ]);
     let released = 0;
     for (const [key, entry] of this.entries) {
       if (![...hashes].some(hash => key.startsWith(`${hash}:`))) continue;
@@ -149,6 +152,15 @@ export function renderTiles(request: TileRequest, cache = new TileCache()): Rend
         x: tileX * TILE_SIZE,
         y: tileY * TILE_SIZE,
       };
+      if ((request.graph.filters?.length ?? 0) > 0) {
+        let filteredSurface = cache.get(key);
+        if (filteredSurface === undefined) {
+          filteredSurface = renderRegion(request.graph, tileRegion, request.scale);
+          cache.set(key, filteredSurface);
+        }
+        output.push({ key, surface: filteredSurface, tileX, tileY });
+        continue;
+      }
       const surface = makeSurface(tileRegion);
       for (const entity of request.graph.entities) {
         const entityKey = tileKey(

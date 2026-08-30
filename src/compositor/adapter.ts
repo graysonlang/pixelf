@@ -8,8 +8,10 @@ import {
   solid,
   type BlendMode,
   type Effect,
+  type Entity,
   type EntityMask,
   type Graph,
+  type GraphFilter,
   type ImageSource,
 } from './graph.js';
 import { renderRegion } from './render.js';
@@ -63,9 +65,9 @@ function stringParameter(node: ProjectNode, key: string): string {
   return value;
 }
 
-function operationEffect(node: ProcessorNode, target: TargetNode): Effect {
-  nodeRegistry.require(node.type);
-  switch (node.type) {
+function operationEffect(node: ProjectNode, operationType: string, target: TargetNode): Effect {
+  nodeRegistry.require(operationType);
+  switch (operationType) {
     case 'process/opacity':
     case 'process/adjustment-group':
       return { amount: numberParameter(node, 'amount'), kind: 'opacity' };
@@ -75,7 +77,7 @@ function operationEffect(node: ProcessorNode, target: TargetNode): Effect {
     case 'process/canvas-resize':
       return {
         height: numberParameter(node, 'height'),
-        kind: node.type === 'process/crop' ? 'crop' : 'canvas-resize',
+        kind: operationType === 'process/crop' ? 'crop' : 'canvas-resize',
         width: numberParameter(node, 'width'),
         x: numberParameter(node, 'x'),
         y: numberParameter(node, 'y'),
@@ -118,7 +120,11 @@ function operationEffect(node: ProcessorNode, target: TargetNode): Effect {
     case 'process/blacks':
       return {
         amount: numberParameter(node, 'amount') / 100,
-        kind: node.type.slice('process/'.length) as 'blacks' | 'highlights' | 'shadows' | 'whites',
+        kind: operationType.slice('process/'.length) as
+          | 'blacks'
+          | 'highlights'
+          | 'shadows'
+          | 'whites',
       };
     case 'process/clarity':
       return {
@@ -166,7 +172,7 @@ function operationEffect(node: ProcessorNode, target: TargetNode): Effect {
         seed: numberParameter(node, 'seed'),
       };
     default:
-      throw new Error(`No CPU projection exists for ${node.type}`);
+      throw new Error(`No CPU projection exists for ${operationType}`);
   }
 }
 
@@ -206,7 +212,7 @@ function sourceForLayer(
         };
         effects.unshift(mask === undefined ? effect : { ...effect, mask });
       } else {
-        const effect = operationEffect(node as ProcessorNode, target);
+        const effect = operationEffect(node as ProcessorNode, node.type, target);
         const mask = maskForNode(project, node.id, target);
         effects.unshift(mask === undefined ? effect : { ...effect, mask });
       }
@@ -345,10 +351,24 @@ export function projectTargetToGraph(
   validateProject(project);
   const target = requireNode(project, targetId);
   if (target.type !== 'target') throw new Error(`${targetId} is not a target`);
-  const entities = target.childIds.map(layerId => {
-    const layer = requireNode(project, layerId);
-    if (layer.type !== 'layer') throw new Error(`${layerId} is not a layer`);
-    if (layer.childId === null) throw new Error(`Layer ${layerId} has no source child`);
+  const entities: Entity[] = [];
+  const filters: GraphFilter[] = [];
+  for (const stackItemId of target.childIds) {
+    const layer = requireNode(project, stackItemId);
+    if (layer.type === 'filter') {
+      if (layer.parameters.bypass !== true) {
+        const effect = operationEffect(layer, layer.filterType, target);
+        const mask = maskForNode(project, layer.id, target);
+        filters.push({
+          effect: mask === undefined ? effect : { ...effect, mask },
+          id: layer.id,
+          position: entities.length,
+        });
+      }
+      continue;
+    }
+    if (layer.type !== 'layer') throw new Error(`${stackItemId} is not a stack item`);
+    if (layer.childId === null) throw new Error(`Layer ${layer.id} has no source child`);
     const source = sourceForLayer(
       project,
       requireNode(project, layer.childId),
@@ -361,7 +381,7 @@ export function projectTargetToGraph(
     if (typeof blendMode !== 'string') throw new Error(`${layer.id}.blendMode must be text`);
     const layerFill = layer.parameters.fill;
     if (typeof layerFill !== 'number') throw new Error(`${layer.id}.fill must be numeric`);
-    return {
+    entities.push({
       blend: blendMode as BlendMode,
       effects: source.effects,
       fill: layerFill,
@@ -373,7 +393,11 @@ export function projectTargetToGraph(
       w: target.contract.width,
       x: 0,
       y: 0,
-    };
-  });
-  return { graph: { entities }, target, targetKey: targetCacheKey(target) };
+    });
+  }
+  return {
+    graph: { entities, filters: filters.length > 0 ? filters : undefined },
+    target,
+    targetKey: targetCacheKey(target),
+  };
 }

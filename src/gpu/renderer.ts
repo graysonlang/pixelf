@@ -190,12 +190,15 @@ function placement(entity: Entity): readonly [number, number, number, number, nu
 }
 
 export function gpuDirectRenderable(graph: Graph): boolean {
-  return graph.entities.every(
-    entity =>
-      entity.source.kind === 'image' &&
-      entity.effects.length === 0 &&
-      entity.mask === undefined &&
-      entity.blend === 'normal',
+  return (
+    (graph.filters?.length ?? 0) === 0 &&
+    graph.entities.every(
+      entity =>
+        entity.source.kind === 'image' &&
+        entity.effects.length === 0 &&
+        entity.mask === undefined &&
+        entity.blend === 'normal',
+    )
   );
 }
 

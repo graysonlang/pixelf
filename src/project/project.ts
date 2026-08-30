@@ -3,6 +3,7 @@ import {
   PIXELF_PROJECT_SCHEMA,
   PIXELF_PROJECT_VERSION,
   type ImageAsset,
+  type FilterLayerNode,
   type JsonValue,
   type LayerNode,
   type PixelfProject,
@@ -50,6 +51,16 @@ export function createNode(
     };
   }
   if (type === 'layer') return { childId: null, id, name, parameters, type: 'layer' };
+  if (type === 'filter') {
+    const filterType = 'process/exposure';
+    return {
+      filterType,
+      id,
+      name,
+      parameters: nodeRegistry.defaults(filterType),
+      type: 'filter',
+    } as FilterLayerNode;
+  }
   if (type.startsWith('process/')) {
     return { childId: null, id, name, parameters, type } as ProcessorNode;
   }

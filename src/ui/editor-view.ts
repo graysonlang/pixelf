@@ -38,6 +38,7 @@ export interface PropertiesViewOptions {
     options?: { preserveControls?: boolean },
   ): void;
   onProjectName(name: string): void;
+  onFilterType(nodeId: string, filterType: string): void;
   onTargetContract(
     nodeId: string,
     contract: TargetContract,
@@ -392,8 +393,14 @@ export function renderProperties(
   const heading = document.createElement('div');
   heading.className = 'properties-heading';
   const eyebrow = document.createElement('span');
+  const definition =
+    node.type === 'filter' ? nodeRegistry.get(node.filterType) : nodeRegistry.get(node.type);
   eyebrow.textContent =
-    node.type === 'target' ? 'Composite' : (nodeRegistry.get(node.type)?.kind ?? node.type);
+    node.type === 'target'
+      ? 'Composite'
+      : node.type === 'filter'
+        ? 'Filter Layer'
+        : (definition?.kind ?? node.type);
   const title = document.createElement('h2');
   title.textContent = node.type === 'target' ? project.name : node.name;
   heading.append(eyebrow, title);
@@ -403,7 +410,20 @@ export function renderProperties(
       options.onTargetContract(node.id, contract, changeOptions),
     );
   } else {
-    const definition = nodeRegistry.get(node.type);
+    const interchangeable =
+      node.type === 'filter' ? nodeRegistry.interchangeable(node.filterType) : [];
+    if (interchangeable.length > 1) {
+      const typeSelect = document.createElement('select');
+      for (const candidate of interchangeable) {
+        const option = document.createElement('option');
+        option.value = candidate.type;
+        option.textContent = candidate.title;
+        typeSelect.append(option);
+      }
+      typeSelect.value = node.type === 'filter' ? node.filterType : '';
+      typeSelect.addEventListener('change', () => options.onFilterType(node.id, typeSelect.value));
+      fragment.append(field('Filter', typeSelect));
+    }
     for (const parameter of definition?.parameters ?? []) {
       fragment.append(
         parameter.kind === 'number'

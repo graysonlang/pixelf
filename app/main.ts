@@ -22,6 +22,7 @@ import {
   EditorState,
   findPrimaryParent,
   serializeProject,
+  type FilterLayerNode,
   type LayerNode,
   type CanvasBackground,
   type CanvasBackgroundMode,
@@ -251,6 +252,7 @@ const dispose = createRoot(disposeRoot => {
   const addMenuButton = requireElement<HTMLButtonElement>('#add-menu-button');
   const addMenu = requireElement<HTMLElement>('#add-menu');
   const addLayerButton = requireElement<HTMLButtonElement>('#add-layer-button');
+  const addFilterLayerButton = requireElement<HTMLButtonElement>('#add-filter-layer-button');
   const addMaskButton = requireElement<HTMLButtonElement>('#add-mask-button');
   const toolButtons = Array.from(
     document.querySelectorAll<HTMLButtonElement>('.tool-button[data-tool]'),
@@ -396,9 +398,12 @@ const dispose = createRoot(disposeRoot => {
     return null;
   };
 
-  const maskTargetForNode = (nodeId: string): LayerNode | ProcessorNode | null => {
+  const maskTargetForNode = (
+    nodeId: string,
+  ): FilterLayerNode | LayerNode | ProcessorNode | null => {
     const editor = currentEditor();
     const node = editor?.project.nodes[nodeId];
+    if (node?.type === 'filter') return node;
     if (node?.type.startsWith('process/')) return node as ProcessorNode;
     return layerForNode(nodeId);
   };
@@ -449,6 +454,22 @@ const dispose = createRoot(disposeRoot => {
     expanded.add(targetId);
     expanded.add(layer.id);
     selectNode(layer.id);
+  };
+
+  const addFilterLayer = (): void => {
+    const editor = currentEditor();
+    const selectedId = selectedNodeId();
+    const targetId =
+      (selectedId === null ? null : targetForNode(selectedId)) ?? editor?.project.targetIds[0];
+    if (editor === null || targetId === undefined || targetId === null) return;
+    const filter = createNode('filter', createOpaqueId('node')) as FilterLayerNode;
+    runCommand(() =>
+      editor.dispatch(
+        { node: filter, parentId: targetId, type: 'insert-node' },
+        { label: 'Add filter layer' },
+      ),
+    );
+    selectNode(filter.id);
   };
 
   const duplicateNode = (): void => {
@@ -509,7 +530,9 @@ const dispose = createRoot(disposeRoot => {
   const moveLayerInStack = (nodeId: string, visualDirection: -1 | 1): void => {
     const editor = currentEditor();
     const selected = editor?.project.nodes[nodeId];
-    if (editor === null || selected?.type !== 'layer') return;
+    if (editor === null || (selected?.type !== 'layer' && selected?.type !== 'filter')) {
+      return;
+    }
     const parent = findPrimaryParent(editor.project, selected.id);
     if (parent?.node.type !== 'target') return;
     const canonicalDirection = visualDirection === -1 ? 1 : -1;
@@ -534,7 +557,13 @@ const dispose = createRoot(disposeRoot => {
     const editor = currentEditor();
     const node = editor?.project.nodes[nodeId];
     const anchor = editor?.project.nodes[anchorNodeId];
-    if (editor === null || node?.type !== 'layer' || anchor?.type !== 'layer') return;
+    if (
+      editor === null ||
+      (node?.type !== 'layer' && node?.type !== 'filter') ||
+      (anchor?.type !== 'layer' && anchor?.type !== 'filter')
+    ) {
+      return;
+    }
     const parent = findPrimaryParent(editor.project, node.id);
     const anchorParent = findPrimaryParent(editor.project, anchor.id);
     if (
@@ -823,6 +852,16 @@ const dispose = createRoot(disposeRoot => {
       label: 'Add layer',
       priority: 70,
       run: addLayer,
+      surfaces: structureSurfaces,
+    }),
+    appAction({
+      enabled: () => currentEditor() !== null,
+      group: 'structure',
+      id: 'add-filter-layer',
+      keywords: ['new', 'adjustment', 'effect', 'blur', 'clarity'],
+      label: 'Add filter layer',
+      priority: 65,
+      run: addFilterLayer,
       surfaces: structureSurfaces,
     }),
     appAction({
@@ -1284,6 +1323,10 @@ const dispose = createRoot(disposeRoot => {
     setAddMenuOpen(false);
     addLayer();
   };
+  const onAddFilterLayerButtonClick = (): void => {
+    setAddMenuOpen(false);
+    addFilterLayer();
+  };
   const onAddMaskButtonClick = (): void => {
     setAddMenuOpen(false);
     addMask();
@@ -1585,6 +1628,7 @@ const dispose = createRoot(disposeRoot => {
   document.addEventListener('pointerdown', onDocumentPointerDown);
   document.addEventListener('keydown', onDocumentKeyDown);
   addLayerButton.addEventListener('click', onAddLayerButtonClick);
+  addFilterLayerButton.addEventListener('click', onAddFilterLayerButtonClick);
   addMaskButton.addEventListener('click', onAddMaskButtonClick);
   for (const toolButton of toolButtons) toolButton.addEventListener('click', onToolButtonClick);
   fitButton.addEventListener('click', onFitButtonClick);
@@ -1652,6 +1696,7 @@ const dispose = createRoot(disposeRoot => {
     document.removeEventListener('pointerdown', onDocumentPointerDown);
     document.removeEventListener('keydown', onDocumentKeyDown);
     addLayerButton.removeEventListener('click', onAddLayerButtonClick);
+    addFilterLayerButton.removeEventListener('click', onAddFilterLayerButtonClick);
     addMaskButton.removeEventListener('click', onAddMaskButtonClick);
     stage.removeEventListener('wheel', onStageWheel);
     for (const toolButton of toolButtons) {
@@ -1706,6 +1751,7 @@ const dispose = createRoot(disposeRoot => {
     exportButton.disabled = !enabled;
     metadataPolicy.disabled = !enabled;
     addLayerButton.disabled = !enabled;
+    addFilterLayerButton.disabled = !enabled;
     const selectedMaskTarget = selectedId === null ? null : maskTargetForNode(selectedId);
     addMaskButton.disabled =
       selectedMaskTarget === null ||
@@ -1777,6 +1823,13 @@ const dispose = createRoot(disposeRoot => {
           editor.dispatch(
             { name, type: 'set-project-name' },
             { label: 'Rename composite', mergeKey: 'project:name' },
+          ),
+        ),
+      onFilterType: (nodeId, filterType) =>
+        runCommand(() =>
+          editor.dispatch(
+            { filterType, nodeId, type: 'set-filter-type' },
+            { label: `Change filter to ${filterType}` },
           ),
         ),
       onTargetContract: (nodeId, contract, options) =>

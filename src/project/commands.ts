@@ -1,6 +1,8 @@
 import { cloneProject, createOpaqueId, findPrimaryParent } from './project.js';
+import { nodeRegistry } from './registry.js';
 import type {
   CanvasBackground,
+  FilterLayerNode,
   ImageAsset,
   JsonValue,
   PixelfProject,
@@ -16,6 +18,7 @@ export type ProjectCommand =
   | { index: number; nodeId: string; parentId: string | null; type: 'move-node' }
   | { name: string; type: 'set-project-name' }
   | { key: string; nodeId: string; type: 'set-parameter'; value: JsonValue }
+  | { filterType: string; nodeId: string; type: 'set-filter-type' }
   | { contract: TargetContract; nodeId: string; type: 'set-target-contract' }
   | { background: CanvasBackground; nodeId: string; type: 'set-target-background' }
   | { type: 'connect'; wire: ProjectWire }
@@ -120,6 +123,30 @@ function applyMutable(project: PixelfProject, command: ProjectCommand): void {
       const node = project.nodes[command.nodeId];
       if (node === undefined) throw new Error(`Cannot edit missing node ${command.nodeId}`);
       node.parameters[command.key] = structuredClone(command.value);
+      return;
+    }
+    case 'set-filter-type': {
+      const node = project.nodes[command.nodeId];
+      if (node?.type !== 'filter') {
+        throw new Error(`Cannot change the type of non-filter ${command.nodeId}`);
+      }
+      const currentDefinition = nodeRegistry.require(node.filterType);
+      const nextDefinition = nodeRegistry.require(command.filterType);
+      if (
+        currentDefinition.interchangeGroup !== 'filter' ||
+        currentDefinition.interchangeGroup !== nextDefinition.interchangeGroup ||
+        nextDefinition.kind !== 'processor'
+      ) {
+        throw new Error(`${command.filterType} cannot replace ${node.filterType}`);
+      }
+      const parameters = nodeRegistry.defaults(command.filterType);
+      for (const key of Object.keys(parameters)) {
+        const value = node.parameters[key];
+        if (value !== undefined) parameters[key] = structuredClone(value);
+      }
+      if (node.name === currentDefinition.title) node.name = nextDefinition.title;
+      node.filterType = command.filterType as FilterLayerNode['filterType'];
+      node.parameters = parameters;
       return;
     }
     case 'set-target-contract': {

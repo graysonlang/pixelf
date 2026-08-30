@@ -85,9 +85,14 @@ Groups provide the natural scope boundary for Filter Layers and pass-through com
 Masks may limit a complete Layer, an individual layer effect, a Filter Layer, or a Group through typed dependencies rather than hidden ownership.
 This keeps the common stack legible while preserving explicit wiring for relationships that do not fit strict nesting.
 
-The existing unary `process/*` nodes are implementation vocabulary from the target-first foundation.
-They must be classified or migrated into Filter Layers, attached layer effects, or explicit destructive commands before the corresponding authoring controls become active.
-Group scope, procedural content, Filter Layer scope, and attached effect ownership each require a document-semantic slice rather than a superficial menu alias.
+Filter Layer is a stable generic stack-item identity with a switchable operation type.
+Its switcher is populated from the registry's interchangeable filter family, currently including photographic adjustments, channel inspection, blur, sharpen, noise reduction, vignette, and grain.
+Changing the operation preserves the Filter Layer ID, z-order, mask wires, bypass state, and parameter values whose keys remain compatible; parameters unique to the new operation receive its declared defaults.
+
+The existing unary `process/*` nodes remain the implementation vocabulary for reversible processing inside an owned Layer branch.
+A Filter Layer reuses that operation vocabulary but applies the selected operation to the accumulated stack beneath its own z-order position.
+Structural processors such as crop, transform, composite, and adjustment-group boundaries are not interchangeable Filter Layer types.
+Group scope, procedural content, and attached layer-effect ownership still require their own document-semantic slices rather than superficial menu aliases.
 
 ## Color handling
 
@@ -120,5 +125,5 @@ Properties remain separate from the layer stack so choosing Composite exposes th
 - Add a canonical untitled session that can have no layers and no resolved pixel extent.
 - Separate authored automatic color policy from its resolved compositor space.
 - Preserve and validate richer source profile and alpha metadata through decode, sampling, save, relink, and export.
-- Define Group pass-through scope, Content Layer generators, Filter Layer scope, and attached layer-effect ownership in the project document.
+- Define Group pass-through scope, Content Layer generators, and attached layer-effect ownership in the project document.
 - Define per-operation edge sampling and make destructive rasterization labels precise in the command history and UI.

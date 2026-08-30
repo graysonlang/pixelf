@@ -82,6 +82,11 @@ export interface LayerNode extends BaseNode {
   type: 'layer';
 }
 
+export interface FilterLayerNode extends BaseNode {
+  filterType: `process/${string}`;
+  type: 'filter';
+}
+
 export interface ProcessorNode extends BaseNode {
   childId: string | null;
   type: `process/${string}`;
@@ -92,7 +97,7 @@ export interface SourceNode extends BaseNode {
   type: `source/${string}`;
 }
 
-export type ProjectNode = TargetNode | LayerNode | ProcessorNode | SourceNode;
+export type ProjectNode = TargetNode | LayerNode | FilterLayerNode | ProcessorNode | SourceNode;
 export type UnaryNode = LayerNode | ProcessorNode;
 
 export type PortKind = 'image' | 'mask' | 'scalar';

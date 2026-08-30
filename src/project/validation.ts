@@ -177,11 +177,24 @@ function checkNodeShape(node: UnknownRecord, key: string, issues: string[]): voi
     issues.push(`${path}.type is unsupported: ${node.type}`);
     return;
   }
+  let parameterDefinition = definition;
+  if (node.type === 'filter') {
+    if (typeof node.filterType !== 'string') {
+      issues.push(`${path}.filterType must name a filter operation`);
+    } else {
+      const filterDefinition = nodeRegistry.get(node.filterType);
+      if (filterDefinition?.interchangeGroup !== 'filter') {
+        issues.push(`${path}.filterType is unsupported: ${node.filterType}`);
+      } else {
+        parameterDefinition = filterDefinition;
+      }
+    }
+  }
   if (!isRecord(node.parameters)) {
     issues.push(`${path}.parameters must be an object`);
   } else {
-    const expected = new Set(definition.parameters.map(parameter => parameter.key));
-    for (const parameter of definition.parameters) {
+    const expected = new Set(parameterDefinition.parameters.map(parameter => parameter.key));
+    for (const parameter of parameterDefinition.parameters) {
       checkParameter(
         node.parameters[parameter.key],
         parameter,
@@ -191,7 +204,7 @@ function checkNodeShape(node: UnknownRecord, key: string, issues: string[]): voi
     }
     for (const key of Object.keys(node.parameters)) {
       if (!expected.has(key))
-        issues.push(`${path}.parameters.${key} is not declared by ${node.type}`);
+        issues.push(`${path}.parameters.${key} is not declared by ${parameterDefinition.type}`);
     }
   }
   if (definition.childPolicy === 'layers') {
@@ -295,10 +308,13 @@ function checkTreeAndWires(project: PixelfProject, issues: string[]): void {
         issues.push(`nodes.${nodeId} references missing primary child ${childId}`);
         continue;
       }
-      if (node.type === 'target' && child.type !== 'layer') {
-        issues.push(`target ${nodeId} may contain only layer children, not ${child.type}`);
+      if (node.type === 'target' && child.type !== 'layer' && child.type !== 'filter') {
+        issues.push(`target ${nodeId} may contain only stack items, not ${child.type}`);
       }
-      if (node.type !== 'target' && (child.type === 'target' || child.type === 'layer')) {
+      if (
+        node.type !== 'target' &&
+        (child.type === 'target' || child.type === 'layer' || child.type === 'filter')
+      ) {
         issues.push(
           `${node.type} ${nodeId} cannot use ${child.type} ${childId} as its unary child`,
         );

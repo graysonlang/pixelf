@@ -41,7 +41,8 @@ export interface NodeDefinition {
   childPolicy: PrimaryChildPolicy;
   description: string;
   execution?: ExecutionBehavior;
-  kind: 'layer' | 'processor' | 'source' | 'target';
+  interchangeGroup?: string;
+  kind: 'filter' | 'layer' | 'processor' | 'source' | 'target';
   parameters: readonly ParameterDefinition[];
   ports: readonly PortDefinition[];
   region: RegionBehavior;
@@ -59,7 +60,6 @@ function defineNode(definition: NodeDefinition): NodeDefinition {
 
 const bypass: ParameterDefinition = {
   default: false,
-  description: 'Pass the child image through without applying this operation.',
   key: 'bypass',
   kind: 'boolean',
   label: 'Bypass',
@@ -75,7 +75,6 @@ function numberParameter(
 ): ParameterDefinition {
   return {
     default: defaultValue,
-    description: `${label} for this operation.`,
     key,
     kind: 'number',
     label,
@@ -93,11 +92,13 @@ function processor(
   region: RegionBehavior = { kind: 'identity' },
   quality: ExecutionBehavior['quality'] = 'exact',
   inputs: readonly PortDefinition[] = [],
+  interchangeGroup?: string,
 ): NodeDefinition {
   return defineNode({
     childPolicy: 'one',
     description,
     execution: { cpuRunner: 'reference', gpuRunner: 'cpu-upload', quality },
+    interchangeGroup,
     kind: 'processor',
     parameters: [...parameters, bypass],
     ports: [
@@ -109,6 +110,17 @@ function processor(
     title,
     type,
   });
+}
+
+function filterProcessor(
+  type: string,
+  title: string,
+  description: string,
+  parameters: readonly ParameterDefinition[],
+  region: RegionBehavior = { kind: 'identity' },
+  quality: ExecutionBehavior['quality'] = 'exact',
+): NodeDefinition {
+  return processor(type, title, description, parameters, region, quality, [], 'filter');
 }
 
 const definitions = [
@@ -159,6 +171,16 @@ const definitions = [
     title: 'Layer',
     type: 'layer',
   }),
+  defineNode({
+    childPolicy: 'none',
+    description: 'A switchable filter applied to the accumulated stack beneath it.',
+    kind: 'filter',
+    parameters: [],
+    ports: [{ direction: 'input', key: 'mask', kind: 'mask', label: 'Mask' }],
+    region: { kind: 'identity' },
+    title: 'Filter Layer',
+    type: 'filter',
+  }),
   processor(
     'process/crop',
     'Crop',
@@ -205,20 +227,23 @@ const definitions = [
     'A reversible opacity adjustment in the primary image path.',
     [numberParameter('amount', 'Amount', 1, 0, 1)],
   ),
-  processor('process/exposure', 'Exposure', 'Scales scene-linear light by photographic stops.', [
-    numberParameter('stops', 'Stops', 0, -20, 20),
-  ]),
-  processor('process/brightness', 'Brightness', 'Scales overall image brightness.', [
+  filterProcessor(
+    'process/exposure',
+    'Exposure',
+    'Scales scene-linear light by photographic stops.',
+    [numberParameter('stops', 'Stops', 0, -20, 20)],
+  ),
+  filterProcessor('process/brightness', 'Brightness', 'Scales overall image brightness.', [
     numberParameter('amount', 'Amount', 0, -100, 100),
   ]),
-  processor('process/levels', 'Levels', 'Remaps black, white, gamma, and output endpoints.', [
+  filterProcessor('process/levels', 'Levels', 'Remaps black, white, gamma, and output endpoints.', [
     numberParameter('inBlack', 'Input black', 0, 0, 1),
     numberParameter('inWhite', 'Input white', 1, 0, 1),
     numberParameter('gamma', 'Gamma', 1, 0.01, 100, 0.01),
     numberParameter('outBlack', 'Output black', 0, 0, 1),
     numberParameter('outWhite', 'Output white', 1, 0, 1),
   ]),
-  processor(
+  filterProcessor(
     'process/white-balance',
     'White balance',
     'Adjusts relative red, green, and blue response.',
@@ -227,22 +252,25 @@ const definitions = [
       numberParameter('tint', 'Tint', 0, -1, 1),
     ],
   ),
-  processor('process/contrast', 'Contrast', 'Adjusts contrast around middle gray.', [
+  filterProcessor('process/contrast', 'Contrast', 'Adjusts contrast around middle gray.', [
     numberParameter('amount', 'Amount', 0, -1, 10),
   ]),
-  processor('process/highlights', 'Highlights', 'Adjusts the brighter half of the tonal range.', [
+  filterProcessor(
+    'process/highlights',
+    'Highlights',
+    'Adjusts the brighter half of the tonal range.',
+    [numberParameter('amount', 'Amount', 0, -100, 100)],
+  ),
+  filterProcessor('process/shadows', 'Shadows', 'Adjusts the darker half of the tonal range.', [
     numberParameter('amount', 'Amount', 0, -100, 100),
   ]),
-  processor('process/shadows', 'Shadows', 'Adjusts the darker half of the tonal range.', [
+  filterProcessor('process/whites', 'Whites', 'Adjusts the white range and diffuse highlights.', [
     numberParameter('amount', 'Amount', 0, -100, 100),
   ]),
-  processor('process/whites', 'Whites', 'Adjusts the white range and diffuse highlights.', [
+  filterProcessor('process/blacks', 'Blacks', 'Adjusts the black range and shadow floor.', [
     numberParameter('amount', 'Amount', 0, -100, 100),
   ]),
-  processor('process/blacks', 'Blacks', 'Adjusts the black range and shadow floor.', [
-    numberParameter('amount', 'Amount', 0, -100, 100),
-  ]),
-  processor(
+  filterProcessor(
     'process/clarity',
     'Clarity',
     'Adjusts local midtone contrast with a tile-aware halo.',
@@ -250,13 +278,16 @@ const definitions = [
     { kind: 'halo' },
     'scalable',
   ),
-  processor('process/vibrance', 'Vibrance', 'Adjusts less colorful pixels preferentially.', [
+  filterProcessor('process/vibrance', 'Vibrance', 'Adjusts less colorful pixels preferentially.', [
     numberParameter('amount', 'Amount', 0, -100, 100),
   ]),
-  processor('process/saturation', 'Saturation', 'Adjusts colorfulness in linear working space.', [
-    numberParameter('amount', 'Amount', 1, 0, 10),
-  ]),
-  processor(
+  filterProcessor(
+    'process/saturation',
+    'Saturation',
+    'Adjusts colorfulness in linear working space.',
+    [numberParameter('amount', 'Amount', 1, 0, 10)],
+  ),
+  filterProcessor(
     'process/channel',
     'Channel inspection',
     'Displays a selected color or alpha channel.',
@@ -271,7 +302,7 @@ const definitions = [
       },
     ],
   ),
-  processor(
+  filterProcessor(
     'process/blur',
     'Blur',
     'Applies an alpha-safe Gaussian blur.',
@@ -279,7 +310,7 @@ const definitions = [
     { kind: 'halo', radiusParameter: 'sigma' },
     'scalable',
   ),
-  processor(
+  filterProcessor(
     'process/sharpen',
     'Sharpen',
     'Applies alpha-safe unsharp masking.',
@@ -290,7 +321,7 @@ const definitions = [
     { kind: 'halo', radiusParameter: 'radius' },
     'scalable',
   ),
-  processor(
+  filterProcessor(
     'process/noise-reduction',
     'Noise reduction',
     'Reduces high-frequency noise with an alpha-safe tile-aware filter.',
@@ -298,10 +329,10 @@ const definitions = [
     { kind: 'halo' },
     'scalable',
   ),
-  processor('process/vignette', 'Vignette', 'Darkens or lifts the image toward its edges.', [
+  filterProcessor('process/vignette', 'Vignette', 'Darkens or lifts the image toward its edges.', [
     numberParameter('amount', 'Amount', 0, -100, 100),
   ]),
-  processor('process/grain', 'Grain', 'Adds deterministic tile-stable monochrome grain.', [
+  filterProcessor('process/grain', 'Grain', 'Adds deterministic tile-stable monochrome grain.', [
     numberParameter('amount', 'Amount', 0, 0, 100),
     { ...numberParameter('seed', 'Seed', 0, 0, 2147483647), integer: true },
   ]),
@@ -437,6 +468,13 @@ export class NodeRegistry {
 
   get(type: string): NodeDefinition | undefined {
     return definitionsByType.get(type);
+  }
+
+  interchangeable(type: string): readonly NodeDefinition[] {
+    const group = this.get(type)?.interchangeGroup;
+    return group === undefined
+      ? []
+      : definitions.filter(definition => definition.interchangeGroup === group);
   }
 
   require(type: string): NodeDefinition {

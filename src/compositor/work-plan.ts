@@ -1,7 +1,7 @@
 import { effectInputRegion } from './effects.js';
 import type { Entity, Graph } from './graph.js';
 import { graphHash } from './graph.js';
-import { evalEntity } from './render.js';
+import { evalEntity, renderRegion } from './render.js';
 import { blendOnto, intersectRegion, makeSurface, type Region, type Surface } from './surface.js';
 import { TILE_SIZE, TileCache, type RenderQuality } from './tiles.js';
 
@@ -46,8 +46,20 @@ export interface PlannedTileResult {
   surface: Surface;
 }
 
-function requiredEntityRegion(entity: Entity, output: Region, scale: number): Region {
+function requiredEntityRegion(
+  entity: Entity,
+  entityIndex: number,
+  graph: Graph,
+  output: Region,
+  scale: number,
+): Region {
   let region = output;
+  for (let index = (graph.filters?.length ?? 0) - 1; index >= 0; index -= 1) {
+    const filter = graph.filters?.[index];
+    if (filter !== undefined && filter.position > entityIndex) {
+      region = effectInputRegion(filter.effect, region, scale);
+    }
+  }
   for (let index = entity.effects.length - 1; index >= 0; index -= 1) {
     const effect = entity.effects[index];
     if (effect !== undefined) region = effectInputRegion(effect, region, scale);
@@ -85,9 +97,9 @@ export function buildTileWorkPlan(request: ViewportTileRequest): TileWorkPlan {
       const centerY = output.y + output.h / 2;
       const distance = Math.hypot(centerX - viewportCenterX, centerY - viewportCenterY);
       tiles.push({
-        inputRequirements: request.graph.entities.map(entity => ({
+        inputRequirements: request.graph.entities.map((entity, entityIndex) => ({
           entityId: entity.id,
-          region: requiredEntityRegion(entity, output, request.scale),
+          region: requiredEntityRegion(entity, entityIndex, request.graph, output, request.scale),
         })),
         key: [
           graphHash(request.graph),
@@ -125,6 +137,27 @@ export function executeTileWorkPlan(
   const results: PlannedTileResult[] = [];
   for (const tile of plan.tiles) {
     if (!isCurrent(plan.generation)) break;
+    if ((plan.graph.filters?.length ?? 0) > 0) {
+      const graphKey = [
+        graphHash(plan.graph),
+        plan.targetKey,
+        plan.quality,
+        plan.scale.toPrecision(12),
+        tile.output.x,
+        tile.output.y,
+        tile.output.w,
+        tile.output.h,
+      ].join(':');
+      let filteredSurface = cache.get(graphKey);
+      if (filteredSurface === undefined) {
+        filteredSurface = renderRegion(plan.graph, tile.output, plan.scale);
+        cache.set(graphKey, filteredSurface);
+      }
+      if (isCurrent(plan.generation)) {
+        results.push({ key: tile.key, output: tile.output, surface: filteredSurface });
+      }
+      continue;
+    }
     const surface = makeSurface(tile.output);
     for (const entity of plan.graph.entities) {
       const entityKey = [

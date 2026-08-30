@@ -17,6 +17,7 @@ import {
   referenceSurfaceBytes,
 } from '../src/gpu/index.js';
 import {
+  applyProjectCommand,
   createEmbeddedImageAsset,
   createImportedProject,
   createNode,
@@ -25,6 +26,7 @@ import {
   nodeRegistry,
   parseProject,
   serializeProject,
+  type FilterLayerNode,
   type ProcessorNode,
 } from '../src/project/index.js';
 
@@ -130,6 +132,89 @@ describe('reversible processing vocabulary', () => {
       assert.ok(definition.region.kind);
       assert.ok(definition.ports.some(port => port.direction === 'input' && port.kind === 'mask'));
     }
+  });
+
+  it('offers the photographic and spatial filters as one interchangeable family', () => {
+    assert.deepEqual(
+      nodeRegistry.interchangeable('process/exposure').map(definition => definition.type),
+      [
+        'process/exposure',
+        'process/brightness',
+        'process/levels',
+        'process/white-balance',
+        'process/contrast',
+        'process/highlights',
+        'process/shadows',
+        'process/whites',
+        'process/blacks',
+        'process/clarity',
+        'process/vibrance',
+        'process/saturation',
+        'process/channel',
+        'process/blur',
+        'process/sharpen',
+        'process/noise-reduction',
+        'process/vignette',
+        'process/grain',
+      ],
+    );
+    assert.deepEqual(nodeRegistry.interchangeable('process/composite'), []);
+  });
+
+  it('adds a generic filter layer and switches its operation without replacing it', () => {
+    const filter = createNode('filter', 'node-filter') as FilterLayerNode;
+    const mask = createNode('source/mask', 'node-filter-mask');
+    const inserted = applyProjectCommand(projectFixture(), {
+      commands: [
+        { node: filter, parentId: 'node-target', type: 'insert-node' },
+        { node: mask, parentId: null, type: 'insert-node' },
+        {
+          type: 'connect',
+          wire: {
+            from: { nodeId: mask.id, port: 'mask' },
+            id: 'wire-filter-mask',
+            to: { nodeId: filter.id, port: 'mask' },
+          },
+        },
+      ],
+      type: 'batch',
+    });
+    const target = inserted.nodes['node-target'];
+    assert.equal(target?.type, 'target');
+    if (target?.type !== 'target') return;
+    assert.deepEqual(target.childIds, ['node-layer', filter.id]);
+    const brightened = applyProjectCommand(inserted, {
+      filterType: 'process/brightness',
+      nodeId: filter.id,
+      type: 'set-filter-type',
+    });
+    const adjusted = applyProjectCommand(brightened, {
+      key: 'amount',
+      nodeId: filter.id,
+      type: 'set-parameter',
+      value: 25,
+    });
+    const changed = applyProjectCommand(adjusted, {
+      filterType: 'process/clarity',
+      nodeId: filter.id,
+      type: 'set-filter-type',
+    });
+    const changedFilter = changed.nodes[filter.id];
+    assert.equal(changedFilter?.type, 'filter');
+    if (changedFilter?.type !== 'filter') return;
+    assert.equal(changedFilter.id, filter.id);
+    assert.equal(changedFilter.filterType, 'process/clarity');
+    assert.deepEqual(changedFilter.parameters, { amount: 25, bypass: false });
+    assert.equal(changed.wires[0]?.to.nodeId, filter.id);
+    const projection = projectTargetToGraph(
+      changed,
+      'node-target',
+      new Map([['asset-processing', { data: pixels, height: 3, revision: 'filter', width: 3 }]]),
+    );
+    assert.equal(projection.graph.filters?.[0]?.id, filter.id);
+    assert.equal(projection.graph.filters?.[0]?.position, 1);
+    assert.equal(projection.graph.filters?.[0]?.effect.kind, 'clarity');
+    assert.ok(projection.graph.filters?.[0]?.effect.mask);
   });
 
   it('evaluates and GPU-encodes every pixel operation with matching alpha-safe bytes', () => {
