@@ -80,13 +80,13 @@ export function renderEmptyCompositeStack(container: HTMLElement): void {
   const shell = document.createElement('div');
   shell.className = 'structure-row-shell';
   shell.style.setProperty('--structure-depth', '0');
-  shell.style.setProperty('--structure-row-height', '64px');
-  shell.style.setProperty('--structure-thumbnail-size', '42px');
+  shell.style.setProperty('--structure-row-height', '48px');
+  shell.style.setProperty('--structure-thumbnail-size', '28px');
   const row = document.createElement('div');
   row.className = 'structure-chiclet kind-target';
   row.role = 'treeitem';
   row.tabIndex = 0;
-  row.setAttribute('aria-label', 'Untitled composite, export bounds not set');
+  row.setAttribute('aria-label', 'Untitled composite');
   row.setAttribute('aria-level', '1');
   row.setAttribute('aria-selected', 'true');
   const disclosure = document.createElement('span');
@@ -102,13 +102,11 @@ export function renderEmptyCompositeStack(container: HTMLElement): void {
   copy.className = 'structure-copy';
   const name = document.createElement('strong');
   name.textContent = 'Untitled';
-  const summary = document.createElement('span');
-  summary.textContent = 'Composite / export bounds not set';
-  copy.append(name, summary);
+  copy.append(name);
   interior.append(glyph, copy);
   row.append(disclosure, interior);
   shell.append(row);
-  container.dataset.density = 'standard';
+  container.dataset.density = 'compact';
   container.replaceChildren(shell);
 }
 

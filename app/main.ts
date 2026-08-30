@@ -2057,7 +2057,7 @@ const dispose = createRoot(disposeRoot => {
     renderProjectTree(layerTree, editor.project, {
       density: densityPolicy({
         availableWidth: availableStructureWidth,
-        desiredRowHeight: 64,
+        desiredRowHeight: 48,
       }),
       expanded,
       onDelete: deleteNode,

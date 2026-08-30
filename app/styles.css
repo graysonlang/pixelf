@@ -379,19 +379,19 @@ button:disabled {
   backdrop-filter: blur(18px) saturate(120%);
   background: var(--panel-glass);
   border: 1px solid var(--line-strong);
-  border-radius: 11px;
-  bottom: 12px;
-  box-shadow: 0 18px 50px var(--shadow);
+  border-radius: 0;
+  bottom: 0;
+  box-shadow: none;
   display: flex;
   flex-direction: column;
-  max-height: calc(52% - 18px);
+  max-height: 52%;
   max-width: calc(100% - 80px);
   min-height: 0;
   overflow: hidden;
-  padding: 12px;
+  padding: 8px;
   position: absolute;
-  right: 12px;
-  width: 320px;
+  right: 0;
+  width: 280px;
   z-index: 20;
 }
 
@@ -400,7 +400,7 @@ button:disabled {
   border-bottom: 1px solid var(--line);
   display: flex;
   justify-content: flex-end;
-  padding: 1px 2px 9px;
+  padding: 0 0 7px;
 }
 
 .add-menu-button {
@@ -494,10 +494,10 @@ button:disabled {
 .layer-tree {
   display: grid;
   flex: 1 1 auto;
-  gap: 4px;
+  gap: 2px;
   min-height: 0;
   overflow: auto;
-  padding: 3px;
+  padding: 2px;
 }
 
 .structure-row-shell {
@@ -872,16 +872,16 @@ button:disabled {
   backdrop-filter: blur(18px) saturate(120%);
   background: var(--panel-glass);
   border: 1px solid var(--line-strong);
-  border-radius: 11px;
-  box-shadow: 0 18px 50px var(--shadow);
-  max-height: calc(48% - 18px);
+  border-radius: 0;
+  box-shadow: none;
+  max-height: 48%;
   max-width: calc(100% - 80px);
   min-height: 0;
   overflow: auto;
   padding: 12px;
   position: absolute;
-  right: 12px;
-  top: 12px;
+  right: 0;
+  top: 0;
   width: 280px;
   z-index: 20;
 }
@@ -1414,12 +1414,12 @@ button:disabled {
 
 @media (max-width: 650px) {
   .layers-panel {
-    max-height: calc(50% - 18px);
-    width: min(280px, calc(100% - 80px));
+    max-height: 50%;
+    width: min(280px, calc(100% - 68px));
   }
 
   .properties-panel {
-    max-height: calc(42% - 18px);
-    width: min(280px, calc(100% - 80px));
+    max-height: 42%;
+    width: min(280px, calc(100% - 68px));
   }
 }
