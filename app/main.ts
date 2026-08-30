@@ -21,6 +21,7 @@ import {
   duplicateSubtreeCommand,
   EditorState,
   findPrimaryParent,
+  nodeRegistry,
   serializeProject,
   type FilterLayerNode,
   type LayerNode,
@@ -53,6 +54,7 @@ import {
   renderProjectTree,
   renderProperties,
 } from '../src/ui/editor-view.js';
+import { historyShortcut } from '../src/ui/history-controls.js';
 import { primaryShortcutLabel, shortcutLabel } from '../src/ui/platform.js';
 import {
   isThemePreference,
@@ -228,6 +230,12 @@ const dispose = createRoot(disposeRoot => {
   const quickActionsOverlay = requireElement<HTMLElement>('#quick-actions-overlay');
   const quickActionsInput = requireElement<HTMLInputElement>('#quick-actions-input');
   const quickActionsResults = requireElement<HTMLElement>('#quick-actions-results');
+  const undoShortcut = requireElement<HTMLElement>('#undo-shortcut');
+  const redoShortcut = requireElement<HTMLElement>('#redo-shortcut');
+  const historyShortcutLabel = requireElement<HTMLElement>('#history-shortcut');
+  const historyOverlay = requireElement<HTMLElement>('#history-overlay');
+  const historyList = requireElement<HTMLElement>('#history-list');
+  const historyCloseButton = requireElement<HTMLButtonElement>('#history-close-button');
   const settingsShortcut = requireElement<HTMLElement>('#settings-shortcut');
   const actualSizeShortcut = requireElement<HTMLElement>('#actual-size-shortcut');
   const settingsOverlay = requireElement<HTMLElement>('#settings-overlay');
@@ -335,6 +343,9 @@ const dispose = createRoot(disposeRoot => {
   quickActionsShortcut.textContent = primaryShortcut('/');
   settingsShortcut.textContent = primaryShortcut(',');
   actualSizeShortcut.textContent = primaryShortcut('0');
+  undoShortcut.textContent = primaryShortcut('Z');
+  redoShortcut.textContent = shortcutLabel(['shift'], primaryShortcut('Z'));
+  historyShortcutLabel.textContent = primaryShortcut('Y');
 
   const manager = new GpuDeviceManager({
     onContext: (context, generation) => {
@@ -354,6 +365,7 @@ const dispose = createRoot(disposeRoot => {
   const refreshProject = (refreshProperties = true): void => {
     setProjectGeneration(generation => generation + 1);
     if (refreshProperties) setPropertiesGeneration(generation => generation + 1);
+    if (historyOverlay.classList.contains('open')) renderHistory();
   };
   const refreshTree = (): void => {
     setTreeGeneration(generation => generation + 1);
@@ -378,6 +390,12 @@ const dispose = createRoot(disposeRoot => {
   const selectNode = (nodeId: string): void => {
     currentEditor()?.select([nodeId]);
     setSelectedNodeId(nodeId);
+  };
+  const restoreHistorySelection = (editor: EditorState): void => {
+    const selectedId = editor.selectedNodeIds.find(
+      nodeId => editor.project.nodes[nodeId] !== undefined,
+    );
+    setSelectedNodeId(selectedId ?? null);
   };
   const toggleNode = (nodeId: string): void => {
     if (expanded.has(nodeId)) expanded.delete(nodeId);
@@ -739,11 +757,15 @@ const dispose = createRoot(disposeRoot => {
   };
 
   const undo = (): void => {
-    currentEditor()?.undo();
+    const editor = currentEditor();
+    if (editor === null || !editor.undo()) return;
+    restoreHistorySelection(editor);
     refreshProject();
   };
   const redo = (): void => {
-    currentEditor()?.redo();
+    const editor = currentEditor();
+    if (editor === null || !editor.redo()) return;
+    restoreHistorySelection(editor);
     refreshProject();
   };
   const deleteSelected = (): void => {
@@ -848,6 +870,8 @@ const dispose = createRoot(disposeRoot => {
       keywords: ['history'],
       label: 'Undo',
       run: undo,
+      shortcut: primaryShortcut('Z'),
+      surfaces: ['keyboard', 'menu', 'quick-actions'],
     }),
     appAction({
       enabled: () => currentEditor()?.canRedo ?? false,
@@ -856,6 +880,18 @@ const dispose = createRoot(disposeRoot => {
       keywords: ['history'],
       label: 'Redo',
       run: redo,
+      shortcut: shortcutLabel(['shift'], primaryShortcut('Z')),
+      surfaces: ['keyboard', 'menu', 'quick-actions'],
+    }),
+    appAction({
+      enabled: () => currentEditor() !== null,
+      group: 'history',
+      id: 'history',
+      keywords: ['changes', 'states', 'time travel'],
+      label: 'History...',
+      run: () => openHistory(),
+      shortcut: primaryShortcut('Y'),
+      surfaces: ['keyboard', 'menu', 'quick-actions'],
     }),
     appAction({
       enabled: () => currentEditor() !== null,
@@ -1209,6 +1245,85 @@ const dispose = createRoot(disposeRoot => {
     quickActionsOverlay.classList.add('open');
     requestAnimationFrame(() => quickActionsInput.focus());
   };
+  const historyTimeFormatter = new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  function focusCurrentHistory(): void {
+    const current = historyList.querySelector<HTMLButtonElement>(
+      '.history-entry[aria-current="step"]',
+    );
+    current?.focus({ preventScroll: true });
+    current?.scrollIntoView({ block: 'nearest' });
+  }
+  function renderHistory(): void {
+    const editor = currentEditor();
+    const fragment = document.createDocumentFragment();
+    for (const item of [...(editor?.history ?? [])].reverse()) {
+      const button = document.createElement('button');
+      button.className = 'history-entry';
+      button.dataset.historyId = String(item.id);
+      button.dataset.position = item.position;
+      button.dataset.testid = `history-state-${item.id}`;
+      button.type = 'button';
+      if (item.position === 'current') button.setAttribute('aria-current', 'step');
+
+      const label = document.createElement('span');
+      label.className = 'history-entry-label';
+      label.textContent = item.label;
+      const meta = document.createElement('span');
+      meta.className = 'history-entry-meta';
+      const time = document.createElement('time');
+      const date = new Date(item.time);
+      time.dateTime = date.toISOString();
+      time.textContent = historyTimeFormatter.format(date);
+      meta.append(time);
+      const statusText =
+        item.position === 'current' ? 'Current' : item.position === 'future' ? 'Undone' : null;
+      for (const status of [item.saved ? 'Saved' : null, statusText]) {
+        if (status === null) continue;
+        const badge = document.createElement('span');
+        badge.className = 'history-entry-status';
+        badge.textContent = status;
+        meta.append(badge);
+      }
+      button.append(label, meta);
+      button.addEventListener('click', () => {
+        const activeEditor = currentEditor();
+        if (activeEditor === null || item.id === activeEditor.currentHistoryId) return;
+        if (!activeEditor.goToHistoryState(item.id)) return;
+        restoreHistorySelection(activeEditor);
+        refreshProject();
+        requestAnimationFrame(focusCurrentHistory);
+      });
+      fragment.append(button);
+    }
+    historyList.replaceChildren(fragment);
+  }
+  function closeHistory(restoreFocus = false): void {
+    if (!historyOverlay.classList.contains('open')) return;
+    historyOverlay.classList.remove('open');
+    historyOverlay.setAttribute('aria-hidden', 'true');
+    historyOverlay.inert = true;
+    appShell.inert = false;
+    if (restoreFocus) menuButton.focus();
+  }
+  function openHistory(): void {
+    if (currentEditor() === null) return;
+    closeQuickActions();
+    closeExportDialog();
+    closeSettings();
+    setMenuOpen(false);
+    setAddMenuOpen(false);
+    setZoomMenuOpen(false);
+    renderHistory();
+    appShell.inert = true;
+    historyOverlay.inert = false;
+    historyOverlay.setAttribute('aria-hidden', 'false');
+    historyOverlay.classList.add('open');
+    requestAnimationFrame(focusCurrentHistory);
+  }
   const updateExportSummary = (): void => {
     const selected = selectedImage();
     const targetId = selected?.editor.project.targetIds[0];
@@ -1249,6 +1364,7 @@ const dispose = createRoot(disposeRoot => {
     const target = targetId === undefined ? undefined : selected?.editor.project.nodes[targetId];
     if (target?.type !== 'target') return;
     closeQuickActions();
+    closeHistory();
     closeSettings();
     setMenuOpen(false);
     setAddMenuOpen(false);
@@ -1277,6 +1393,7 @@ const dispose = createRoot(disposeRoot => {
   function openSettings(): void {
     closeQuickActions();
     closeExportDialog();
+    closeHistory();
     setMenuOpen(false);
     setAddMenuOpen(false);
     setZoomMenuOpen(false);
@@ -1571,6 +1688,25 @@ const dispose = createRoot(disposeRoot => {
     if (event.target === settingsOverlay) closeSettings(true);
   };
   const onSettingsCloseButtonClick = (): void => closeSettings(true);
+  const onHistoryOverlayPointerDown = (event: PointerEvent): void => {
+    if (event.target === historyOverlay) closeHistory(true);
+  };
+  const onHistoryCloseButtonClick = (): void => closeHistory(true);
+  const onHistoryListKeyDown = (event: KeyboardEvent): void => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    const entries = Array.from(historyList.querySelectorAll<HTMLButtonElement>('.history-entry'));
+    if (entries.length === 0) return;
+    event.preventDefault();
+    const currentIndex = entries.indexOf(document.activeElement as HTMLButtonElement);
+    let nextIndex = currentIndex;
+    if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = entries.length - 1;
+    else {
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      nextIndex = (Math.max(0, currentIndex) + direction + entries.length) % entries.length;
+    }
+    entries[nextIndex]?.focus();
+  };
   const onSettingsChange = (event: Event): void => {
     const input = event.target;
     if (!(input instanceof HTMLInputElement) || input.name !== 'settings-theme') return;
@@ -1633,6 +1769,23 @@ const dispose = createRoot(disposeRoot => {
       }
       return;
     }
+    if (historyOverlay.classList.contains('open')) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeHistory(true);
+        return;
+      }
+      const shortcut = historyShortcut(event);
+      if (shortcut !== null) {
+        event.preventDefault();
+        if (shortcut === 'open') closeHistory(true);
+        else {
+          executeActionById(shortcut, 'keyboard');
+          requestAnimationFrame(focusCurrentHistory);
+        }
+      }
+      return;
+    }
     if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key === '/') {
       event.preventDefault();
       if (quickActionsOverlay.classList.contains('open')) closeQuickActions(true);
@@ -1661,6 +1814,12 @@ const dispose = createRoot(disposeRoot => {
       target instanceof HTMLSelectElement ||
       (target instanceof HTMLElement && target.isContentEditable)
     ) {
+      return;
+    }
+    const historyAction = historyShortcut(event);
+    if (historyAction !== null) {
+      event.preventDefault();
+      executeActionById(historyAction === 'open' ? 'history' : historyAction, 'keyboard');
       return;
     }
     if (pixelGridShortcut(event)) {
@@ -1722,6 +1881,9 @@ const dispose = createRoot(disposeRoot => {
   quickActionsInput.addEventListener('input', onQuickActionsInput);
   quickActionsInput.addEventListener('keydown', onQuickActionsInputKeyDown);
   quickActionsOverlay.addEventListener('pointerdown', onQuickActionsOverlayPointerDown);
+  historyOverlay.addEventListener('pointerdown', onHistoryOverlayPointerDown);
+  historyCloseButton.addEventListener('click', onHistoryCloseButtonClick);
+  historyList.addEventListener('keydown', onHistoryListKeyDown);
   exportOverlay.addEventListener('pointerdown', onExportOverlayPointerDown);
   exportCloseButton.addEventListener('click', onExportCloseButtonClick);
   exportCancelButton.addEventListener('click', onExportCancelButtonClick);
@@ -1795,6 +1957,9 @@ const dispose = createRoot(disposeRoot => {
     quickActionsInput.removeEventListener('input', onQuickActionsInput);
     quickActionsInput.removeEventListener('keydown', onQuickActionsInputKeyDown);
     quickActionsOverlay.removeEventListener('pointerdown', onQuickActionsOverlayPointerDown);
+    historyOverlay.removeEventListener('pointerdown', onHistoryOverlayPointerDown);
+    historyCloseButton.removeEventListener('click', onHistoryCloseButtonClick);
+    historyList.removeEventListener('keydown', onHistoryListKeyDown);
     exportOverlay.removeEventListener('pointerdown', onExportOverlayPointerDown);
     exportCloseButton.removeEventListener('click', onExportCloseButtonClick);
     exportCancelButton.removeEventListener('click', onExportCancelButtonClick);
@@ -1922,15 +2087,26 @@ const dispose = createRoot(disposeRoot => {
       return;
     }
     renderProperties(selectionProperties, editor.project, selectedId, {
-      onParameter: (nodeId, key, value, options) =>
+      onParameter: (nodeId, key, value, options) => {
+        const node = editor.project.nodes[nodeId];
+        const definition =
+          node === undefined
+            ? undefined
+            : nodeRegistry.require(node.type === 'filter' ? node.filterType : node.type);
+        const parameterLabel =
+          definition?.parameters.find(parameter => parameter.key === key)?.label ?? key;
         runCommand(
           () =>
             editor.dispatch(
               { key, nodeId, type: 'set-parameter', value },
-              { label: `Set ${key}`, mergeKey: `${nodeId}:${key}` },
+              {
+                label: `Change ${parameterLabel.toLowerCase()}`,
+                mergeKey: `${nodeId}:${key}`,
+              },
             ),
           options?.preserveControls !== true,
-        ),
+        );
+      },
       onProjectName: name =>
         runCommand(() =>
           editor.dispatch(
@@ -1942,7 +2118,7 @@ const dispose = createRoot(disposeRoot => {
         runCommand(() =>
           editor.dispatch(
             { filterType, nodeId, type: 'set-filter-type' },
-            { label: `Change filter to ${filterType}` },
+            { label: `Change filter to ${nodeRegistry.require(filterType).title}` },
           ),
         ),
       onTargetContract: (nodeId, contract, options) =>

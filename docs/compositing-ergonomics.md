@@ -121,6 +121,25 @@ Layer order changes by direct drag and by an equivalent keyboard gesture; persis
 The left tool rail owns the main menu, move/select, brush, eyedropper, and foreground/background paint colors.
 Properties remain separate from the layer stack so choosing Composite exposes the file name, export contract, and color settings without making them look like pixels.
 
+## Runtime history
+
+Each open Composite owns one runtime history cursor over at most 50 immutable project states.
+The initial open state and every committed command carry a user-facing label, timestamp, canonical project snapshot, and selected-node context.
+Continuous control edits may coalesce by merge key within a short window, while an explicit transaction commits a complete gesture as one state.
+Commands whose canonical serialization does not change create no history state.
+
+Undo, redo, and the History dialog all move the same cursor.
+The dialog lists the newest state first, distinguishes the current, saved, and undone states, and lets the user jump directly to any retained state.
+Moving backward does not itself author a new project command; a subsequent edit discards the future branch before appending its state, matching ordinary undo history semantics.
+Restoring a state also restores its selected-node context when that node exists in the restored project.
+
+Save marks the current canonical serialization as the saved state and blocks the next edit from coalescing across that boundary.
+Dirty state remains derived by comparing the current project with that saved serialization.
+
+History is editor state rather than Composite meaning.
+It is not included in `.pixelf` serialization or recovery snapshots, and opening another Composite creates an independent history.
+A future durable append-only change log would need its own versioned storage, asset-retention, compaction, and state-addressing contract rather than silently expanding the working document.
+
 ## Follow-up semantic slices
 
 - Add a canonical untitled session that can have no layers and no resolved pixel extent.

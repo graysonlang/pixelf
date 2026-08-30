@@ -149,4 +149,85 @@ describe('EditorState', () => {
     assert.equal(restored.type, 'target');
     if (restored.type === 'target') assert.equal(restored.background, undefined);
   });
+
+  it('exposes labeled states and jumps through them with selection context', () => {
+    const state = editor();
+    state.select(['node-layer']);
+    state.dispatch(
+      { name: 'First name', type: 'set-project-name' },
+      { label: 'Rename composite', now: 10 },
+    );
+    state.dispatch(
+      { key: 'opacity', nodeId: 'node-layer', type: 'set-parameter', value: 0.4 },
+      { label: 'Set opacity', now: 20 },
+    );
+    state.select(['node-target']);
+
+    assert.deepEqual(
+      state.history.map(item => [item.label, item.position]),
+      [
+        ['Open composite', 'past'],
+        ['Rename composite', 'past'],
+        ['Set opacity', 'current'],
+      ],
+    );
+    const rename = state.history.find(item => item.label === 'Rename composite');
+    assert.ok(rename);
+    assert.equal(state.goToHistoryState(rename.id), true);
+    assert.equal(state.project.name, 'First name');
+    assert.equal(editorNode(state, 'node-layer').parameters.opacity, 1);
+    assert.deepEqual(state.selectedNodeIds, ['node-layer']);
+    assert.equal(state.canUndo, true);
+    assert.equal(state.canRedo, true);
+
+    state.dispatch(
+      { name: 'Branched name', type: 'set-project-name' },
+      { label: 'Rename after history jump', now: 30 },
+    );
+    assert.equal(state.canRedo, false);
+    assert.deepEqual(
+      state.history.map(item => item.label),
+      ['Open composite', 'Rename composite', 'Rename after history jump'],
+    );
+  });
+
+  it('keeps saved states as merge boundaries and skips no-op commands', () => {
+    const state = editor();
+    state.dispatch(
+      { key: 'opacity', nodeId: 'node-layer', type: 'set-parameter', value: 0.8 },
+      { label: 'Set opacity', mergeKey: 'node-layer:opacity', now: 10 },
+    );
+    state.markSaved();
+    state.dispatch(
+      { key: 'opacity', nodeId: 'node-layer', type: 'set-parameter', value: 0.6 },
+      { label: 'Set opacity', mergeKey: 'node-layer:opacity', now: 20 },
+    );
+    state.dispatch(
+      { key: 'opacity', nodeId: 'node-layer', type: 'set-parameter', value: 0.6 },
+      { label: 'No-op opacity', now: 30 },
+    );
+
+    assert.equal(state.history.length, 3);
+    assert.equal(state.history[1]?.saved, true);
+    assert.equal(state.history[2]?.position, 'current');
+    assert.equal(state.dirty, true);
+  });
+
+  it('bounds each composite history to fifty immutable states', () => {
+    const state = editor();
+    for (let index = 0; index < 60; index += 1) {
+      state.dispatch(
+        { name: `Composite ${index}`, type: 'set-project-name' },
+        { label: `Rename ${index}`, now: index },
+      );
+    }
+
+    assert.equal(state.history.length, 50);
+    assert.equal(state.history[0]?.label, 'Rename 10');
+    assert.equal(state.history.at(-1)?.label, 'Rename 59');
+    let undoCount = 0;
+    while (state.undo()) undoCount += 1;
+    assert.equal(undoCount, 49);
+    assert.equal(state.project.name, 'Composite 10');
+  });
 });

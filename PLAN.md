@@ -204,6 +204,23 @@ Completion criteria:
 - Shared or wired branches have deterministic invalidation, lifetime, and serialization behavior.
 - The simple layer workflow stays available without exposing general graph machinery.
 
+## Phase 9 - Composite-first layer-stack ergonomics
+
+Goal: present the target-first document through a sparse, familiar Composite and z-order layer workflow.
+
+- Keep imported bitmap sources implicit in their owning Layer rows while retaining source identity and bounds in the canonical document.
+- Present the target contract as the Composite row at the base of the visible stack and keep Save distinct from flattened Export.
+- Use a compact left tool rail, direct layer drag ordering, contextual layer actions, and separate properties.
+- Present Fill and Opacity as scrubbable percentages while keeping their normalized compositor values and distinct pipeline stages.
+- Add a bounded per-Composite history cursor with labeled state navigation, selection restoration, standard undo and redo shortcuts, merge-aware continuous edits, saved-state boundaries, and redo-branch truncation.
+
+Completion criteria:
+
+- A flat import immediately behaves as a Pixelf Composite without a special background layer or source row.
+- Layers, Filter Layers, attached processing, Composite properties, Save, and Export use the product vocabulary consistently.
+- Every authored command appears as one navigable history state, continuous edits coalesce coherently, and a history jump updates the document, selection, preview, properties, and available undo or redo actions together.
+- Runtime history remains separate from the saved document format unless a durable history-storage contract is authorized separately.
+
 ## Deferred until separately authorized
 
 - Cloud projects, accounts, collaboration, or server-side processing

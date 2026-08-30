@@ -4,7 +4,11 @@ export {
   duplicateSubtreeCommand,
   type ProjectCommand,
 } from './commands.js';
-export { EditorState } from './editor-state.js';
+export {
+  EditorState,
+  type EditorHistoryItem,
+  type EditorHistoryPosition,
+} from './editor-state.js';
 export { nodeRegistry, type NodeDefinition, type ParameterDefinition } from './registry.js';
 export {
   NamedProjectSession,

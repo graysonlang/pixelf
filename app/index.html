@@ -23,6 +23,19 @@
         <span>Export composite...</span>
       </button>
       <div class="menu-separator" aria-hidden="true"></div>
+      <button id="undo-button" class="menu-item" type="button" data-action="undo" disabled>
+        <span>Undo</span>
+        <kbd id="undo-shortcut">&#8984;Z</kbd>
+      </button>
+      <button id="redo-button" class="menu-item" type="button" data-action="redo" disabled>
+        <span>Redo</span>
+        <kbd id="redo-shortcut">&#8679;&#8984;Z</kbd>
+      </button>
+      <button id="history-button" class="menu-item" type="button" data-action="history" disabled>
+        <span>History...</span>
+        <kbd id="history-shortcut">&#8984;Y</kbd>
+      </button>
+      <div class="menu-separator" aria-hidden="true"></div>
       <button class="menu-item" type="button" data-action="settings">
         <span>Settings...</span>
         <kbd id="settings-shortcut">&#8984;,</kbd>
@@ -275,6 +288,20 @@
         spellcheck="false"
       >
       <div id="quick-actions-results" class="quick-actions-results"></div>
+    </section>
+  </div>
+
+  <div id="history-overlay" class="history-overlay" aria-hidden="true" inert>
+    <section class="history-panel" role="dialog" aria-modal="true" aria-labelledby="history-title">
+      <header class="history-heading">
+        <h2 id="history-title">History</h2>
+        <button id="history-close-button" class="history-close-button" type="button" aria-label="Close history">
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+            <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"></path>
+          </svg>
+        </button>
+      </header>
+      <section id="history-list" class="history-list" aria-label="Composite history"></section>
     </section>
   </div>
 

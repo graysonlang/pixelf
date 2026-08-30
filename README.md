@@ -92,6 +92,11 @@ Solid projects document and editor state into small reactive DOM updates.
 The evaluator projects document plus an explicit region and quality request into deterministic image work.
 The WebGPU runtime owns device resources and execution but never becomes the save format.
 
+Each open Composite owns a bounded runtime history of labeled immutable project states.
+Undo, redo, and direct history navigation move one cursor through those states; a fresh command after moving backward discards the abandoned redo branch.
+History also retains selection context, groups continuous edits through command merge keys or transactions, skips no-op commands, and treats Save as a merge boundary so the saved state remains reachable.
+The runtime history is editor state and is not serialized into the `.pixelf` document.
+
 ```text
 UI input -> command -> canonical project document
                          |              |
