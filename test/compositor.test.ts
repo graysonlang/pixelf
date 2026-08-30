@@ -152,6 +152,49 @@ describe('CPU reference compositor', () => {
     assert.deepEqual([...blended.data], [0.8125, 0.8125, 0.8125, 1]);
   });
 
+  it('makes affine edge sampling explicit and tile-stable', () => {
+    const source = image(2, 1, new Float32Array([1, 0, 0, 1, 0, 0, 1, 1]), 'edges');
+    const edgeGraph = (edgeSampling: 'clamp' | 'mirror' | 'repeat' | 'transparent'): Graph => ({
+      entities: [
+        entity(source, {
+          effects: [
+            {
+              edgeSampling,
+              inputBounds: { height: 1, width: 2, x: 0, y: 0 },
+              kind: 'affine',
+              pivotX: 0,
+              pivotY: 0,
+              rotation: 0,
+              scaleX: 1,
+              scaleY: 1,
+              x: 1,
+              y: 0,
+            },
+          ],
+          h: 1,
+          w: 2,
+        }),
+      ],
+    });
+    const firstChannel = (graph: Graph): number[] => {
+      const rendered = renderRegion(graph, { h: 1, w: 5, x: 0, y: 0 }, 1);
+      return [0, 4, 8, 12, 16].map(offset => rendered.data[offset] ?? 0);
+    };
+    assert.deepEqual(firstChannel(edgeGraph('transparent')), [0, 1, 0, 0, 0]);
+    assert.deepEqual(firstChannel(edgeGraph('clamp')), [1, 1, 0, 0, 0]);
+    assert.deepEqual(firstChannel(edgeGraph('repeat')), [0, 1, 0, 1, 0]);
+    assert.deepEqual(firstChannel(edgeGraph('mirror')), [1, 1, 0, 0, 1]);
+
+    const graph = edgeGraph('repeat');
+    const region = { h: 1, w: 300, x: 0, y: 0 };
+    const full = renderRegion(graph, region, 1);
+    const tiled = assembleTiles(
+      renderTiles({ graph, quality: 'final', region, scale: 1, targetKey: 'repeat-edges' }),
+      region,
+    );
+    assertPixelsEqual(tiled.data, full.data);
+  });
+
   it('applies a filter layer to the accumulated stack below but not layers above', () => {
     const filtered = renderRegion(
       {

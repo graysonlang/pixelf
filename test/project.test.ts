@@ -91,7 +91,7 @@ describe('Pixelf project document', () => {
     delete contract.outputBitDepth;
 
     const migrated = parseProject(JSON.stringify(legacy));
-    assert.equal(migrated.version, 4);
+    assert.equal(migrated.version, 5);
     const target = projectNode(migrated, 'node-target');
     assert.equal(target.type, 'target');
     if (target.type === 'target') {
@@ -145,6 +145,24 @@ describe('Pixelf project document', () => {
       assert.equal(migratedLayer.visible, true);
       assert.equal(migratedLayer.locked, false);
     }
+  });
+
+  it('migrates affine operations to explicit transparent edge sampling', () => {
+    const legacy = cloneProject(importedProject());
+    const layer = projectNode(legacy, 'node-layer');
+    assert.equal(layer.type, 'layer');
+    if (layer.type !== 'layer') return;
+    const transform = createNode('process/affine', 'node-transform') as ProcessorNode;
+    transform.childId = layer.childId;
+    layer.childId = transform.id;
+    legacy.nodes[transform.id] = transform;
+    const versionFour = legacy as unknown as Record<string, unknown>;
+    versionFour.version = 4;
+    delete transform.parameters.edgeSampling;
+
+    const migrated = parseProject(JSON.stringify(versionFour));
+    assert.equal(migrated.version, 5);
+    assert.equal(migrated.nodes[transform.id]?.parameters.edgeSampling, 'transparent');
   });
 
   it('distinguishes embedded, available linked, and missing linked assets', () => {

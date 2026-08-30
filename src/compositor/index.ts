@@ -13,6 +13,7 @@ export {
   type BlendMode,
   type CheckerSource,
   type Effect,
+  type EdgeSampling,
   type Entity,
   type EntityMatrix,
   type Graph,

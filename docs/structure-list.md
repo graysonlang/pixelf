@@ -1,6 +1,7 @@
 # Structure list
 
-Status: in progress. Implementation phases 0 through 2 are complete.
+Status: in progress. The pinned panel implements the headless model, density policy, selection, disclosure, type-ahead, sibling drag and keyboard reorder, and keyboard Group reparenting.
+The more general pointer-intent, unary-edge planning, touch, thumbnail, and secondary-dependency phases remain open.
 
 The structure list is a compact, touch-friendly projection of Pixelf's target-first document tree.
 It is intended to replace the current layer tree and its separate strip of top-level actions without exposing renderer implementation details in the common workflow.
@@ -174,7 +175,7 @@ export type NodeId = string;
 
 export type Density = "micro" | "compact" | "standard" | "expanded";
 
-export type PrimaryRelation = "root" | "ordered-child" | "unary-child";
+export type PrimaryRelation = "attached-child" | "ordered-child" | "root" | "unary-child";
 
 export interface Row {
   nodeId: NodeId;
@@ -308,13 +309,12 @@ Tab and Shift+Tab leave the tree as expected for a composite widget.
 | Enter | Invoke the row's primary editor action, normally showing or focusing properties. |
 | Space | Select the focused row. |
 | F2 | Rename when available. |
-| Cmd/Ctrl + Up/Down | Move the selected item through an ordered sibling list when legal. |
-| Registered move-in/move-out shortcuts | Request a shallower or deeper legal structural plan. |
+| Option/Alt + Up/Down | Move the selected item through an ordered sibling list when legal. |
+| Option/Alt + Left/Right | Move the selected item out of or into an adjacent Group when legal. |
 | Cmd/Ctrl + . | Open the action toolbar or overflow at the focused row. |
 | Escape | Close edit, menu, toolbar, or drill-in state in that order and return focus to the row. |
 
-The final move-in and move-out shortcuts require platform testing before they are fixed.
-They must not consume Tab and must not conflict with tree type-ahead.
+The structural shortcuts do not consume Tab and do not conflict with tree type-ahead.
 
 The tree supports type-ahead by node name.
 Unmodified single-letter action accelerators are not used while the tree owns focus.
@@ -607,13 +607,11 @@ Browser-visible phases also complete the browser validation described above.
 
 ## 19. Open decisions
 
-1. Which non-Tab shortcuts should represent move-in and move-out on macOS, Windows, and Linux?
-2. Should the pinned layer panel display target children in reversed compositing order from its first release?
-3. Which atomic document command best represents processor-chain reorder and insertion?
-4. Should selecting a dependency in the secondary-input disclosure replace primary-tree selection or open a tethered dependency inspector?
-5. Which density tiers are useful in the first pinned panel, and what minimum width triggers drill-in exploration?
-6. Should a narrow mobile properties surface be a tethered panel, a bottom sheet, or an explicit full-screen inspector?
-7. Which renderer details and copy belong in the optional diagnostics view?
+1. Which atomic document command best represents processor-chain reorder and insertion?
+2. Should selecting a dependency in the secondary-input disclosure replace primary-tree selection or open a tethered dependency inspector?
+3. Which density tiers are useful in the first pinned panel, and what minimum width triggers drill-in exploration?
+4. Should a narrow mobile properties surface be a tethered panel, a bottom sheet, or an explicit full-screen inspector?
+5. Which renderer details and copy belong in the optional diagnostics view?
 
 ## 20. Prototype note
 

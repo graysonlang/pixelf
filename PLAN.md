@@ -14,7 +14,7 @@ It should be updated when a phase materially changes direction or is completed.
 - [x] Phase 6 - Demand-driven tiles and large images
 - [x] Phase 7 - Durable projects and faithful export
 - [x] Phase 8 - Advanced wiring and extensibility
-- [ ] Phase 9 - Composite-first layer-stack ergonomics
+- [x] Phase 9 - Composite-first layer-stack ergonomics
 
 The completed phases establish the architectural foundation rather than the final product surface.
 [The base editing scope](docs/base-editing-scope.md) defines the viewing and manipulation capabilities for the next product slices, while [the structure-list design](docs/structure-list.md) defines their compact primary navigation surface.
@@ -213,6 +213,8 @@ Goal: present the target-first document through a sparse, familiar Composite and
 - Use a compact left tool rail, direct layer drag ordering, contextual layer actions, and separate properties.
 - Present Fill and Opacity as scrubbable percentages while keeping their normalized compositor values and distinct pipeline stages.
 - Add a bounded per-Composite history cursor with labeled state navigation, selection restoration, standard undo and redo shortcuts, merge-aware continuous edits, saved-state boundaries, and redo-branch truncation.
+- Support nested pass-through or isolated Groups, procedural Content Layers, generic switchable Filter Layers, and effects attached to Layers or Groups.
+- Keep transform edge sampling explicit and provide keyboard equivalents for sibling reorder and group depth movement.
 
 Completion criteria:
 
@@ -220,6 +222,7 @@ Completion criteria:
 - Layers, Filter Layers, attached processing, Composite properties, Save, and Export use the product vocabulary consistently.
 - Every authored command appears as one navigable history state, continuous edits coalesce coherently, and a history jump updates the document, selection, preview, properties, and available undo or redo actions together.
 - Runtime history remains separate from the saved document format unless a durable history-storage contract is authorized separately.
+- Empty and imported Composites, nested Groups, procedural content, attached effects, explicit transform edges, and destructive command labels survive validation, history, save, reload, tiled rendering, and the browser-visible layer workflow.
 
 ## Deferred until separately authorized
 

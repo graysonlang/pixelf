@@ -719,6 +719,50 @@ const dispose = createRoot(disposeRoot => {
     );
   };
 
+  const changeLayerDepth = (nodeId: string, direction: -1 | 1): void => {
+    const editor = currentEditor();
+    const node = editor?.project.nodes[nodeId];
+    if (
+      editor === null ||
+      (node?.type !== 'layer' &&
+        node?.type !== 'filter' &&
+        node?.type !== 'content' &&
+        node?.type !== 'group')
+    ) {
+      return;
+    }
+    const parent = findPrimaryParent(editor.project, node.id);
+    if (parent?.node.type !== 'target' && parent?.node.type !== 'group') return;
+    if (direction > 0) {
+      const groupId = parent.node.childIds[parent.index + 1];
+      const group = groupId === undefined ? undefined : editor.project.nodes[groupId];
+      if (group?.type !== 'group') return;
+      runCommand(() =>
+        editor.dispatch(
+          { index: 0, nodeId: node.id, parentId: group.id, type: 'move-node' },
+          { label: 'Move item into group' },
+        ),
+      );
+      expanded.add(group.id);
+      refreshTree();
+      return;
+    }
+    if (parent.node.type !== 'group') return;
+    const outer = findPrimaryParent(editor.project, parent.node.id);
+    if (outer?.node.type !== 'target' && outer?.node.type !== 'group') return;
+    runCommand(() =>
+      editor.dispatch(
+        {
+          index: outer.index,
+          nodeId: node.id,
+          parentId: outer.node.id,
+          type: 'move-node',
+        },
+        { label: 'Move item out of group' },
+      ),
+    );
+  };
+
   const reorderLayerInStack = (
     nodeId: string,
     anchorNodeId: string,
@@ -2367,6 +2411,7 @@ const dispose = createRoot(disposeRoot => {
       }),
       expanded,
       onDelete: deleteNode,
+      onDepthChange: changeLayerDepth,
       onLockChange: setStackItemLocked,
       onMoveLayer: moveLayerInStack,
       onOpenActions: openStructureToolbar,

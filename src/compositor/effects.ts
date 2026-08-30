@@ -64,6 +64,13 @@ function inverseAffinePoint(
 }
 
 function affineInputRegion(effect: AffineEffect, output: Region, scale: number): Region {
+  if (effect.edgeSampling !== 'transparent') {
+    const x = Math.floor(effect.inputBounds.x * scale);
+    const y = Math.floor(effect.inputBounds.y * scale);
+    const right = Math.ceil((effect.inputBounds.x + effect.inputBounds.width) * scale);
+    const bottom = Math.ceil((effect.inputBounds.y + effect.inputBounds.height) * scale);
+    return { h: bottom - y, w: right - x, x, y };
+  }
   const corners = [
     inverseAffinePoint(effect, output.x / scale, output.y / scale),
     inverseAffinePoint(effect, (output.x + output.w) / scale, output.y / scale),
@@ -78,6 +85,24 @@ function affineInputRegion(effect: AffineEffect, output: Region, scale: number):
   const right = Math.ceil(Math.max(...xs)) + 1;
   const bottom = Math.ceil(Math.max(...ys)) + 1;
   return { h: bottom - y, w: right - x, x, y };
+}
+
+function sampledEdgeCoordinate(
+  coordinate: number,
+  start: number,
+  length: number,
+  sampling: AffineEffect['edgeSampling'],
+): number | null {
+  if (length <= 0) return null;
+  const end = start + length;
+  if (coordinate >= start && coordinate < end) return coordinate;
+  if (sampling === 'transparent') return null;
+  if (sampling === 'clamp') return Math.max(start, Math.min(end - 1, coordinate));
+  const relative = coordinate - start;
+  if (sampling === 'repeat') return start + (((relative % length) + length) % length);
+  const period = length * 2;
+  const wrapped = ((relative % period) + period) % period;
+  return start + (wrapped < length ? wrapped : period - wrapped - 1);
 }
 
 function gaussianKernel(sigmaPixels: number): { radius: number; weights: number[] } {
@@ -444,6 +469,10 @@ function applyAffine(
 ): Surface {
   const output = makeSurface(outputRegion);
   const pixel = new Float32Array(4);
+  const inputX = Math.floor(effect.inputBounds.x * scale);
+  const inputY = Math.floor(effect.inputBounds.y * scale);
+  const inputRight = Math.ceil((effect.inputBounds.x + effect.inputBounds.width) * scale);
+  const inputBottom = Math.ceil((effect.inputBounds.y + effect.inputBounds.height) * scale);
   for (let y = 0; y < outputRegion.h; y += 1) {
     for (let x = 0; x < outputRegion.w; x += 1) {
       const sourcePoint = inverseAffinePoint(
@@ -452,12 +481,20 @@ function applyAffine(
         (outputRegion.y + y + 0.5) / scale,
       );
       if (sourcePoint === null) continue;
-      readPremul(
-        input,
+      const sourceX = sampledEdgeCoordinate(
         Math.floor(sourcePoint.x * scale),
-        Math.floor(sourcePoint.y * scale),
-        pixel,
+        inputX,
+        inputRight - inputX,
+        effect.edgeSampling,
       );
+      const sourceY = sampledEdgeCoordinate(
+        Math.floor(sourcePoint.y * scale),
+        inputY,
+        inputBottom - inputY,
+        effect.edgeSampling,
+      );
+      if (sourceX === null || sourceY === null) continue;
+      readPremul(input, sourceX, sourceY, pixel);
       output.data.set(pixel, (y * outputRegion.w + x) * 4);
     }
   }

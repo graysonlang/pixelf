@@ -13,6 +13,7 @@ import {
 } from '../src/compositor/index.js';
 import {
   flattenGraphForGpu,
+  gpuDirectRenderable,
   premultipliedSrgbMipLevels,
   referenceSurfaceBytes,
 } from '../src/gpu/index.js';
@@ -54,7 +55,18 @@ function entity(effect: Effect): Entity {
 const effects: readonly Effect[] = [
   { height: 2, kind: 'crop', width: 2, x: 0, y: 0 },
   { height: 2, kind: 'canvas-resize', width: 3, x: 0, y: 1 },
-  { kind: 'affine', pivotX: 1, pivotY: 1, rotation: 15, scaleX: 1, scaleY: 1, x: 0, y: 0 },
+  {
+    edgeSampling: 'transparent',
+    inputBounds: { height: 3, width: 3, x: 0, y: 0 },
+    kind: 'affine',
+    pivotX: 1,
+    pivotY: 1,
+    rotation: 15,
+    scaleX: 1,
+    scaleY: 1,
+    x: 0,
+    y: 0,
+  },
   { kind: 'exposure', stops: 0.5 },
   { amount: 0.2, kind: 'brightness' },
   { gamma: 1.2, inBlack: 0.1, inWhite: 0.9, kind: 'levels', outBlack: 0, outWhite: 1 },
@@ -287,6 +299,7 @@ describe('reversible processing vocabulary', () => {
       new Map([['asset-processing', { data: pixels, height: 3, revision: 'effect', width: 3 }]]),
     );
     assert.equal(projection.graph.entities[0]?.layerEffects?.[0]?.kind, 'drop-shadow');
+    assert.equal(gpuDirectRenderable(projection.graph), false);
 
     state.dispatch(duplicateSubtreeCommand(state.project, effect.id), {
       label: 'Duplicate layer effect',
@@ -511,6 +524,7 @@ describe('reversible processing vocabulary', () => {
       sourceId: 'node-rasterized',
       type: 'rasterize-node',
     });
+    assert.equal(state.history.at(-1)?.label, 'Rasterize branch to new asset');
     assert.equal(state.project.nodes['node-source'], undefined);
     assert.equal(state.project.nodes['node-rasterized']?.type, 'source/imported');
     state.undo();

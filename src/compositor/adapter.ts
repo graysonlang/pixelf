@@ -18,6 +18,7 @@ import {
   solid,
   type BlendMode,
   type Effect,
+  type EdgeSampling,
   type Entity,
   type EntityMask,
   type Graph,
@@ -181,6 +182,13 @@ function operationEffect(
       };
     case 'process/affine':
       return {
+        edgeSampling: stringParameter(node, 'edgeSampling') as EdgeSampling,
+        inputBounds: {
+          height: target.contract.height,
+          width: target.contract.width,
+          x: 0,
+          y: 0,
+        },
         kind: 'affine',
         pivotX: numberParameter(node, 'pivotX'),
         pivotY: numberParameter(node, 'pivotY'),

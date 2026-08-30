@@ -2,6 +2,7 @@ export { assetAvailability, createEmbeddedImageAsset, createLinkedImageAsset } f
 export {
   applyProjectCommand,
   duplicateSubtreeCommand,
+  projectCommandLabel,
   type ProjectCommand,
 } from './commands.js';
 export {

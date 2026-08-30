@@ -45,6 +45,13 @@ export type ProjectCommand =
     }
   | { commands: readonly ProjectCommand[]; type: 'batch' };
 
+export function projectCommandLabel(command: ProjectCommand): string {
+  if (command.type !== 'rasterize-node') return command.type;
+  return command.mode === 'new-asset'
+    ? 'Rasterize branch to new asset'
+    : 'Replace source asset pixels (destructive)';
+}
+
 function removeFromParent(project: PixelfProject, nodeId: string): void {
   const effectOwner = findLayerEffectOwner(project, nodeId);
   if (effectOwner !== null) {

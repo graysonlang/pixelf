@@ -1,4 +1,4 @@
-import { applyProjectCommand, type ProjectCommand } from './commands.js';
+import { applyProjectCommand, projectCommandLabel, type ProjectCommand } from './commands.js';
 import { cloneProject, serializeProject } from './project.js';
 import type { PixelfProject } from './types.js';
 import { validateProject } from './validation.js';
@@ -128,6 +128,7 @@ export class EditorState {
       return;
     }
     const time = options.now ?? Date.now();
+    const label = options.label ?? projectCommandLabel(command);
     const previous = this.states[this.historyCursor];
     const canMerge =
       !this.mergeBlocked &&
@@ -136,12 +137,12 @@ export class EditorState {
       previous?.mergeKey === options.mergeKey &&
       time - previous.time <= MERGE_WINDOW_MILLISECONDS;
     if (canMerge && previous !== undefined) {
-      previous.label = options.label ?? command.type;
+      previous.label = label;
       previous.project = cloneProject(after);
       previous.selection = [...this.selectedNodeIds];
       previous.time = time;
     } else {
-      this.appendState(options.label ?? command.type, after, time);
+      this.appendState(label, after, time);
       const appended = this.states[this.historyCursor];
       if (appended !== undefined) appended.mergeKey = options.mergeKey;
     }

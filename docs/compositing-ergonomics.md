@@ -2,8 +2,8 @@
 
 ## Status
 
-This note records the composite-first layer-stack direction established by the ergonomics spike.
-It refines how Pixelf presents its target-first document without replacing the canonical ownership and evaluation model.
+This note records the implemented composite-first layer-stack direction established by the ergonomics spike.
+It defines how Pixelf presents its target-first document without replacing the canonical ownership and evaluation model.
 
 ## Working document and flattened files
 
@@ -43,7 +43,9 @@ Layer placement and affine transforms are authored properties evaluated at previ
 Pixels outside the Composite export bounds remain available after transforms or bounds changes.
 
 Sampling outside a finite source is transparent by default.
-An effect or transform that needs clamp, repeat, mirror, background fill, or another edge behavior must declare that behavior explicitly.
+Transform operations expose Transparent, Clamp, Repeat, and Mirror as authored edge modes.
+Non-transparent modes request a stable finite input extent so isolated tiles agree with a full render.
+Any future background-fill or operation-specific edge behavior must be declared explicitly rather than inferred from file format.
 JPEG does not acquire a special opaque background layer merely because its encoded format lacks alpha.
 
 ## Layer pipeline
@@ -67,6 +69,7 @@ Fill controls pixels entering the layer effect chain, while Opacity controls the
 Filters may be authored non-destructively as Filter Layers rather than baking a bitmap operation.
 A user may explicitly rasterize or bake a selected branch when a destructive workflow is clearer or more efficient.
 That command must state whether it creates a new asset or replaces an owned asset, and undo must retain the prior project meaning.
+History uses the labels `Rasterize branch to new asset` and `Replace source asset pixels (destructive)` so these two ownership boundaries cannot appear as the same generic operation.
 
 ## Stack items, Filter Layers, and layer effects
 
@@ -93,7 +96,8 @@ Changing the operation preserves the Filter Layer ID, z-order, mask wires, bypas
 The existing unary `process/*` nodes remain the implementation vocabulary for reversible processing inside an owned Layer branch.
 A Filter Layer reuses that operation vocabulary but applies the selected operation to the accumulated stack beneath its own z-order position.
 Structural processors such as crop, transform, composite, and adjustment-group boundaries are not interchangeable Filter Layer types.
-Group scope, procedural content, and attached layer-effect ownership still require their own document-semantic slices rather than superficial menu aliases.
+Groups, procedural content, and attached effects are distinct document records with their own ownership and validation rather than superficial menu aliases.
+Drop shadow derives pixels from its owner's masked coverage, while background blur declares and evaluates a backdrop dependency beneath that owner.
 
 ## Color handling
 
@@ -124,6 +128,7 @@ Inactive visibility and lock controls may recede until row hover or selection, w
 Duplicate and Delete live in the layer context menu and remain available from the keyboard.
 Rows do not reserve a persistent overflow button for that menu; right-click and the keyboard context-menu gesture open the same hovering action surface.
 Layer order changes by direct drag and by an equivalent keyboard gesture; persistent Up and Down buttons are not part of the panel.
+Option/Alt + Up or Down reorders an ordered stack item, while Option/Alt + Right or Left moves it into or out of an adjacent Group when that structural move is legal.
 
 Opening an image through the file picker starts a new Composite.
 Dropping an image while a Composite is already active imports that file as a new topmost Layer in one undoable command, preserving the existing Composite name, export bounds, color intent, and other target settings.
@@ -152,8 +157,6 @@ A future durable append-only change log would need its own versioned storage, as
 
 ## Follow-up semantic slices
 
-- Add a canonical untitled session that can have no layers and no resolved pixel extent.
-- Separate authored automatic color policy from its resolved compositor space.
 - Preserve and validate richer source profile and alpha metadata through decode, sampling, save, relink, and export.
-- Define Group pass-through scope, Content Layer generators, and attached layer-effect ownership in the project document.
-- Define per-operation edge sampling and make destructive rasterization labels precise in the command history and UI.
+- Add more attached effects and effect-local masks only when their ownership, halo, and backdrop contracts are defined.
+- Expose destructive rasterization actions once the UI can produce the selected branch asset without substituting the complete Composite result.

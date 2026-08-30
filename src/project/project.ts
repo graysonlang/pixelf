@@ -319,11 +319,34 @@ function migrateVersionThree(value: UnknownRecord): UnknownRecord {
   return migrated;
 }
 
+function migrateVersionFour(value: UnknownRecord): UnknownRecord {
+  const migrated = structuredClone(value);
+  migrated.version = 5;
+  if (typeof migrated.nodes === 'object' && migrated.nodes !== null) {
+    for (const node of Object.values(migrated.nodes as UnknownRecord)) {
+      if (typeof node !== 'object' || node === null) continue;
+      const record = node as UnknownRecord;
+      if (
+        record.type !== 'process/affine' ||
+        typeof record.parameters !== 'object' ||
+        record.parameters === null ||
+        Array.isArray(record.parameters)
+      ) {
+        continue;
+      }
+      const parameters = record.parameters as UnknownRecord;
+      if (parameters.edgeSampling === undefined) parameters.edgeSampling = 'transparent';
+    }
+  }
+  return migrated;
+}
+
 const migrations = new Map<number, (value: UnknownRecord) => UnknownRecord>([
   [0, migrateVersionZero],
   [1, migrateVersionOne],
   [2, migrateVersionTwo],
   [3, migrateVersionThree],
+  [4, migrateVersionFour],
 ]);
 
 export function migrateProject(value: unknown): unknown {

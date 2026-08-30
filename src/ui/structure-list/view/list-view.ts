@@ -12,6 +12,7 @@ export interface StructureListViewOptions {
   dependencyCount?: (row: Row) => number;
   focusedNodeId: string | null;
   onDelete?(nodeId: string): void;
+  onDepthChange?(nodeId: string, direction: -1 | 1): void;
   onLockChange?(nodeId: string, locked: boolean): void;
   onMove?(nodeId: string, direction: -1 | 1): void;
   onOpenActions?(nodeId: string, anchor?: { x: number; y: number }): void;
@@ -243,9 +244,15 @@ export function renderStructureList(
     } else {
       chiclet.append(disclosure, interior);
     }
-    chiclet.addEventListener('click', () => options.onSelect(row.nodeId));
+    chiclet.addEventListener('click', () => {
+      options.onSelect(row.nodeId);
+      focusRenderedRow(container, row.nodeId);
+    });
     chiclet.addEventListener('focus', () => {
-      if (selection.focusedNodeId !== row.nodeId) options.onSelect(row.nodeId);
+      if (selection.focusedNodeId !== row.nodeId) {
+        options.onSelect(row.nodeId);
+        focusRenderedRow(container, row.nodeId);
+      }
     });
     chiclet.addEventListener('contextmenu', event => {
       event.preventDefault();
@@ -338,6 +345,24 @@ export function renderStructureList(
       current.relation !== 'unary-child'
     ) {
       options.onMove?.(current.nodeId, event.key === 'ArrowUp' ? -1 : 1);
+      focusRenderedRow(container, current.nodeId);
+      event.preventDefault();
+      return;
+    }
+
+    if (
+      event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      (event.key === 'ArrowLeft' || event.key === 'ArrowRight') &&
+      (current?.kind === 'filter' ||
+        current?.kind === 'content' ||
+        current?.kind === 'group' ||
+        current?.kind === 'layer') &&
+      current.relation !== 'unary-child'
+    ) {
+      options.onDepthChange?.(current.nodeId, event.key === 'ArrowLeft' ? -1 : 1);
+      focusRenderedRow(container, current.nodeId);
       event.preventDefault();
       return;
     }

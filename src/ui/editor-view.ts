@@ -20,6 +20,7 @@ export interface TreeViewOptions {
   density: DensityPolicy;
   expanded: Set<string>;
   onDelete(nodeId: string): void;
+  onDepthChange(nodeId: string, direction: -1 | 1): void;
   onLockChange(nodeId: string, locked: boolean): void;
   onMoveLayer(nodeId: string, direction: -1 | 1): void;
   onOpenActions(nodeId: string, anchor?: { x: number; y: number }): void;
@@ -69,6 +70,7 @@ export function renderProjectTree(
     dependencyCount: row => project.wires.filter(wire => wire.to.nodeId === row.nodeId).length,
     focusedNodeId: options.selectedNodeId,
     onDelete: options.onDelete,
+    onDepthChange: options.onDepthChange,
     onLockChange: options.onLockChange,
     onMove: options.onMoveLayer,
     onOpenActions: options.onOpenActions,

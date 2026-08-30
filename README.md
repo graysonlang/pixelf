@@ -17,6 +17,8 @@ Typed masks can limit a complete layer or an individual adjustment and retain in
 Images can be opened with the file picker or dropped anywhere on the application workspace.
 The operation registry drives insertion, property controls, validation, region behavior, CPU evaluation, GPU routing, and serialization.
 Filter Layers are generic z-stack items that apply a registry operation to the accumulated result beneath them; their operation type can change in place while identity, ordering, masks, bypass state, and compatible parameter values remain intact.
+Groups provide nested pass-through or isolated compositing scopes, Content Layers generate solid, gradient, or pattern pixels, and attached drop-shadow or background-blur effects remain owned by their Layer or Group rather than becoming z-stack peers.
+Affine transforms record Transparent, Clamp, Repeat, or Mirror edge sampling explicitly, with Transparent as the migrated default.
 Operations not yet implemented as dedicated shaders are evaluated by the CPU oracle and uploaded through the WebGPU presentation path, preserving one visible result while GPU coverage grows.
 Viewport work planning limits preview evaluation to visible and prefetched tiles, splits work to the device texture limit, and rejects stale generations before they publish pixels.
 Named project persistence, separate recovery storage, missing-asset relinking, and target-driven PNG, JPEG, and WebP export are available through explicit contracts.

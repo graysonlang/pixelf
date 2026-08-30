@@ -60,6 +60,14 @@ export type Source =
   | PatternSource
   | SolidSource;
 export type { BlendMode } from '../image/blend-modes.js';
+export type EdgeSampling = 'clamp' | 'mirror' | 'repeat' | 'transparent';
+
+export interface EffectBounds {
+  height: number;
+  width: number;
+  x: number;
+  y: number;
+}
 
 export interface DropShadowLayerEffect {
   color: SourceColor;
@@ -184,6 +192,8 @@ export interface CanvasResizeEffect extends EffectBase {
 }
 
 export interface AffineEffect extends EffectBase {
+  edgeSampling: EdgeSampling;
+  inputBounds: EffectBounds;
   kind: 'affine';
   pivotX: number;
   pivotY: number;

@@ -196,6 +196,7 @@ export function gpuDirectRenderable(graph: Graph): boolean {
       entity =>
         entity.source.kind === 'image' &&
         entity.effects.length === 0 &&
+        (entity.layerEffects?.length ?? 0) === 0 &&
         entity.mask === undefined &&
         entity.blend === 'normal',
     )

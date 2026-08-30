@@ -401,6 +401,13 @@ const definitions = [
       numberParameter('rotation', 'Rotation', 0, -36000, 36000),
       numberParameter('pivotX', 'Pivot X', 0, -100000, 100000),
       numberParameter('pivotY', 'Pivot Y', 0, -100000, 100000),
+      {
+        default: 'transparent',
+        key: 'edgeSampling',
+        kind: 'enum',
+        label: 'Edges',
+        values: ['transparent', 'clamp', 'repeat', 'mirror'],
+      },
     ],
     { kind: 'spatial' },
     'scalable',
