@@ -6,7 +6,9 @@ export {
   checker,
   graphHash,
   image,
+  linearGradient,
   levels,
+  pattern,
   solid,
   type BlendMode,
   type CheckerSource,
@@ -16,7 +18,10 @@ export {
   type Graph,
   type GraphFilter,
   type ImageSource,
+  type LinearGradientSource,
+  type PatternSource,
   type Source,
+  type SourceColor,
 } from './graph.js';
 export { mipChainFor, sampleImageMip, sampleMipLevel, type MipLevel } from './mips.js';
 export { evalEntity, renderRegion } from './render.js';

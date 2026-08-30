@@ -44,6 +44,7 @@ export interface PropertiesViewOptions {
     options?: { preserveControls?: boolean },
   ): void;
   onProjectName(name: string): void;
+  onContentType(nodeId: string, contentType: string): void;
   onFilterType(nodeId: string, filterType: string): void;
   onTargetContract(
     nodeId: string,
@@ -78,7 +79,10 @@ export function renderProjectTree(
     onVisibilityChange: options.onVisibilityChange,
     rowState: row => {
       const node = project.nodes[row.nodeId];
-      return node?.type === 'layer' || node?.type === 'filter' || node?.type === 'group'
+      return node?.type === 'layer' ||
+        node?.type === 'filter' ||
+        node?.type === 'content' ||
+        node?.type === 'group'
         ? { locked: node.locked, visible: node.visible }
         : null;
     },
@@ -163,6 +167,13 @@ function parameterControl(
     select.value = typeof value === 'string' ? value : '';
     select.addEventListener('change', () => onValue(select.value));
     return select;
+  }
+  if (definition.kind === 'string' && definition.presentation === 'color') {
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.value = typeof value === 'string' ? value : '#000000';
+    input.addEventListener('input', () => onValue(input.value));
+    return input;
   }
   const input = document.createElement('input');
   input.type = 'text';
@@ -445,13 +456,19 @@ export function renderProperties(
   heading.className = 'properties-heading';
   const eyebrow = document.createElement('span');
   const definition =
-    node.type === 'filter' ? nodeRegistry.get(node.filterType) : nodeRegistry.get(node.type);
+    node.type === 'filter'
+      ? nodeRegistry.get(node.filterType)
+      : node.type === 'content'
+        ? nodeRegistry.get(node.contentType)
+        : nodeRegistry.get(node.type);
   eyebrow.textContent =
     node.type === 'target'
       ? 'Composite'
       : node.type === 'filter'
         ? 'Filter Layer'
-        : (definition?.kind ?? node.type);
+        : node.type === 'content'
+          ? 'Content Layer'
+          : (definition?.kind ?? node.type);
   const title = document.createElement('h2');
   title.textContent = node.type === 'target' ? project.name : node.name;
   heading.append(eyebrow, title);
@@ -462,7 +479,11 @@ export function renderProperties(
     );
   } else {
     const interchangeable =
-      node.type === 'filter' ? nodeRegistry.interchangeable(node.filterType) : [];
+      node.type === 'filter'
+        ? nodeRegistry.interchangeable(node.filterType)
+        : node.type === 'content'
+          ? nodeRegistry.interchangeable(node.contentType)
+          : [];
     if (interchangeable.length > 1) {
       const typeSelect = document.createElement('select');
       for (const candidate of interchangeable) {
@@ -471,9 +492,13 @@ export function renderProperties(
         option.textContent = candidate.title;
         typeSelect.append(option);
       }
-      typeSelect.value = node.type === 'filter' ? node.filterType : '';
-      typeSelect.addEventListener('change', () => options.onFilterType(node.id, typeSelect.value));
-      fragment.append(field('Filter', typeSelect));
+      typeSelect.value =
+        node.type === 'filter' ? node.filterType : node.type === 'content' ? node.contentType : '';
+      typeSelect.addEventListener('change', () => {
+        if (node.type === 'filter') options.onFilterType(node.id, typeSelect.value);
+        else if (node.type === 'content') options.onContentType(node.id, typeSelect.value);
+      });
+      fragment.append(field(node.type === 'content' ? 'Content' : 'Filter', typeSelect));
     }
     for (const parameter of definition?.parameters ?? []) {
       fragment.append(

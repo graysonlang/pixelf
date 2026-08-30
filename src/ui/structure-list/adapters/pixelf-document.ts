@@ -48,6 +48,9 @@ export function pixelfNodeSummary(project: PixelfProject, node: ProjectNode): st
   if (node.type === 'filter') {
     return nodeRegistry.get(node.filterType)?.title ?? node.filterType;
   }
+  if (node.type === 'content') {
+    return nodeRegistry.get(node.contentType)?.title ?? node.contentType;
+  }
   const importedSource = node.type === 'layer' ? importedSourceForLayer(project, node) : node;
   if (importedSource?.type === 'source/imported' && importedSource.assetId !== undefined) {
     const asset = project.assets[importedSource.assetId];
@@ -70,6 +73,7 @@ function describe(
   return {
     acceptsVisualDepth:
       node.type === 'filter' ||
+      node.type === 'content' ||
       node.type === 'group' ||
       node.type === 'layer' ||
       node.type.startsWith('process/'),

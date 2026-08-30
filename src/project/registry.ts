@@ -12,7 +12,7 @@ export interface ParameterDefinition {
   label: string;
   maximum?: number;
   minimum?: number;
-  presentation?: 'percentage';
+  presentation?: 'color' | 'percentage';
   scrubStep?: number;
   values?: readonly string[];
 }
@@ -43,7 +43,7 @@ export interface NodeDefinition {
   description: string;
   execution?: ExecutionBehavior;
   interchangeGroup?: string;
-  kind: 'filter' | 'group' | 'layer' | 'processor' | 'source' | 'target';
+  kind: 'content' | 'filter' | 'group' | 'layer' | 'processor' | 'source' | 'target';
   parameters: readonly ParameterDefinition[];
   ports: readonly PortDefinition[];
   region: RegionBehavior;
@@ -122,6 +122,56 @@ function filterProcessor(
   quality: ExecutionBehavior['quality'] = 'exact',
 ): NodeDefinition {
   return processor(type, title, description, parameters, region, quality, [], 'filter');
+}
+
+const contentOpacity: ParameterDefinition = {
+  default: 1,
+  key: 'opacity',
+  kind: 'number',
+  label: 'Opacity',
+  maximum: 1,
+  minimum: 0,
+  presentation: 'percentage',
+};
+
+const contentBlendMode: ParameterDefinition = {
+  default: 'normal',
+  key: 'blendMode',
+  kind: 'enum',
+  label: 'Blend mode',
+  values: BLEND_MODES,
+};
+
+function colorParameter(key: string, label: string, defaultValue: string): ParameterDefinition {
+  return {
+    default: defaultValue,
+    key,
+    kind: 'string',
+    label,
+    presentation: 'color',
+  };
+}
+
+function contentGenerator(
+  type: string,
+  title: string,
+  description: string,
+  parameters: readonly ParameterDefinition[],
+): NodeDefinition {
+  return defineNode({
+    childPolicy: 'none',
+    description,
+    interchangeGroup: 'content',
+    kind: 'content',
+    parameters: [...parameters, contentOpacity, contentBlendMode],
+    ports: [
+      { direction: 'input', key: 'mask', kind: 'mask', label: 'Mask' },
+      { direction: 'output', key: 'image', kind: 'image', label: 'Image' },
+    ],
+    region: { kind: 'source' },
+    title,
+    type,
+  });
 }
 
 const definitions = [
@@ -221,6 +271,42 @@ const definitions = [
     title: 'Group',
     type: 'group',
   }),
+  defineNode({
+    childPolicy: 'none',
+    description: 'A switchable procedural image generator in the layer stack.',
+    kind: 'content',
+    parameters: [],
+    ports: [
+      { direction: 'input', key: 'mask', kind: 'mask', label: 'Mask' },
+      { direction: 'output', key: 'image', kind: 'image', label: 'Image' },
+    ],
+    region: { kind: 'source' },
+    title: 'Content Layer',
+    type: 'content',
+  }),
+  contentGenerator('content/solid', 'Solid fill', 'Generates a uniform color.', [
+    colorParameter('color', 'Color', '#000000'),
+  ]),
+  contentGenerator(
+    'content/gradient',
+    'Linear gradient',
+    'Generates a two-color linear gradient.',
+    [
+      colorParameter('startColor', 'Start color', '#000000'),
+      colorParameter('endColor', 'End color', '#ffffff'),
+      numberParameter('startX', 'Start X', 0, -10, 10, 0.01),
+      numberParameter('startY', 'Start Y', 0.5, -10, 10, 0.01),
+      numberParameter('endX', 'End X', 1, -10, 10, 0.01),
+      numberParameter('endY', 'End Y', 0.5, -10, 10, 0.01),
+    ],
+  ),
+  contentGenerator('content/pattern', 'Checker pattern', 'Generates a repeating checker pattern.', [
+    colorParameter('firstColor', 'First color', '#000000'),
+    colorParameter('secondColor', 'Second color', '#ffffff'),
+    numberParameter('size', 'Cell size', 32, 1, 100000),
+    numberParameter('offsetX', 'Offset X', 0, -100000, 100000),
+    numberParameter('offsetY', 'Offset Y', 0, -100000, 100000),
+  ]),
   processor(
     'process/crop',
     'Crop',

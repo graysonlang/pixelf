@@ -533,6 +533,10 @@ button:disabled {
   --structure-type: #f0cf72;
 }
 
+.structure-chiclet.kind-content {
+  --structure-type: #e8a2c8;
+}
+
 .structure-chiclet[class*="kind-process-"] {
   --structure-type: #c69cff;
 }

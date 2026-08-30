@@ -27,6 +27,7 @@ import {
   parseProject,
   serializeProject,
   type FilterLayerNode,
+  type ContentLayerNode,
   type ProcessorNode,
 } from '../src/project/index.js';
 
@@ -215,6 +216,57 @@ describe('reversible processing vocabulary', () => {
     assert.equal(projection.graph.filters?.[0]?.position, 1);
     assert.equal(projection.graph.filters?.[0]?.effect.kind, 'clarity');
     assert.ok(projection.graph.filters?.[0]?.effect.mask);
+  });
+
+  it('switches a Content Layer among solid, gradient, and pattern generators', () => {
+    const content = createNode('content', 'node-content') as ContentLayerNode;
+    const inserted = applyProjectCommand(projectFixture(), {
+      node: content,
+      parentId: 'node-target',
+      type: 'insert-node',
+    });
+    const faded = applyProjectCommand(inserted, {
+      key: 'opacity',
+      nodeId: content.id,
+      type: 'set-parameter',
+      value: 0.4,
+    });
+    const gradient = applyProjectCommand(faded, {
+      contentType: 'content/gradient',
+      nodeId: content.id,
+      type: 'set-content-type',
+    });
+    const gradientNode = gradient.nodes[content.id];
+    assert.equal(gradientNode?.type, 'content');
+    if (gradientNode?.type !== 'content') return;
+    assert.equal(gradientNode.contentType, 'content/gradient');
+    assert.equal(gradientNode.parameters.opacity, 0.4);
+    assert.equal(gradientNode.parameters.startColor, '#000000');
+    const gradientProjection = projectTargetToGraph(
+      gradient,
+      'node-target',
+      new Map([['asset-processing', { data: pixels, height: 3, revision: 'content', width: 3 }]]),
+    );
+    assert.equal(gradientProjection.graph.entities[1]?.source.kind, 'linear-gradient');
+
+    const patterned = applyProjectCommand(gradient, {
+      contentType: 'content/pattern',
+      nodeId: content.id,
+      type: 'set-content-type',
+    });
+    const reopened = parseProject(serializeProject(patterned));
+    const patternNode = reopened.nodes[content.id];
+    assert.equal(patternNode?.type, 'content');
+    if (patternNode?.type !== 'content') return;
+    assert.equal(patternNode.id, content.id);
+    assert.equal(patternNode.contentType, 'content/pattern');
+    assert.equal(patternNode.parameters.opacity, 0.4);
+    const patternProjection = projectTargetToGraph(
+      reopened,
+      'node-target',
+      new Map([['asset-processing', { data: pixels, height: 3, revision: 'pattern', width: 3 }]]),
+    );
+    assert.equal(patternProjection.graph.entities[1]?.source.kind, 'pattern');
   });
 
   it('evaluates and GPU-encodes every pixel operation with matching alpha-safe bytes', () => {

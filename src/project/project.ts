@@ -4,6 +4,7 @@ import {
   PIXELF_PROJECT_VERSION,
   type ImageAsset,
   type FilterLayerNode,
+  type ContentLayerNode,
   type GroupNode,
   type JsonValue,
   type LayerNode,
@@ -88,6 +89,18 @@ export function createNode(
       type: 'group',
       visible: true,
     } as GroupNode;
+  }
+  if (type === 'content') {
+    const contentType = 'content/solid';
+    return {
+      contentType,
+      id,
+      locked: false,
+      name,
+      parameters: nodeRegistry.defaults(contentType),
+      type: 'content',
+      visible: true,
+    } as ContentLayerNode;
   }
   if (type.startsWith('process/')) {
     return { childId: null, id, name, parameters, type } as ProcessorNode;

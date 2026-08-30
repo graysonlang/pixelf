@@ -31,7 +31,34 @@ export interface GraphSource {
   passThrough: boolean;
 }
 
-export type Source = CheckerSource | GraphSource | ImageSource | SolidSource;
+export type SourceColor = [number, number, number, number];
+
+export interface LinearGradientSource {
+  end: SourceColor;
+  endX: number;
+  endY: number;
+  kind: 'linear-gradient';
+  start: SourceColor;
+  startX: number;
+  startY: number;
+}
+
+export interface PatternSource {
+  first: SourceColor;
+  kind: 'pattern';
+  offsetX: number;
+  offsetY: number;
+  second: SourceColor;
+  size: number;
+}
+
+export type Source =
+  | CheckerSource
+  | GraphSource
+  | ImageSource
+  | LinearGradientSource
+  | PatternSource
+  | SolidSource;
 export type { BlendMode } from '../image/blend-modes.js';
 
 export interface EffectBase {
@@ -256,6 +283,27 @@ export function nestedGraph(graph: Graph, passThrough: boolean): GraphSource {
   return { graph, kind: 'graph', passThrough };
 }
 
+export function linearGradient(
+  start: SourceColor,
+  end: SourceColor,
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+): LinearGradientSource {
+  return { end, endX, endY, kind: 'linear-gradient', start, startX, startY };
+}
+
+export function pattern(
+  first: SourceColor,
+  second: SourceColor,
+  size: number,
+  offsetX = 0,
+  offsetY = 0,
+): PatternSource {
+  return { first, kind: 'pattern', offsetX, offsetY, second, size };
+}
+
 export function blur(sigma: number): BlurEffect {
   return { kind: 'blur', sigma };
 }
@@ -313,6 +361,33 @@ function mixSource(source: Source, mix: (value: number) => void): void {
   if (source.kind === 'solid') {
     mixText('solid', mix);
     for (const value of [source.r, source.g, source.b, source.a]) mix(value * 1e6);
+    return;
+  }
+  if (source.kind === 'linear-gradient') {
+    mixText('linear-gradient', mix);
+    for (const value of [
+      ...source.start,
+      ...source.end,
+      source.startX,
+      source.startY,
+      source.endX,
+      source.endY,
+    ]) {
+      mix(value * 1e6);
+    }
+    return;
+  }
+  if (source.kind === 'pattern') {
+    mixText('pattern', mix);
+    for (const value of [
+      ...source.first,
+      ...source.second,
+      source.size,
+      source.offsetX,
+      source.offsetY,
+    ]) {
+      mix(value * 1e6);
+    }
     return;
   }
   mixText(`image:${source.width}:${source.height}:${source.revision}`, mix);

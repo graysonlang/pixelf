@@ -144,6 +144,14 @@ function checkParameter(
     issues.push(`${path} must be a string`);
     return;
   }
+  if (
+    definition.kind === 'string' &&
+    definition.presentation === 'color' &&
+    (typeof value !== 'string' || !/^#[a-f\d]{6}$/i.test(value))
+  ) {
+    issues.push(`${path} must be a six-digit hex color`);
+    return;
+  }
   if (definition.kind === 'enum') {
     if (typeof value !== 'string' || !definition.values?.includes(value)) {
       issues.push(`${path} must be one of: ${definition.values?.join(', ') ?? ''}`);
@@ -193,6 +201,18 @@ function checkNodeShape(node: UnknownRecord, key: string, issues: string[]): voi
       }
     }
   }
+  if (node.type === 'content') {
+    if (typeof node.contentType !== 'string') {
+      issues.push(`${path}.contentType must name a content generator`);
+    } else {
+      const contentDefinition = nodeRegistry.get(node.contentType);
+      if (contentDefinition?.interchangeGroup !== 'content') {
+        issues.push(`${path}.contentType is unsupported: ${node.contentType}`);
+      } else {
+        parameterDefinition = contentDefinition;
+      }
+    }
+  }
   if (!isRecord(node.parameters)) {
     issues.push(`${path}.parameters must be an object`);
   } else {
@@ -210,7 +230,12 @@ function checkNodeShape(node: UnknownRecord, key: string, issues: string[]): voi
         issues.push(`${path}.parameters.${key} is not declared by ${parameterDefinition.type}`);
     }
   }
-  if (node.type === 'layer' || node.type === 'filter' || node.type === 'group') {
+  if (
+    node.type === 'layer' ||
+    node.type === 'filter' ||
+    node.type === 'content' ||
+    node.type === 'group'
+  ) {
     if (typeof node.visible !== 'boolean') issues.push(`${path}.visible must be a boolean`);
     if (typeof node.locked !== 'boolean') issues.push(`${path}.locked must be a boolean`);
   }
@@ -328,6 +353,7 @@ function checkTreeAndWires(project: PixelfProject, issues: string[]): void {
         (node.type === 'target' || node.type === 'group') &&
         child.type !== 'layer' &&
         child.type !== 'filter' &&
+        child.type !== 'content' &&
         child.type !== 'group'
       ) {
         issues.push(`${node.type} ${nodeId} may contain only stack items, not ${child.type}`);
@@ -338,6 +364,7 @@ function checkTreeAndWires(project: PixelfProject, issues: string[]): void {
         (child.type === 'target' ||
           child.type === 'layer' ||
           child.type === 'filter' ||
+          child.type === 'content' ||
           child.type === 'group')
       ) {
         issues.push(

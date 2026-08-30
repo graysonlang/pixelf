@@ -2,6 +2,7 @@ import { cloneProject, createOpaqueId, findPrimaryParent } from './project.js';
 import { nodeRegistry } from './registry.js';
 import type {
   CanvasBackground,
+  ContentLayerNode,
   FilterLayerNode,
   ImageAsset,
   JsonValue,
@@ -22,6 +23,7 @@ export type ProjectCommand =
   | { nodeId: string; type: 'set-stack-item-visibility'; visible: boolean }
   | { locked: boolean; nodeId: string; type: 'set-stack-item-lock' }
   | { filterType: string; nodeId: string; type: 'set-filter-type' }
+  | { contentType: string; nodeId: string; type: 'set-content-type' }
   | { contract: TargetContract; nodeId: string; type: 'set-target-contract' }
   | { background: CanvasBackground; nodeId: string; type: 'set-target-background' }
   | { type: 'connect'; wire: ProjectWire }
@@ -138,7 +140,12 @@ function applyMutable(project: PixelfProject, command: ProjectCommand): void {
     }
     case 'set-stack-item-visibility': {
       const node = project.nodes[command.nodeId];
-      if (node?.type !== 'layer' && node?.type !== 'filter' && node?.type !== 'group') {
+      if (
+        node?.type !== 'layer' &&
+        node?.type !== 'filter' &&
+        node?.type !== 'content' &&
+        node?.type !== 'group'
+      ) {
         throw new Error(`Cannot change visibility for non-layer ${command.nodeId}`);
       }
       node.visible = command.visible;
@@ -146,7 +153,12 @@ function applyMutable(project: PixelfProject, command: ProjectCommand): void {
     }
     case 'set-stack-item-lock': {
       const node = project.nodes[command.nodeId];
-      if (node?.type !== 'layer' && node?.type !== 'filter' && node?.type !== 'group') {
+      if (
+        node?.type !== 'layer' &&
+        node?.type !== 'filter' &&
+        node?.type !== 'content' &&
+        node?.type !== 'group'
+      ) {
         throw new Error(`Cannot change lock state for non-layer ${command.nodeId}`);
       }
       node.locked = command.locked;
@@ -173,6 +185,32 @@ function applyMutable(project: PixelfProject, command: ProjectCommand): void {
       }
       if (node.name === currentDefinition.title) node.name = nextDefinition.title;
       node.filterType = command.filterType as FilterLayerNode['filterType'];
+      node.parameters = parameters;
+      return;
+    }
+    case 'set-content-type': {
+      const node = project.nodes[command.nodeId];
+      if (node?.type !== 'content') {
+        throw new Error(`Cannot change the type of non-content ${command.nodeId}`);
+      }
+      const currentDefinition = nodeRegistry.require(node.contentType);
+      const nextDefinition = nodeRegistry.require(command.contentType);
+      if (
+        currentDefinition.interchangeGroup !== 'content' ||
+        currentDefinition.interchangeGroup !== nextDefinition.interchangeGroup ||
+        nextDefinition.kind !== 'content'
+      ) {
+        throw new Error(`${command.contentType} cannot replace ${node.contentType}`);
+      }
+      const parameters = nodeRegistry.defaults(command.contentType);
+      for (const key of Object.keys(parameters)) {
+        const value = node.parameters[key];
+        if (value !== undefined) parameters[key] = structuredClone(value);
+      }
+      if (node.name === currentDefinition.title || node.name === 'Content Layer') {
+        node.name = nextDefinition.title;
+      }
+      node.contentType = command.contentType as ContentLayerNode['contentType'];
       node.parameters = parameters;
       return;
     }

@@ -108,6 +108,13 @@ export interface GroupNode extends BaseNode {
   visible: boolean;
 }
 
+export interface ContentLayerNode extends BaseNode {
+  contentType: `content/${string}`;
+  locked: boolean;
+  type: 'content';
+  visible: boolean;
+}
+
 export interface ProcessorNode extends BaseNode {
   childId: string | null;
   type: `process/${string}`;
@@ -122,11 +129,12 @@ export type ProjectNode =
   | TargetNode
   | LayerNode
   | FilterLayerNode
+  | ContentLayerNode
   | GroupNode
   | ProcessorNode
   | SourceNode;
 export type UnaryNode = LayerNode | ProcessorNode;
-export type StackItemNode = LayerNode | FilterLayerNode | GroupNode;
+export type StackItemNode = LayerNode | FilterLayerNode | ContentLayerNode | GroupNode;
 
 export type PortKind = 'image' | 'mask' | 'scalar';
 

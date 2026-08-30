@@ -12,7 +12,9 @@ import {
   checker,
   graphHash,
   image,
+  linearGradient,
   nestedGraph,
+  pattern,
   solid,
   type BlendMode,
   type Effect,
@@ -21,6 +23,8 @@ import {
   type Graph,
   type GraphFilter,
   type ImageSource,
+  type Source,
+  type SourceColor,
 } from './graph.js';
 import { renderRegion } from './render.js';
 
@@ -75,6 +79,47 @@ function stringParameter(node: ProjectNode, key: string): string {
   const value = node.parameters[key];
   if (typeof value !== 'string') throw new Error(`${node.id}.${key} must be text`);
   return value;
+}
+
+function encodedToLinear(value: number): number {
+  return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+}
+
+function colorSourceParameter(node: ProjectNode, key: string): SourceColor {
+  const value = stringParameter(node, key);
+  const match = /^#([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(value);
+  if (match === null) throw new Error(`${node.id}.${key} must be a six-digit hex color`);
+  const channel = (index: number): number =>
+    encodedToLinear(Number.parseInt(match[index] ?? '00', 16) / 255);
+  return [channel(1), channel(2), channel(3), 1];
+}
+
+function contentSource(node: ProjectNode & { type: 'content' }): Source {
+  switch (node.contentType) {
+    case 'content/solid': {
+      const color = colorSourceParameter(node, 'color');
+      return solid(color[0], color[1], color[2], color[3]);
+    }
+    case 'content/gradient':
+      return linearGradient(
+        colorSourceParameter(node, 'startColor'),
+        colorSourceParameter(node, 'endColor'),
+        numberParameter(node, 'startX'),
+        numberParameter(node, 'startY'),
+        numberParameter(node, 'endX'),
+        numberParameter(node, 'endY'),
+      );
+    case 'content/pattern':
+      return pattern(
+        colorSourceParameter(node, 'firstColor'),
+        colorSourceParameter(node, 'secondColor'),
+        numberParameter(node, 'size'),
+        numberParameter(node, 'offsetX'),
+        numberParameter(node, 'offsetY'),
+      );
+    default:
+      throw new Error(`No content projection exists for ${node.contentType}`);
+  }
 }
 
 function operationEffect(
@@ -398,6 +443,23 @@ function projectStackToGraph(
           position: entities.length,
         });
       }
+      continue;
+    }
+    if (item.type === 'content') {
+      if (!item.visible) continue;
+      entities.push({
+        blend: stringParameter(item, 'blendMode') as BlendMode,
+        effects: [],
+        fill: 1,
+        h: target.contract.height,
+        id: item.id,
+        mask: maskForNode(project, item.id, target),
+        opacity: numberParameter(item, 'opacity'),
+        source: contentSource(item),
+        w: target.contract.width,
+        x: 0,
+        y: 0,
+      });
       continue;
     }
     if (item.type === 'group') {

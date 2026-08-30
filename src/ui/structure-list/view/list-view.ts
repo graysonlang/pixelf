@@ -36,6 +36,7 @@ function glyphFor(kind: string): string {
   if (kind === 'target') return 'C';
   if (kind === 'layer') return 'L';
   if (kind === 'filter') return 'fx';
+  if (kind === 'content') return 'F';
   if (kind === 'group') return 'G';
   if (kind === 'source/mask' || kind === 'source/checker-mask') return 'M';
   if (kind.startsWith('process/')) return 'fx';
@@ -144,7 +145,10 @@ export function renderStructureList(
       chiclet.dataset.locked = String(rowState.locked);
     }
     const reorderable =
-      (row.kind === 'filter' || row.kind === 'group' || row.kind === 'layer') &&
+      (row.kind === 'filter' ||
+        row.kind === 'content' ||
+        row.kind === 'group' ||
+        row.kind === 'layer') &&
       row.relation !== 'unary-child';
     chiclet.draggable = reorderable;
     if (reorderable) chiclet.dataset.reorderable = 'true';
@@ -323,7 +327,10 @@ export function renderStructureList(
       !event.ctrlKey &&
       !event.metaKey &&
       (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
-      (current?.kind === 'filter' || current?.kind === 'group' || current?.kind === 'layer') &&
+      (current?.kind === 'filter' ||
+        current?.kind === 'content' ||
+        current?.kind === 'group' ||
+        current?.kind === 'layer') &&
       current.relation !== 'unary-child'
     ) {
       options.onMove?.(current.nodeId, event.key === 'ArrowUp' ? -1 : 1);

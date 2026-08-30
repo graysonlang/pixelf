@@ -71,6 +71,41 @@ export function rasterSource(entity: Entity, region: Region, scale: number): Sur
         sampled[1] = value;
         sampled[2] = value;
         sampled[3] = 1;
+      } else if (entity.source.kind === 'linear-gradient') {
+        const u = localX / entity.w;
+        const v = localY / entity.h;
+        const deltaX = entity.source.endX - entity.source.startX;
+        const deltaY = entity.source.endY - entity.source.startY;
+        const lengthSquared = deltaX * deltaX + deltaY * deltaY;
+        const amount =
+          lengthSquared <= 1e-12
+            ? 0
+            : Math.max(
+                0,
+                Math.min(
+                  1,
+                  ((u - entity.source.startX) * deltaX + (v - entity.source.startY) * deltaY) /
+                    lengthSquared,
+                ),
+              );
+        const alpha =
+          (entity.source.start[3] ?? 0) * (1 - amount) + (entity.source.end[3] ?? 0) * amount;
+        for (let channel = 0; channel < 3; channel += 1) {
+          const straight =
+            (entity.source.start[channel] ?? 0) * (1 - amount) +
+            (entity.source.end[channel] ?? 0) * amount;
+          sampled[channel] = straight * alpha;
+        }
+        sampled[3] = alpha;
+      } else if (entity.source.kind === 'pattern') {
+        const checkerX = Math.floor((localX + entity.source.offsetX) / entity.source.size);
+        const checkerY = Math.floor((localY + entity.source.offsetY) / entity.source.size);
+        const color = (checkerX + checkerY) % 2 === 0 ? entity.source.first : entity.source.second;
+        const alpha = color[3] ?? 0;
+        sampled[0] = (color[0] ?? 0) * alpha;
+        sampled[1] = (color[1] ?? 0) * alpha;
+        sampled[2] = (color[2] ?? 0) * alpha;
+        sampled[3] = alpha;
       } else if (entity.source.kind === 'image') {
         const u = (localX / entity.w) * entity.source.width;
         const v = (localY / entity.h) * entity.source.height;
