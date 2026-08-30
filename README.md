@@ -126,6 +126,7 @@ Embedded assets remain supported when portability is more important than project
 ## Export
 
 Export always evaluates the authored target contract, never the current viewport or canvas backing size.
+The Export dialog owns the flattened file format and metadata policy so invoking Export never begins a download before those choices are confirmed.
 The native PNG writer supports 8-bit and 16-bit output, grayscale and RGB channel layouts, preserved alpha or explicit compositing against black, sRGB labeling, and Display P3 `cICP` labeling.
 It renders horizontal source tiles into one scanline at a time and emits bounded uncompressed deflate blocks, avoiding a full-resolution JavaScript pixel intermediate.
 

@@ -19,16 +19,8 @@
       <button id="save-project-button" class="menu-item" type="button" data-action="save-project" disabled>
         <span>Save composite</span>
       </button>
-      <label class="menu-select">
-        <span>Export metadata</span>
-        <select id="metadata-policy">
-          <option value="discard">Discard</option>
-          <option value="preserve">Preserve</option>
-          <option value="rewrite">Rewrite</option>
-        </select>
-      </label>
       <button id="export-button" class="menu-item" type="button" data-action="export-target" disabled>
-        <span>Export composite</span>
+        <span>Export composite...</span>
       </button>
       <div class="menu-separator" aria-hidden="true"></div>
       <button class="menu-item" type="button" data-action="settings">
@@ -232,6 +224,45 @@
       </aside>
     </section>
   </main>
+
+  <div id="export-overlay" class="export-overlay" aria-hidden="true" inert>
+    <section class="export-panel" role="dialog" aria-modal="true" aria-labelledby="export-title">
+      <form id="export-form">
+        <header class="export-heading">
+          <h2 id="export-title">Export composite</h2>
+          <button id="export-close-button" class="export-close-button" type="button" aria-label="Close export dialog">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"></path>
+            </svg>
+          </button>
+        </header>
+        <div class="export-body">
+          <label class="export-field">
+            <span>Format</span>
+            <select id="export-format">
+              <option value="png">PNG</option>
+              <option value="jpeg">JPEG</option>
+              <option value="webp">WebP</option>
+            </select>
+          </label>
+          <label class="export-field">
+            <span>Metadata</span>
+            <select id="metadata-policy">
+              <option value="discard">Discard</option>
+              <option value="preserve">Preserve</option>
+              <option value="rewrite">Rewrite</option>
+            </select>
+          </label>
+          <p id="export-summary" class="export-summary"></p>
+          <p id="export-dialog-status" class="export-dialog-status" role="status" hidden></p>
+        </div>
+        <footer class="export-actions">
+          <button id="export-cancel-button" type="button">Cancel</button>
+          <button id="export-confirm-button" class="export-confirm-button" type="submit">Export</button>
+        </footer>
+      </form>
+    </section>
+  </div>
 
   <div id="quick-actions-overlay" class="quick-actions-overlay" aria-hidden="true" inert>
     <section class="quick-actions-palette" role="dialog" aria-modal="true" aria-labelledby="quick-actions-title">

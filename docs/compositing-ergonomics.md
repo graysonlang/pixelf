@@ -10,10 +10,10 @@ It refines how Pixelf presents its target-first document without replacing the c
 A Pixelf editing session is always a Composite, regardless of how its first asset entered the application.
 Opening a PNG, JPEG, WebP, or other flat image imports that image as a source asset into a project.
 Save writes the Pixelf Composite working format and does not silently re-encode the imported file.
-Export evaluates the Composite export contract and produces a flattened deliverable.
+Export opens a dialog for choosing the flattened file format and metadata policy, then evaluates the Composite export contract.
 
 The Composite owns one editable file name.
-Save adds the Pixelf working-format extension, while Export adds the extension chosen by its output format.
+Save adds the Pixelf working-format extension, while Export adds the extension chosen in its dialog.
 
 There is no round-trip mode in which a flat source file sometimes behaves like the working document.
 This avoids hidden format promotion, JPEG recompression on save, and format-dependent save behavior after the first layered edit.
@@ -24,7 +24,8 @@ The editor may begin with no layers, no source assets, and no determined pixel e
 The viewport is an unbounded workspace that can show a theme background or transparency checkerboard without implying export pixels.
 
 The Composite row is the base of the visible layer stack and reflects the editable Composite file name.
-It presents the canonical target contract: export bounds, resolution, channel layout, output encoding, alpha policy, working precision, and color intent.
+It presents the canonical target contract: export bounds, resolution, channel layout, output bit depth, alpha policy, working precision, and color intent.
+Flattened file format and metadata policy are per-export choices shown in the Export dialog rather than the Composite properties or main menu.
 It is not a bitmap layer and does not introduce a Photoshop-style opaque background exception.
 
 An empty session may defer creating or fully resolving a target contract.

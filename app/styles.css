@@ -275,19 +275,6 @@ button:disabled {
   margin: 5px 6px;
 }
 
-.menu-select {
-  color: var(--muted);
-  display: grid;
-  gap: 5px;
-  padding: 7px 8px;
-}
-
-.menu-select select {
-  background: var(--panel);
-  color: var(--text);
-  padding: 6px;
-}
-
 .workspace {
   height: 100%;
   min-height: 0;
@@ -1161,6 +1148,7 @@ button:disabled {
   text-align: center;
 }
 
+.export-overlay,
 .settings-overlay {
   align-items: flex-start;
   background: var(--overlay);
@@ -1175,11 +1163,13 @@ button:disabled {
   z-index: 100;
 }
 
+.export-overlay.open,
 .settings-overlay.open {
   opacity: 1;
   pointer-events: auto;
 }
 
+.export-panel,
 .settings-panel {
   background: var(--panel);
   border: 1px solid var(--line-strong);
@@ -1192,6 +1182,12 @@ button:disabled {
   width: min(420px, calc(100vw - 32px));
 }
 
+.export-panel form {
+  display: flex;
+  flex-direction: column;
+}
+
+.export-heading,
 .settings-heading {
   align-items: center;
   border-bottom: 1px solid var(--line);
@@ -1200,11 +1196,13 @@ button:disabled {
   padding: 10px 14px;
 }
 
+.export-heading h2,
 .settings-heading h2 {
   font-size: 14px;
   margin: 0;
 }
 
+.export-close-button,
 .settings-close-button {
   align-items: center;
   background: transparent;
@@ -1215,6 +1213,64 @@ button:disabled {
   justify-content: center;
   padding: 0;
   width: 26px;
+}
+
+.export-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px 12px;
+}
+
+.export-field {
+  display: grid;
+  font-size: 12px;
+  gap: 6px;
+}
+
+.export-field > span {
+  color: var(--muted);
+}
+
+.export-field select {
+  background: var(--panel-raised);
+  color: var(--text);
+  min-height: 32px;
+  padding: 6px 8px;
+  width: 100%;
+}
+
+.export-summary,
+.export-dialog-status {
+  font-size: 11px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.export-summary {
+  color: var(--muted);
+}
+
+.export-dialog-status {
+  color: var(--text);
+}
+
+.export-actions {
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 10px 16px;
+}
+
+.export-confirm-button {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--background);
+}
+
+.export-confirm-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, var(--panel));
+  border-color: var(--accent);
 }
 
 .settings-body {

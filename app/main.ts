@@ -30,6 +30,7 @@ import {
   type PixelfProject,
   type SourceNode,
   type TargetContract,
+  type OutputFileFormat,
 } from '../src/project/index.js';
 import {
   actionSupportsSurface,
@@ -237,7 +238,16 @@ const dispose = createRoot(disposeRoot => {
   const input = requireElement<HTMLInputElement>('#image-input');
   const saveProjectButton = requireElement<HTMLButtonElement>('#save-project-button');
   const exportButton = requireElement<HTMLButtonElement>('#export-button');
+  const exportOverlay = requireElement<HTMLElement>('#export-overlay');
+  const exportPanel = requireElement<HTMLElement>('.export-panel');
+  const exportForm = requireElement<HTMLFormElement>('#export-form');
+  const exportFormat = requireElement<HTMLSelectElement>('#export-format');
   const metadataPolicy = requireElement<HTMLSelectElement>('#metadata-policy');
+  const exportSummary = requireElement<HTMLElement>('#export-summary');
+  const exportDialogStatus = requireElement<HTMLElement>('#export-dialog-status');
+  const exportCloseButton = requireElement<HTMLButtonElement>('#export-close-button');
+  const exportCancelButton = requireElement<HTMLButtonElement>('#export-cancel-button');
+  const exportConfirmButton = requireElement<HTMLButtonElement>('#export-confirm-button');
   const preview = requireElement<HTMLImageElement>('#image-preview');
   const canvas = requireElement<HTMLCanvasElement>('#render-preview');
   const canvasFrame = requireElement<HTMLElement>('#render-preview-frame');
@@ -297,6 +307,8 @@ const dispose = createRoot(disposeRoot => {
   let presentationGeneration = 0;
   let dragDepth = 0;
   let panState: PanState | null = null;
+  let exportDialogTargetId: string | null = null;
+  let exporting = false;
 
   const stageResizeObserver = new ResizeObserver(entries => {
     const entry = entries.at(-1);
@@ -671,58 +683,59 @@ const dispose = createRoot(disposeRoot => {
   const exportTarget = async (): Promise<void> => {
     const selected = selectedImage();
     const targetId = selected?.editor.project.targetIds[0];
-    if (selected === null || selected === undefined || targetId === undefined) return;
-    try {
-      const projection = projectTargetToGraph(
-        selected.editor.project,
-        targetId,
-        new Map([[selected.asset.id, selected.decoded]]),
-      );
-      const policy = metadataPolicy.value as MetadataPolicy;
-      const contract = projection.target.contract;
-      const artifact =
-        contract.outputFormat === 'png'
-          ? exportTargetPng(projection.graph, contract, { metadataPolicy: policy })
-          : await exportTargetWithBrowserEncoder(
-              projection.graph,
-              contract,
-              {
-                encode: async (rgba, width, height, options) => {
-                  const exportCanvas = document.createElement('canvas');
-                  exportCanvas.width = width;
-                  exportCanvas.height = height;
-                  const context = exportCanvas.getContext('2d', {
-                    colorSpace: options.colorSpace,
-                  });
-                  if (context === null) throw new Error('The browser export canvas is unavailable');
-                  const pixels = new ImageData(new Uint8ClampedArray(rgba), width, height, {
-                    colorSpace: options.colorSpace,
-                  });
-                  context.putImageData(pixels, 0, 0);
-                  const blob = await new Promise<Blob>((resolve, reject) => {
-                    exportCanvas.toBlob(
-                      result =>
-                        result === null
-                          ? reject(new Error('Browser export failed'))
-                          : resolve(result),
-                      options.mimeType,
-                      0.92,
-                    );
-                  });
-                  return new Uint8Array(await blob.arrayBuffer());
-                },
-              },
-              { metadataPolicy: policy },
-            );
-      const baseName = fileNameStem(selected.editor.project.name);
-      download(
-        artifactBytes(artifact) as BlobPart,
-        artifact.mimeType,
-        `${baseName}.${artifact.extension}`,
-      );
-    } catch (error) {
-      reportError(error);
+    if (selected === null || selected === undefined || targetId === undefined) {
+      throw new Error('A composite is required before export');
     }
+    const projection = projectTargetToGraph(
+      selected.editor.project,
+      targetId,
+      new Map([[selected.asset.id, selected.decoded]]),
+    );
+    const policy = metadataPolicy.value as MetadataPolicy;
+    const contract = normalizedContract({
+      ...projection.target.contract,
+      outputFormat: exportFormat.value as OutputFileFormat,
+    });
+    const artifact =
+      contract.outputFormat === 'png'
+        ? exportTargetPng(projection.graph, contract, { metadataPolicy: policy })
+        : await exportTargetWithBrowserEncoder(
+            projection.graph,
+            contract,
+            {
+              encode: async (rgba, width, height, options) => {
+                const exportCanvas = document.createElement('canvas');
+                exportCanvas.width = width;
+                exportCanvas.height = height;
+                const context = exportCanvas.getContext('2d', {
+                  colorSpace: options.colorSpace,
+                });
+                if (context === null) throw new Error('The browser export canvas is unavailable');
+                const pixels = new ImageData(new Uint8ClampedArray(rgba), width, height, {
+                  colorSpace: options.colorSpace,
+                });
+                context.putImageData(pixels, 0, 0);
+                const blob = await new Promise<Blob>((resolve, reject) => {
+                  exportCanvas.toBlob(
+                    result =>
+                      result === null
+                        ? reject(new Error('Browser export failed'))
+                        : resolve(result),
+                    options.mimeType,
+                    0.92,
+                  );
+                });
+                return new Uint8Array(await blob.arrayBuffer());
+              },
+            },
+            { metadataPolicy: policy },
+          );
+    const baseName = fileNameStem(selected.editor.project.name);
+    download(
+      artifactBytes(artifact) as BlobPart,
+      artifact.mimeType,
+      `${baseName}.${artifact.extension}`,
+    );
   };
 
   const undo = (): void => {
@@ -814,9 +827,9 @@ const dispose = createRoot(disposeRoot => {
       enabled: () => currentEditor() !== null,
       group: 'file',
       id: 'export-target',
-      keywords: ['file', 'download', 'render'],
-      label: 'Export composite',
-      run: exportTarget,
+      keywords: ['file', 'download', 'format', 'metadata', 'render'],
+      label: 'Export composite...',
+      run: () => openExportDialog(),
       surfaces: ['menu', 'quick-actions'],
     }),
     appAction({
@@ -1196,6 +1209,64 @@ const dispose = createRoot(disposeRoot => {
     quickActionsOverlay.classList.add('open');
     requestAnimationFrame(() => quickActionsInput.focus());
   };
+  const updateExportSummary = (): void => {
+    const selected = selectedImage();
+    const targetId = selected?.editor.project.targetIds[0];
+    const target = targetId === undefined ? undefined : selected?.editor.project.nodes[targetId];
+    if (target?.type !== 'target') {
+      exportSummary.textContent = '';
+      return;
+    }
+    const contract = normalizedContract({
+      ...target.contract,
+      outputFormat: exportFormat.value as OutputFileFormat,
+    });
+    const colorSpace = contract.colorSpace === 'display-p3' ? 'Display P3' : 'sRGB';
+    const alpha = contract.alphaPolicy === 'preserve' ? 'transparency preserved' : 'opaque';
+    exportSummary.textContent = `${contract.width} x ${contract.height}, ${contract.outputBitDepth}-bit, ${colorSpace}, ${alpha}`;
+  };
+  const setExportBusy = (busy: boolean): void => {
+    exporting = busy;
+    exportPanel.setAttribute('aria-busy', String(busy));
+    exportFormat.disabled = busy;
+    metadataPolicy.disabled = busy;
+    exportCloseButton.disabled = busy;
+    exportCancelButton.disabled = busy;
+    exportConfirmButton.disabled = busy;
+    exportConfirmButton.textContent = busy ? 'Exporting...' : 'Export';
+  };
+  function closeExportDialog(restoreFocus = false): void {
+    if (exporting || !exportOverlay.classList.contains('open')) return;
+    exportOverlay.classList.remove('open');
+    exportOverlay.setAttribute('aria-hidden', 'true');
+    exportOverlay.inert = true;
+    appShell.inert = false;
+    if (restoreFocus) menuButton.focus();
+  }
+  function openExportDialog(): void {
+    const selected = selectedImage();
+    const targetId = selected?.editor.project.targetIds[0];
+    const target = targetId === undefined ? undefined : selected?.editor.project.nodes[targetId];
+    if (target?.type !== 'target') return;
+    closeQuickActions();
+    closeSettings();
+    setMenuOpen(false);
+    setAddMenuOpen(false);
+    setZoomMenuOpen(false);
+    if (exportDialogTargetId !== target.id) {
+      exportFormat.value = target.contract.outputFormat;
+      exportDialogTargetId = target.id;
+    }
+    setExportBusy(false);
+    exportDialogStatus.textContent = '';
+    exportDialogStatus.hidden = true;
+    updateExportSummary();
+    appShell.inert = true;
+    exportOverlay.inert = false;
+    exportOverlay.setAttribute('aria-hidden', 'false');
+    exportOverlay.classList.add('open');
+    requestAnimationFrame(() => exportFormat.focus());
+  }
   function closeSettings(restoreFocus = false): void {
     if (!settingsOverlay.classList.contains('open')) return;
     settingsOverlay.classList.remove('open');
@@ -1205,6 +1276,7 @@ const dispose = createRoot(disposeRoot => {
   }
   function openSettings(): void {
     closeQuickActions();
+    closeExportDialog();
     setMenuOpen(false);
     setAddMenuOpen(false);
     setZoomMenuOpen(false);
@@ -1470,6 +1542,31 @@ const dispose = createRoot(disposeRoot => {
   const onQuickActionsOverlayPointerDown = (event: PointerEvent): void => {
     if (event.target === quickActionsOverlay) closeQuickActions(true);
   };
+  const onExportOverlayPointerDown = (event: PointerEvent): void => {
+    if (event.target === exportOverlay) closeExportDialog(true);
+  };
+  const onExportCloseButtonClick = (): void => closeExportDialog(true);
+  const onExportCancelButtonClick = (): void => closeExportDialog(true);
+  const onExportFormatChange = (): void => updateExportSummary();
+  const onExportFormSubmit = (event: SubmitEvent): void => {
+    event.preventDefault();
+    if (exporting) return;
+    setExportBusy(true);
+    exportDialogStatus.textContent = '';
+    exportDialogStatus.hidden = true;
+    void exportTarget()
+      .then(() => {
+        setExportBusy(false);
+        closeExportDialog(true);
+      })
+      .catch(error => {
+        const message = error instanceof Error ? error.message : String(error);
+        setExportBusy(false);
+        exportDialogStatus.textContent = message;
+        exportDialogStatus.hidden = false;
+        reportError(error);
+      });
+  };
   const onSettingsOverlayPointerDown = (event: PointerEvent): void => {
     if (event.target === settingsOverlay) closeSettings(true);
   };
@@ -1522,6 +1619,13 @@ const dispose = createRoot(disposeRoot => {
     }
   };
   const onDocumentKeyDown = (event: KeyboardEvent): void => {
+    if (exportOverlay.classList.contains('open')) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeExportDialog(true);
+      }
+      return;
+    }
     if (settingsOverlay.classList.contains('open')) {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -1618,6 +1722,11 @@ const dispose = createRoot(disposeRoot => {
   quickActionsInput.addEventListener('input', onQuickActionsInput);
   quickActionsInput.addEventListener('keydown', onQuickActionsInputKeyDown);
   quickActionsOverlay.addEventListener('pointerdown', onQuickActionsOverlayPointerDown);
+  exportOverlay.addEventListener('pointerdown', onExportOverlayPointerDown);
+  exportCloseButton.addEventListener('click', onExportCloseButtonClick);
+  exportCancelButton.addEventListener('click', onExportCancelButtonClick);
+  exportFormat.addEventListener('change', onExportFormatChange);
+  exportForm.addEventListener('submit', onExportFormSubmit);
   settingsCloseButton.addEventListener('click', onSettingsCloseButtonClick);
   settingsOverlay.addEventListener('change', onSettingsChange);
   settingsOverlay.addEventListener('pointerdown', onSettingsOverlayPointerDown);
@@ -1686,6 +1795,11 @@ const dispose = createRoot(disposeRoot => {
     quickActionsInput.removeEventListener('input', onQuickActionsInput);
     quickActionsInput.removeEventListener('keydown', onQuickActionsInputKeyDown);
     quickActionsOverlay.removeEventListener('pointerdown', onQuickActionsOverlayPointerDown);
+    exportOverlay.removeEventListener('pointerdown', onExportOverlayPointerDown);
+    exportCloseButton.removeEventListener('click', onExportCloseButtonClick);
+    exportCancelButton.removeEventListener('click', onExportCancelButtonClick);
+    exportFormat.removeEventListener('change', onExportFormatChange);
+    exportForm.removeEventListener('submit', onExportFormSubmit);
     settingsCloseButton.removeEventListener('click', onSettingsCloseButtonClick);
     settingsOverlay.removeEventListener('change', onSettingsChange);
     settingsOverlay.removeEventListener('pointerdown', onSettingsOverlayPointerDown);
@@ -1749,7 +1863,6 @@ const dispose = createRoot(disposeRoot => {
     const enabled = editor !== null;
     saveProjectButton.disabled = !enabled;
     exportButton.disabled = !enabled;
-    metadataPolicy.disabled = !enabled;
     addLayerButton.disabled = !enabled;
     addFilterLayerButton.disabled = !enabled;
     const selectedMaskTarget = selectedId === null ? null : maskTargetForNode(selectedId);

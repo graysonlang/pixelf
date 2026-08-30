@@ -40,7 +40,7 @@ function importedSourceForLayer(
 
 export function pixelfNodeSummary(project: PixelfProject, node: ProjectNode): string {
   if (node.type === 'target') {
-    return `Composite / ${node.contract.width} x ${node.contract.height} / ${node.contract.outputFormat} ${node.contract.outputBitDepth}-bit`;
+    return `Composite / ${node.contract.width} x ${node.contract.height} / ${node.contract.outputBitDepth}-bit`;
   }
   if (node.type === 'filter') {
     return nodeRegistry.get(node.filterType)?.title ?? node.filterType;

@@ -373,7 +373,6 @@ function targetFields(
   numberField('height', 'Height');
   selectField('workingFormat', 'Working precision', ['rgba8unorm', 'rgba16float', 'rgba32float']);
   selectField('colorSpace', 'Color space', ['srgb', 'display-p3']);
-  selectField('outputFormat', 'Output format', ['png', 'jpeg', 'webp']);
   selectField('outputBitDepth', 'Output bit depth', [8, 16]);
   selectField('alphaPolicy', 'Alpha', ['preserve', 'opaque']);
 }
