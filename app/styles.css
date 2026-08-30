@@ -164,6 +164,14 @@ button:disabled {
   display: block;
 }
 
+.app-menu,
+.zoom-menu,
+.add-menu,
+.structure-toolbar {
+  font-family: var(--sans);
+  font-size: 13px;
+}
+
 .app-menu {
   background: var(--panel-raised);
   border: 1px solid var(--line-strong);
@@ -201,7 +209,6 @@ button:disabled {
   background: transparent;
   border: 0;
   display: flex;
-  font-size: 12px;
   gap: 12px;
   justify-content: space-between;
   padding: 7px 8px;
@@ -212,14 +219,12 @@ button:disabled {
 .zoom-menu-item kbd {
   color: var(--muted);
   font-family: inherit;
-  font-size: 12px;
 }
 
 .zoom-custom {
   border-top: 1px solid var(--line);
   color: var(--muted);
   display: block;
-  font-size: 11px;
   margin-top: 5px;
   padding: 8px;
 }
@@ -241,6 +246,10 @@ button:disabled {
   width: auto;
 }
 
+.zoom-menu #zoom-input {
+  font-family: inherit;
+}
+
 .menu-item {
   align-items: center;
   background: transparent;
@@ -248,7 +257,6 @@ button:disabled {
   border-radius: 4px;
   color: var(--text);
   display: flex;
-  font-size: 12px;
   gap: 12px;
   justify-content: space-between;
   padding: 7px 8px;
@@ -259,7 +267,6 @@ button:disabled {
 .menu-item kbd {
   color: var(--muted);
   font-family: inherit;
-  font-size: 12px;
 }
 
 .menu-separator {
@@ -271,7 +278,6 @@ button:disabled {
 .menu-select {
   color: var(--muted);
   display: grid;
-  font-size: 10px;
   gap: 5px;
   padding: 7px 8px;
 }
@@ -485,13 +491,12 @@ button:disabled {
 }
 
 .add-menu-item span {
-  font-size: 12px;
   font-weight: 620;
 }
 
 .add-menu-item small {
   color: var(--muted);
-  font-size: 10px;
+  font: inherit;
 }
 
 .add-menu-item:disabled {
@@ -736,7 +741,6 @@ button:disabled {
 .structure-toolbar-label {
   color: var(--muted);
   flex: 1 0 100%;
-  font-size: 10px;
   overflow: hidden;
   padding: 1px 2px 3px;
   text-overflow: ellipsis;
@@ -746,7 +750,6 @@ button:disabled {
 .structure-toolbar button {
   background: transparent;
   border-color: transparent;
-  font-size: 10px;
   min-height: 28px;
   text-align: left;
   width: 100%;
