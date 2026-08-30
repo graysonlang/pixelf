@@ -93,6 +93,10 @@ describe('target-first editor view model', () => {
       nodeRegistry.require('layer').parameters.map(parameter => parameter.description),
       [undefined, undefined, undefined],
     );
+    assert.deepEqual(
+      nodeRegistry.require('layer').parameters.map(parameter => parameter.presentation),
+      ['percentage', 'percentage', undefined],
+    );
   });
 
   it('folds imported bitmap sources into a top-first layer stack', () => {

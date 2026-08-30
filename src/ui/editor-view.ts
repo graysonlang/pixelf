@@ -164,32 +164,62 @@ function numericParameterField(
   definition: ParameterDefinition,
   onValue: (value: number, options?: { preserveControls?: boolean }) => void,
 ): HTMLLabelElement {
+  const percentage = definition.presentation === 'percentage';
+  const displayScale = percentage ? 100 : 1;
+  const inputOptions = percentage
+    ? {
+        integer: definition.integer === true,
+        maximum: (definition.maximum ?? 1) * displayScale,
+        minimum: (definition.minimum ?? 0) * displayScale,
+        scrubStep: (definition.scrubStep ?? 0.01) * displayScale,
+      }
+    : definition;
   const initialValue = node.parameters[definition.key];
   let appliedValue = typeof initialValue === 'number' ? initialValue : Number(definition.default);
+  const displayedValue = (value: number): number =>
+    percentage ? Number((value * displayScale).toFixed(4)) : value;
   const input = document.createElement('input');
   input.autocomplete = 'off';
   input.inputMode =
     definition.integer === true && (definition.minimum ?? 0) >= 0 ? 'numeric' : 'decimal';
   input.spellcheck = false;
   input.type = 'text';
-  input.value = String(appliedValue);
-  const wrapper = field(definition.label, input, definition.description);
+  input.value = String(displayedValue(appliedValue));
+  let control: HTMLElement = input;
+  if (percentage) {
+    const percentageControl = document.createElement('span');
+    percentageControl.className = 'percentage-control';
+    const suffix = document.createElement('span');
+    suffix.className = 'percentage-suffix';
+    suffix.setAttribute('aria-hidden', 'true');
+    suffix.textContent = '%';
+    input.role = 'spinbutton';
+    input.setAttribute('aria-valuemax', String(inputOptions.maximum));
+    input.setAttribute('aria-valuemin', String(inputOptions.minimum));
+    input.setAttribute('aria-valuenow', input.value);
+    percentageControl.append(input, suffix);
+    control = percentageControl;
+  }
+  const wrapper = field(definition.label, control, definition.description);
   wrapper.classList.add('numeric-field');
+  if (percentage) wrapper.classList.add('percentage-field');
   const name = wrapper.querySelector<HTMLElement>('.property-label');
   if (name === null) return wrapper;
   name.title = `Drag to adjust ${definition.label.toLowerCase()}`;
   const apply = (value: number): void => {
-    if (value === appliedValue) return;
-    appliedValue = value;
-    onValue(value, { preserveControls: true });
+    const authoredValue = value / displayScale;
+    if (authoredValue === appliedValue) return;
+    appliedValue = authoredValue;
+    if (percentage) input.setAttribute('aria-valuenow', String(value));
+    onValue(authoredValue, { preserveControls: true });
   };
   input.addEventListener('input', () => {
-    const value = parseNumericInput(input.value, definition);
+    const value = parseNumericInput(input.value, inputOptions);
     if (value !== null) apply(value);
   });
   input.addEventListener('blur', () => {
-    const value = parseNumericInput(input.value, definition);
-    if (value === null) input.value = String(appliedValue);
+    const value = parseNumericInput(input.value, inputOptions);
+    if (value === null) input.value = String(displayedValue(appliedValue));
     else {
       input.value = String(value);
       apply(value);
@@ -201,7 +231,7 @@ function numericParameterField(
       input.blur();
     } else if (event.key === 'Escape') {
       event.preventDefault();
-      input.value = String(appliedValue);
+      input.value = String(displayedValue(appliedValue));
       input.blur();
     }
   });
@@ -219,7 +249,7 @@ function numericParameterField(
     event.preventDefault();
     scrubPointerId = event.pointerId;
     scrubStartX = event.clientX;
-    scrubStartValue = parseNumericInput(input.value, definition) ?? appliedValue;
+    scrubStartValue = parseNumericInput(input.value, inputOptions) ?? displayedValue(appliedValue);
     wrapper.dataset.scrubbing = 'true';
     name.setPointerCapture(event.pointerId);
   });
@@ -229,7 +259,7 @@ function numericParameterField(
     const value = scrubNumericValue(
       scrubStartValue,
       event.clientX - scrubStartX,
-      definition,
+      inputOptions,
       event.shiftKey,
     );
     input.value = String(value);

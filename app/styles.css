@@ -1002,6 +1002,31 @@ button:disabled {
   cursor: ew-resize;
 }
 
+.property-field.percentage-field {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) 88px;
+}
+
+.property-field.percentage-field > small {
+  grid-column: 1 / -1;
+}
+
+.percentage-control {
+  min-width: 0;
+  position: relative;
+}
+
+.percentage-suffix {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  pointer-events: none;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
 .property-field input:not([type="checkbox"]),
 .property-field select {
   background: var(--panel-raised);
@@ -1010,6 +1035,11 @@ button:disabled {
   min-width: 0;
   padding: 7px 8px;
   width: 100%;
+}
+
+.property-field .percentage-control input {
+  padding-right: 24px;
+  text-align: right;
 }
 
 .property-field.dimension-field {

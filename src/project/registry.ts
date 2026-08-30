@@ -12,6 +12,7 @@ export interface ParameterDefinition {
   label: string;
   maximum?: number;
   minimum?: number;
+  presentation?: 'percentage';
   scrubStep?: number;
   values?: readonly string[];
 }
@@ -146,6 +147,7 @@ const definitions = [
         label: 'Opacity',
         maximum: 1,
         minimum: 0,
+        presentation: 'percentage',
       },
       {
         default: 1,
@@ -154,6 +156,7 @@ const definitions = [
         label: 'Fill',
         maximum: 1,
         minimum: 0,
+        presentation: 'percentage',
       },
       {
         default: 'normal',
