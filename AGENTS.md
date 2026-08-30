@@ -86,7 +86,8 @@ The port must be explicitly reserved for that agent rather than automatically se
 Browser automation is provisioned by the repository: `.mcp.json` registers the project's pinned Playwright MCP server through `playwright-mcp.config.json`, which runs the browser headless and isolated so automation never raises a window over the owner's work and every run starts from blank browser state.
 The registration needs one-time approval per collaborator, and MCP servers connect at session start, so a session started before approval or before a config change must be restarted to see the tools.
 
-When browser validation is required, attempt to invoke the Playwright MCP `browser_navigate` tool directly rather than inferring availability from memory, prior messages, or other browser mechanisms.
+When browser validation is required, invoke the Playwright MCP `browser_navigate` tool directly rather than inferring availability from memory or prior messages.
+In VS Code Codex, do not probe for or invoke the in-app browser runtime, the browser-use or browser-client path, Node REPL browser setup, or another browser mechanism; those surfaces are not available in that host, and the repository's Playwright MCP is the intended browser surface.
 If that invocation fails because the tool is absent, report that browser validation was unavailable and that a restarted, approved session is the likely fix; do not fall back to the owner's own browser.
 
 To watch a run while debugging automation, temporarily set `browser.launchOptions.headless` to `false` in `playwright-mcp.config.json` and restart the session.
