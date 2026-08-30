@@ -69,6 +69,12 @@ describe('Pixelf project document', () => {
       parameters: {},
       type: 'target',
     });
+    const layer = projectNode(parsed, 'node-layer');
+    assert.equal(layer.type, 'layer');
+    if (layer.type === 'layer') {
+      assert.equal(layer.visible, true);
+      assert.equal(layer.locked, false);
+    }
   });
 
   it('migrates the explicit version-zero bit-depth field', () => {
@@ -82,7 +88,7 @@ describe('Pixelf project document', () => {
     delete contract.outputBitDepth;
 
     const migrated = parseProject(JSON.stringify(legacy));
-    assert.equal(migrated.version, 2);
+    assert.equal(migrated.version, 3);
     const target = projectNode(migrated, 'node-target');
     assert.equal(target.type, 'target');
     if (target.type === 'target') {
@@ -90,6 +96,29 @@ describe('Pixelf project document', () => {
     }
     const layer = projectNode(migrated, 'node-layer');
     assert.equal(layer.parameters.fill, 1);
+    assert.equal(layer.type, 'layer');
+    if (layer.type === 'layer') {
+      assert.equal(layer.visible, true);
+      assert.equal(layer.locked, false);
+    }
+  });
+
+  it('migrates layer visibility and lock defaults from version two', () => {
+    const legacy = cloneProject(importedProject()) as unknown as Record<string, unknown>;
+    legacy.version = 2;
+    const nodes = legacy.nodes as Record<string, Record<string, unknown>>;
+    const layer = nodes['node-layer'];
+    assert.ok(layer);
+    delete layer.visible;
+    delete layer.locked;
+
+    const migrated = parseProject(JSON.stringify(legacy));
+    const migratedLayer = projectNode(migrated, 'node-layer');
+    assert.equal(migratedLayer.type, 'layer');
+    if (migratedLayer.type === 'layer') {
+      assert.equal(migratedLayer.visible, true);
+      assert.equal(migratedLayer.locked, false);
+    }
   });
 
   it('distinguishes embedded, available linked, and missing linked assets', () => {
@@ -127,6 +156,13 @@ describe('Pixelf project document', () => {
     opacity.parameters.amount = 2;
     project.nodes[opacity.id] = opacity;
     assert.throws(() => validateProject(project), /parameters\.amount must be at most 1/);
+
+    const invalidState = cloneProject(importedProject()) as unknown as Record<string, unknown>;
+    const nodes = invalidState.nodes as Record<string, Record<string, unknown>>;
+    const layer = nodes['node-layer'];
+    assert.ok(layer);
+    layer.visible = 'yes';
+    assert.throws(() => validateProject(invalidState), /nodes\.node-layer\.visible/);
   });
 
   it('validates optional canvas background properties', () => {

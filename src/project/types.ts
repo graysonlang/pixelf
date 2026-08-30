@@ -1,5 +1,5 @@
 export const PIXELF_PROJECT_SCHEMA = 'pixelf.project';
-export const PIXELF_PROJECT_VERSION = 2;
+export const PIXELF_PROJECT_VERSION = 3;
 
 export type JsonPrimitive = boolean | number | string | null;
 export type JsonValue =
@@ -79,12 +79,16 @@ export interface TargetNode extends BaseNode {
 
 export interface LayerNode extends BaseNode {
   childId: string | null;
+  locked: boolean;
   type: 'layer';
+  visible: boolean;
 }
 
 export interface FilterLayerNode extends BaseNode {
   filterType: `process/${string}`;
+  locked: boolean;
   type: 'filter';
+  visible: boolean;
 }
 
 export interface ProcessorNode extends BaseNode {

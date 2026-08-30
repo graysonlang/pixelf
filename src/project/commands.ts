@@ -18,6 +18,8 @@ export type ProjectCommand =
   | { index: number; nodeId: string; parentId: string | null; type: 'move-node' }
   | { name: string; type: 'set-project-name' }
   | { key: string; nodeId: string; type: 'set-parameter'; value: JsonValue }
+  | { nodeId: string; type: 'set-stack-item-visibility'; visible: boolean }
+  | { locked: boolean; nodeId: string; type: 'set-stack-item-lock' }
   | { filterType: string; nodeId: string; type: 'set-filter-type' }
   | { contract: TargetContract; nodeId: string; type: 'set-target-contract' }
   | { background: CanvasBackground; nodeId: string; type: 'set-target-background' }
@@ -123,6 +125,22 @@ function applyMutable(project: PixelfProject, command: ProjectCommand): void {
       const node = project.nodes[command.nodeId];
       if (node === undefined) throw new Error(`Cannot edit missing node ${command.nodeId}`);
       node.parameters[command.key] = structuredClone(command.value);
+      return;
+    }
+    case 'set-stack-item-visibility': {
+      const node = project.nodes[command.nodeId];
+      if (node?.type !== 'layer' && node?.type !== 'filter') {
+        throw new Error(`Cannot change visibility for non-layer ${command.nodeId}`);
+      }
+      node.visible = command.visible;
+      return;
+    }
+    case 'set-stack-item-lock': {
+      const node = project.nodes[command.nodeId];
+      if (node?.type !== 'layer' && node?.type !== 'filter') {
+        throw new Error(`Cannot change lock state for non-layer ${command.nodeId}`);
+      }
+      node.locked = command.locked;
       return;
     }
     case 'set-filter-type': {

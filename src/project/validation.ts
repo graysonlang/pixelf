@@ -207,6 +207,10 @@ function checkNodeShape(node: UnknownRecord, key: string, issues: string[]): voi
         issues.push(`${path}.parameters.${key} is not declared by ${parameterDefinition.type}`);
     }
   }
+  if (node.type === 'layer' || node.type === 'filter') {
+    if (typeof node.visible !== 'boolean') issues.push(`${path}.visible must be a boolean`);
+    if (typeof node.locked !== 'boolean') issues.push(`${path}.locked must be a boolean`);
+  }
   if (definition.childPolicy === 'layers') {
     if (!Array.isArray(node.childIds) || !node.childIds.every(id => typeof id === 'string')) {
       issues.push(`${path}.childIds must be an array of layer IDs`);

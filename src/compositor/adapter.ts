@@ -356,7 +356,7 @@ export function projectTargetToGraph(
   for (const stackItemId of target.childIds) {
     const layer = requireNode(project, stackItemId);
     if (layer.type === 'filter') {
-      if (layer.parameters.bypass !== true) {
+      if (layer.visible && layer.parameters.bypass !== true) {
         const effect = operationEffect(layer, layer.filterType, target);
         const mask = maskForNode(project, layer.id, target);
         filters.push({
@@ -368,6 +368,7 @@ export function projectTargetToGraph(
       continue;
     }
     if (layer.type !== 'layer') throw new Error(`${stackItemId} is not a stack item`);
+    if (!layer.visible) continue;
     if (layer.childId === null) throw new Error(`Layer ${layer.id} has no source child`);
     const source = sourceForLayer(
       project,

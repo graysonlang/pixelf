@@ -288,4 +288,48 @@ describe('CPU reference compositor', () => {
     assert.equal(projection.graph.entities[0]?.opacity, 0.5);
     assert.deepEqual(projection.graph.entities[0]?.effects, [{ amount: 0.5, kind: 'opacity' }]);
   });
+
+  it('omits hidden layers and filter layers from the projected graph', () => {
+    const asset = createEmbeddedImageAsset({
+      bytesBase64: 'AA==',
+      contentHash: `sha256:${'e'.repeat(64)}`,
+      height: 1,
+      id: 'asset-visibility',
+      mediaType: 'image/png',
+      name: 'Visibility',
+      width: 1,
+    });
+    const project = cloneProject(
+      createImportedProject(asset, {
+        layerId: 'node-layer',
+        projectId: 'project-visibility',
+        sourceId: 'node-source',
+        targetId: 'node-target',
+      }),
+    );
+    const target = project.nodes['node-target'];
+    const layer = project.nodes['node-layer'];
+    const filter = createNode('filter', 'node-filter');
+    assert.ok(target?.type === 'target');
+    assert.ok(layer?.type === 'layer');
+    assert.equal(filter.type, 'filter');
+    if (filter.type !== 'filter') return;
+    layer.visible = false;
+    filter.visible = false;
+    project.nodes[filter.id] = filter;
+    target.childIds.push(filter.id);
+
+    const decoded = new Map([
+      [asset.id, { data: new Float32Array([1, 0, 0, 1]), height: 1, revision: '1', width: 1 }],
+    ]);
+    const hidden = projectTargetToGraph(project, target.id, decoded);
+    assert.deepEqual(hidden.graph.entities, []);
+    assert.equal(hidden.graph.filters, undefined);
+
+    layer.visible = true;
+    filter.visible = true;
+    const visible = projectTargetToGraph(project, target.id, decoded);
+    assert.equal(visible.graph.entities.length, 1);
+    assert.equal(visible.graph.filters?.length, 1);
+  });
 });

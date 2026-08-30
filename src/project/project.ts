@@ -50,15 +50,19 @@ export function createNode(
       type: 'target',
     };
   }
-  if (type === 'layer') return { childId: null, id, name, parameters, type: 'layer' };
+  if (type === 'layer') {
+    return { childId: null, id, locked: false, name, parameters, type: 'layer', visible: true };
+  }
   if (type === 'filter') {
     const filterType = 'process/exposure';
     return {
       filterType,
       id,
+      locked: false,
       name,
       parameters: nodeRegistry.defaults(filterType),
       type: 'filter',
+      visible: true,
     } as FilterLayerNode;
   }
   if (type.startsWith('process/')) {
@@ -192,9 +196,25 @@ function migrateVersionOne(value: UnknownRecord): UnknownRecord {
   return migrated;
 }
 
+function migrateVersionTwo(value: UnknownRecord): UnknownRecord {
+  const migrated = structuredClone(value);
+  migrated.version = 3;
+  if (typeof migrated.nodes === 'object' && migrated.nodes !== null) {
+    for (const node of Object.values(migrated.nodes as UnknownRecord)) {
+      if (typeof node !== 'object' || node === null) continue;
+      const record = node as UnknownRecord;
+      if (record.type !== 'layer' && record.type !== 'filter') continue;
+      if (record.visible === undefined) record.visible = true;
+      if (record.locked === undefined) record.locked = false;
+    }
+  }
+  return migrated;
+}
+
 const migrations = new Map<number, (value: UnknownRecord) => UnknownRecord>([
   [0, migrateVersionZero],
   [1, migrateVersionOne],
+  [2, migrateVersionTwo],
 ]);
 
 export function migrateProject(value: unknown): unknown {

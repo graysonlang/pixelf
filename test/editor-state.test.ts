@@ -150,6 +150,33 @@ describe('EditorState', () => {
     if (restored.type === 'target') assert.equal(restored.background, undefined);
   });
 
+  it('stores undoable visibility and lock state on stack items', () => {
+    const state = editor();
+    state.dispatch(
+      { nodeId: 'node-layer', type: 'set-stack-item-visibility', visible: false },
+      { label: 'Hide layer' },
+    );
+    state.dispatch(
+      { locked: true, nodeId: 'node-layer', type: 'set-stack-item-lock' },
+      { label: 'Lock layer' },
+    );
+    const changed = editorNode(state, 'node-layer');
+    assert.equal(changed.type, 'layer');
+    if (changed.type === 'layer') {
+      assert.equal(changed.visible, false);
+      assert.equal(changed.locked, true);
+    }
+
+    state.undo();
+    const unlocked = editorNode(state, 'node-layer');
+    assert.equal(unlocked.type, 'layer');
+    if (unlocked.type === 'layer') assert.equal(unlocked.locked, false);
+    state.undo();
+    const visible = editorNode(state, 'node-layer');
+    assert.equal(visible.type, 'layer');
+    if (visible.type === 'layer') assert.equal(visible.visible, true);
+  });
+
   it('exposes labeled states and jumps through them with selection context', () => {
     const state = editor();
     state.select(['node-layer']);
