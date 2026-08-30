@@ -1,6 +1,6 @@
 export type NodeId = string;
 
-export type PrimaryRelation = 'ordered-child' | 'root' | 'unary-child';
+export type PrimaryRelation = 'attached-child' | 'ordered-child' | 'root' | 'unary-child';
 
 export interface Row {
   acceptsVisualDepth: boolean;

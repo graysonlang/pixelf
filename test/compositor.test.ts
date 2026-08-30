@@ -218,6 +218,71 @@ describe('CPU reference compositor', () => {
     assert.deepEqual([...faded.data], [0, 0, 0.5, 0.5]);
   });
 
+  it('renders attached shadows behind owner coverage and backdrop blur beneath it', () => {
+    const shadowGraph: Graph = {
+      entities: [
+        entity(solid(1, 0, 0), {
+          h: 1,
+          layerEffects: [
+            {
+              color: [0, 0, 0, 1],
+              kind: 'drop-shadow',
+              offsetX: 1,
+              offsetY: 1,
+              opacity: 0.5,
+              radius: 0,
+            },
+          ],
+          w: 1,
+          x: 1,
+          y: 1,
+        }),
+      ],
+    };
+    const shadow = renderRegion(shadowGraph, { h: 3, w: 3, x: 0, y: 0 }, 1);
+    assert.deepEqual([...shadow.data.slice(16, 20)], [1, 0, 0, 1]);
+    assert.deepEqual([...shadow.data.slice(32, 36)], [0, 0, 0, 0.5]);
+
+    const backdrop = image(
+      3,
+      1,
+      new Float32Array([1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1]),
+      'backdrop-blur',
+    );
+    const blurGraph: Graph = {
+      entities: [
+        entity(backdrop, { h: 1, id: 'backdrop', w: 3 }),
+        entity(solid(1, 1, 1, 0.5), {
+          h: 1,
+          id: 'glass',
+          layerEffects: [{ kind: 'background-blur', opacity: 1, radius: 0.5 }],
+          w: 1,
+          x: 1,
+        }),
+      ],
+    };
+    const blurred = renderRegion(blurGraph, { h: 1, w: 3, x: 0, y: 0 }, 1);
+    const plain = renderRegion(
+      {
+        entities: blurGraph.entities.map(item => ({ ...item, layerEffects: [] })),
+      },
+      { h: 1, w: 3, x: 0, y: 0 },
+      1,
+    );
+    assert.notDeepEqual([...blurred.data.slice(4, 8)], [...plain.data.slice(4, 8)]);
+    const tiled = assembleTiles(
+      renderTiles({
+        graph: blurGraph,
+        quality: 'final',
+        region: { h: 1, w: 3, x: 0, y: 0 },
+        scale: 1,
+        targetKey: 'background-blur',
+      }),
+      { h: 1, w: 3, x: 0, y: 0 },
+    );
+    assertPixelsEqual(tiled.data, blurred.data);
+  });
+
   it('keys cached tiles by source revision while retaining unrelated entries', () => {
     const cache = new TileCache();
     const data = new Float32Array([1, 0, 0, 1]);

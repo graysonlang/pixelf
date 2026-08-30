@@ -18,6 +18,7 @@ export {
   type Graph,
   type GraphFilter,
   type ImageSource,
+  type LayerEffect,
   type LinearGradientSource,
   type PatternSource,
   type Source,

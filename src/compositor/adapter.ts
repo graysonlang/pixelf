@@ -23,6 +23,7 @@ import {
   type Graph,
   type GraphFilter,
   type ImageSource,
+  type LayerEffect,
   type Source,
   type SourceColor,
 } from './graph.js';
@@ -120,6 +121,41 @@ function contentSource(node: ProjectNode & { type: 'content' }): Source {
     default:
       throw new Error(`No content projection exists for ${node.contentType}`);
   }
+}
+
+function layerEffectsForNode(
+  project: PixelfProject,
+  owner: ProjectNode & { effectIds: string[] },
+): LayerEffect[] {
+  const effects: LayerEffect[] = [];
+  for (const effectId of owner.effectIds) {
+    const effect = requireNode(project, effectId);
+    if (!effect.type.startsWith('effect/')) {
+      throw new Error(`${effect.id} is not an attached layer effect`);
+    }
+    if (!('enabled' in effect) || effect.enabled !== true) continue;
+    if (effect.type === 'effect/drop-shadow') {
+      effects.push({
+        color: colorSourceParameter(effect, 'color'),
+        kind: 'drop-shadow',
+        offsetX: numberParameter(effect, 'offsetX'),
+        offsetY: numberParameter(effect, 'offsetY'),
+        opacity: numberParameter(effect, 'opacity'),
+        radius: numberParameter(effect, 'radius'),
+      });
+      continue;
+    }
+    if (effect.type === 'effect/background-blur') {
+      effects.push({
+        kind: 'background-blur',
+        opacity: numberParameter(effect, 'opacity'),
+        radius: numberParameter(effect, 'radius'),
+      });
+      continue;
+    }
+    throw new Error(`No layer effect projection exists for ${effect.type}`);
+  }
+  return effects;
 }
 
 function operationEffect(
@@ -474,6 +510,7 @@ function projectStackToGraph(
         fill: 1,
         h: target.contract.height,
         id: item.id,
+        layerEffects: layerEffectsForNode(project, item),
         mask: maskForNode(project, item.id, target),
         opacity: numberParameter(item, 'opacity'),
         source: nestedGraph(
@@ -500,6 +537,7 @@ function projectStackToGraph(
       fill: numberParameter(item, 'fill'),
       h: target.contract.height,
       id: item.id,
+      layerEffects: layerEffectsForNode(project, item),
       mask: maskForNode(project, item.id, target),
       opacity: numberParameter(item, 'opacity'),
       source: source.source,

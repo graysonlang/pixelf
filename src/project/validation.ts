@@ -239,6 +239,9 @@ function checkNodeShape(node: UnknownRecord, key: string, issues: string[]): voi
     if (typeof node.visible !== 'boolean') issues.push(`${path}.visible must be a boolean`);
     if (typeof node.locked !== 'boolean') issues.push(`${path}.locked must be a boolean`);
   }
+  if (node.type.startsWith('effect/') && typeof node.enabled !== 'boolean') {
+    issues.push(`${path}.enabled must be a boolean`);
+  }
   if (node.type === 'layer' || node.type === 'group') {
     if (!Array.isArray(node.effectIds) || !node.effectIds.every(id => typeof id === 'string')) {
       issues.push(`${path}.effectIds must be an array of effect IDs`);
@@ -374,9 +377,32 @@ function checkTreeAndWires(project: PixelfProject, issues: string[]): void {
       parentCounts.set(childId, (parentCounts.get(childId) ?? 0) + 1);
       dependencies.get(nodeId)?.push(childId);
     }
+    if (node.type === 'layer' || node.type === 'group') {
+      const effectSet = new Set(node.effectIds);
+      if (effectSet.size !== node.effectIds.length) {
+        issues.push(`node ${nodeId} has duplicate attached layer effects`);
+      }
+      for (const effectId of node.effectIds) {
+        const effect = project.nodes[effectId];
+        if (effect === undefined) {
+          issues.push(`node ${nodeId} references missing layer effect ${effectId}`);
+          continue;
+        }
+        if (!effect.type.startsWith('effect/')) {
+          issues.push(`node ${nodeId} may attach only layer effects, not ${effect.type}`);
+        }
+        parentCounts.set(effectId, (parentCounts.get(effectId) ?? 0) + 1);
+        dependencies.get(nodeId)?.push(effectId);
+      }
+    }
   }
   for (const [nodeId, count] of parentCounts) {
     if (count > 1) issues.push(`node ${nodeId} has ${count} primary parents; only one is allowed`);
+  }
+  for (const node of Object.values(project.nodes)) {
+    if (node.type.startsWith('effect/') && parentCounts.get(node.id) !== 1) {
+      issues.push(`layer effect ${node.id} must have exactly one owner`);
+    }
   }
 
   const targetSet = new Set(project.targetIds);

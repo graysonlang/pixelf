@@ -61,6 +61,23 @@ export type Source =
   | SolidSource;
 export type { BlendMode } from '../image/blend-modes.js';
 
+export interface DropShadowLayerEffect {
+  color: SourceColor;
+  kind: 'drop-shadow';
+  offsetX: number;
+  offsetY: number;
+  opacity: number;
+  radius: number;
+}
+
+export interface BackgroundBlurLayerEffect {
+  kind: 'background-blur';
+  opacity: number;
+  radius: number;
+}
+
+export type LayerEffect = BackgroundBlurLayerEffect | DropShadowLayerEffect;
+
 export interface EffectBase {
   mask?: EntityMask;
 }
@@ -221,6 +238,7 @@ export interface Entity {
   fill?: number;
   h: number;
   id: string;
+  layerEffects?: LayerEffect[];
   matrix?: EntityMatrix;
   opacity: number;
   mask?: EntityMask;
@@ -416,6 +434,11 @@ function mixMask(mask: EntityMask, mix: (value: number) => void): void {
   for (const effect of mask.effects) mixEffect(effect, mix);
 }
 
+function mixLayerEffect(effect: LayerEffect, mix: (value: number) => void): void {
+  mixText(effect.kind, mix);
+  mixText(JSON.stringify(effect), mix);
+}
+
 export function graphHash(graph: Graph): string {
   let hash = 2_166_136_261 >>> 0;
   const mix = (value: number): void => {
@@ -438,6 +461,7 @@ export function graphHash(graph: Graph): string {
     mixText(entity.blend, mix);
     mixSource(entity.source, mix);
     for (const effect of entity.effects) mixEffect(effect, mix);
+    for (const effect of entity.layerEffects ?? []) mixLayerEffect(effect, mix);
     if (entity.mask !== undefined) mixMask(entity.mask, mix);
   }
   for (const filter of graph.filters ?? []) {

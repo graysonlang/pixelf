@@ -6,6 +6,7 @@ import {
   createImportedProject,
   createNode,
   nodeRegistry,
+  type LayerEffectNode,
 } from '../src/project/index.js';
 import {
   createListModel,
@@ -195,6 +196,38 @@ describe('target-first editor view model', () => {
         [nested.id, 1, 'ordered-child'],
         ['node-layer', 0, 'root'],
         ['node-target', 0, 'root'],
+      ],
+    );
+  });
+
+  it('discloses attached effects beneath their owner without making them stack peers', () => {
+    const effect = createNode(
+      'effect/drop-shadow',
+      'node-effect',
+      'Subject shadow',
+    ) as LayerEffectNode;
+    assert.ok(effect.type.startsWith('effect/'));
+    if (!effect.type.startsWith('effect/')) return;
+    const project = applyProjectCommand(projectWithMask(), {
+      effect,
+      ownerId: 'node-layer',
+      type: 'insert-layer-effect',
+    });
+    const model = createListModel(
+      {
+        expanded: new Set(['node-layer']),
+        project,
+        revision: 'view-effect',
+      },
+      createPixelfLayerStackAdapter(),
+      () => 48,
+    );
+    assert.deepEqual(
+      model.rows.map(row => [row.nodeId, row.depth, row.relation, row.acceptsVisualDepth]),
+      [
+        ['node-layer', 0, 'root', true],
+        [effect.id, 1, 'attached-child', false],
+        ['node-target', 0, 'root', false],
       ],
     );
   });

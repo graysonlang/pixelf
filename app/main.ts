@@ -21,6 +21,7 @@ import {
   createUntitledCompositeProject,
   duplicateSubtreeCommand,
   EditorState,
+  findLayerEffectOwner,
   findPrimaryParent,
   nodeRegistry,
   resolveTargetContract,
@@ -28,6 +29,7 @@ import {
   type FilterLayerNode,
   type GroupNode,
   type LayerNode,
+  type LayerEffectNode,
   type CanvasBackground,
   type CanvasBackgroundMode,
   type ContentLayerNode,
@@ -433,6 +435,15 @@ const dispose = createRoot(disposeRoot => {
   const setStackItemVisibility = (nodeId: string, visible: boolean): void => {
     const editor = currentEditor();
     const node = editor?.project.nodes[nodeId];
+    if (editor && node?.type.startsWith('effect/')) {
+      runCommand(() =>
+        editor.dispatch(
+          { effectId: nodeId, enabled: visible, type: 'set-layer-effect-enabled' },
+          { label: visible ? 'Enable layer effect' : 'Disable layer effect' },
+        ),
+      );
+      return;
+    }
     if (
       editor === null ||
       (node?.type !== 'layer' &&
@@ -475,9 +486,11 @@ const dispose = createRoot(disposeRoot => {
     if (editor === null) return null;
     let current = editor.project.nodes[nodeId];
     while (current !== undefined && current.type !== 'target') {
-      const parent = findPrimaryParent(editor.project, current.id);
+      const parent =
+        findPrimaryParent(editor.project, current.id)?.node ??
+        findLayerEffectOwner(editor.project, current.id);
       if (parent === null) return null;
-      current = parent.node;
+      current = parent;
     }
     return current?.type === 'target' ? current.id : null;
   };
@@ -488,9 +501,11 @@ const dispose = createRoot(disposeRoot => {
     let current = editor.project.nodes[nodeId];
     while (current !== undefined && current.type !== 'target') {
       if (current.type === 'layer') return current;
-      const parent = findPrimaryParent(editor.project, current.id);
+      const parent =
+        findPrimaryParent(editor.project, current.id)?.node ??
+        findLayerEffectOwner(editor.project, current.id);
       if (parent === null) return null;
-      current = parent.node;
+      current = parent;
     }
     return null;
   };
@@ -511,9 +526,11 @@ const dispose = createRoot(disposeRoot => {
     const editor = currentEditor();
     const node = editor?.project.nodes[nodeId];
     if (editor === null || node === undefined || node.type === 'target') return;
-    const parent = findPrimaryParent(editor.project, nodeId);
+    const parent =
+      findPrimaryParent(editor.project, nodeId)?.node ??
+      findLayerEffectOwner(editor.project, nodeId);
     runCommand(() => editor.dispatch({ nodeId, type: 'remove-node' }, { label: 'Delete item' }));
-    const nextSelection = parent?.node.id ?? editor.project.targetIds[0] ?? null;
+    const nextSelection = parent?.id ?? editor.project.targetIds[0] ?? null;
     setSelectedNodeId(nextSelection);
     if (nextSelection !== null) editor.select([nextSelection]);
   };
@@ -603,6 +620,21 @@ const dispose = createRoot(disposeRoot => {
     selectNode(filter.id);
   };
 
+  const addLayerEffect = (effectType: 'effect/background-blur' | 'effect/drop-shadow'): void => {
+    const editor = currentEditor();
+    const owner = selectedNode();
+    if (editor === null || (owner?.type !== 'layer' && owner?.type !== 'group')) return;
+    const effect = createNode(effectType, createOpaqueId('node')) as LayerEffectNode;
+    runCommand(() =>
+      editor.dispatch(
+        { effect, ownerId: owner.id, type: 'insert-layer-effect' },
+        { label: `Add ${effect.name.toLocaleLowerCase('en-US')}` },
+      ),
+    );
+    expanded.add(owner.id);
+    selectNode(effect.id);
+  };
+
   const duplicateNode = (): void => {
     const editor = currentEditor();
     const selectedId = selectedNodeId();
@@ -611,7 +643,8 @@ const dispose = createRoot(disposeRoot => {
     if (
       node === undefined ||
       node.type === 'target' ||
-      findPrimaryParent(editor.project, node.id) === null
+      (findPrimaryParent(editor.project, node.id) === null &&
+        findLayerEffectOwner(editor.project, node.id) === null)
     ) {
       return;
     }
@@ -1139,6 +1172,32 @@ const dispose = createRoot(disposeRoot => {
     }),
     appAction({
       enabled: () => {
+        const node = selectedNode();
+        return node?.type === 'layer' || node?.type === 'group';
+      },
+      group: 'effects',
+      id: 'add-drop-shadow',
+      keywords: ['layer', 'effect', 'shadow'],
+      label: 'Add drop shadow',
+      priority: 58,
+      run: () => addLayerEffect('effect/drop-shadow'),
+      surfaces: ['context', 'keyboard', 'quick-actions'],
+    }),
+    appAction({
+      enabled: () => {
+        const node = selectedNode();
+        return node?.type === 'layer' || node?.type === 'group';
+      },
+      group: 'effects',
+      id: 'add-background-blur',
+      keywords: ['layer', 'effect', 'backdrop', 'glass'],
+      label: 'Add background blur',
+      priority: 57,
+      run: () => addLayerEffect('effect/background-blur'),
+      surfaces: ['context', 'keyboard', 'quick-actions'],
+    }),
+    appAction({
+      enabled: () => {
         const editor = currentEditor();
         const selectedId = selectedNodeId();
         if (editor === null || selectedId === null) return false;
@@ -1166,7 +1225,8 @@ const dispose = createRoot(disposeRoot => {
           editor !== null &&
           node !== undefined &&
           node.type !== 'target' &&
-          findPrimaryParent(editor.project, node.id) !== null
+          (findPrimaryParent(editor.project, node.id) !== null ||
+            findLayerEffectOwner(editor.project, node.id) !== null)
         );
       },
       group: 'structure',
@@ -1185,7 +1245,8 @@ const dispose = createRoot(disposeRoot => {
           editor !== null &&
           node !== undefined &&
           node.type !== 'target' &&
-          findPrimaryParent(editor.project, node.id) !== null
+          (findPrimaryParent(editor.project, node.id) !== null ||
+            findLayerEffectOwner(editor.project, node.id) !== null)
         );
       },
       group: 'structure',

@@ -20,7 +20,7 @@ export interface StructureListViewOptions {
   onSelect(nodeId: string): void;
   onToggle(nodeId: string): void;
   onVisibilityChange?(nodeId: string, visible: boolean): void;
-  rowState?: (row: Row) => { locked: boolean; visible: boolean } | null;
+  rowState?: (row: Row) => { locked?: boolean; visible: boolean } | null;
   selectedNodeId: string | null;
   summary?: (row: Row) => string;
 }
@@ -38,6 +38,7 @@ function glyphFor(kind: string): string {
   if (kind === 'filter') return 'fx';
   if (kind === 'content') return 'F';
   if (kind === 'group') return 'G';
+  if (kind.startsWith('effect/')) return 'fx';
   if (kind === 'source/mask' || kind === 'source/checker-mask') return 'M';
   if (kind.startsWith('process/')) return 'fx';
   return 'S';
@@ -136,13 +137,13 @@ export function renderStructureList(
     const stateDescription =
       rowState === null
         ? ''
-        : `${rowState.visible ? '' : ', hidden'}${rowState.locked ? ', locked' : ''}`;
+        : `${rowState.visible ? '' : ', hidden'}${rowState.locked === true ? ', locked' : ''}`;
     chiclet.setAttribute('aria-label', `${row.name}${stateDescription}`);
     chiclet.setAttribute('aria-level', String(row.depth + 1));
     chiclet.setAttribute('aria-selected', String(options.selectedNodeId === row.nodeId));
     if (rowState !== null) {
       chiclet.dataset.hidden = String(!rowState.visible);
-      chiclet.dataset.locked = String(rowState.locked);
+      if (rowState.locked !== undefined) chiclet.dataset.locked = String(rowState.locked);
     }
     const reorderable =
       (row.kind === 'filter' ||
@@ -208,18 +209,6 @@ export function renderStructureList(
     if (rowState !== null) {
       const rowActions = document.createElement('span');
       rowActions.className = 'structure-row-actions';
-      const lock = document.createElement('button');
-      lock.className = `structure-state-button lock${rowState.locked ? ' state-active' : ''}`;
-      lock.type = 'button';
-      lock.dataset.testid = `structure-lock-${row.nodeId}`;
-      lock.setAttribute('aria-label', `${rowState.locked ? 'Unlock' : 'Lock'} ${row.name}`);
-      lock.setAttribute('aria-pressed', String(rowState.locked));
-      lock.title = rowState.locked ? 'Unlock layer' : 'Lock layer';
-      lock.append(lockIcon(rowState.locked));
-      lock.addEventListener('click', event => {
-        event.stopPropagation();
-        options.onLockChange?.(row.nodeId, !rowState.locked);
-      });
       const visibility = document.createElement('button');
       visibility.className = `structure-state-button visibility${
         rowState.visible ? '' : ' state-active'
@@ -234,7 +223,22 @@ export function renderStructureList(
         event.stopPropagation();
         options.onVisibilityChange?.(row.nodeId, !rowState.visible);
       });
-      rowActions.append(lock, visibility);
+      if (rowState.locked !== undefined) {
+        const lock = document.createElement('button');
+        lock.className = `structure-state-button lock${rowState.locked ? ' state-active' : ''}`;
+        lock.type = 'button';
+        lock.dataset.testid = `structure-lock-${row.nodeId}`;
+        lock.setAttribute('aria-label', `${rowState.locked ? 'Unlock' : 'Lock'} ${row.name}`);
+        lock.setAttribute('aria-pressed', String(rowState.locked));
+        lock.title = rowState.locked ? 'Unlock layer' : 'Lock layer';
+        lock.append(lockIcon(rowState.locked));
+        lock.addEventListener('click', event => {
+          event.stopPropagation();
+          options.onLockChange?.(row.nodeId, !rowState.locked);
+        });
+        rowActions.append(lock);
+      }
+      rowActions.append(visibility);
       chiclet.append(disclosure, interior, rowActions);
     } else {
       chiclet.append(disclosure, interior);

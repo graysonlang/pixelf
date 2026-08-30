@@ -1,4 +1,9 @@
-import { cloneProject, createOpaqueId, findPrimaryParent } from './project.js';
+import {
+  cloneProject,
+  createOpaqueId,
+  findLayerEffectOwner,
+  findPrimaryParent,
+} from './project.js';
 import { nodeRegistry } from './registry.js';
 import type {
   CanvasBackground,
@@ -6,6 +11,7 @@ import type {
   FilterLayerNode,
   ImageAsset,
   JsonValue,
+  LayerEffectNode,
   PixelfProject,
   ProjectNode,
   ProjectWire,
@@ -16,6 +22,7 @@ import { validateProject } from './validation.js';
 export type ProjectCommand =
   | { asset: ImageAsset; type: 'insert-asset' }
   | { index?: number; node: ProjectNode; parentId: string | null; type: 'insert-node' }
+  | { effect: LayerEffectNode; index?: number; ownerId: string; type: 'insert-layer-effect' }
   | { nodeId: string; type: 'remove-node' }
   | { index: number; nodeId: string; parentId: string | null; type: 'move-node' }
   | { name: string; type: 'set-project-name' }
@@ -24,6 +31,7 @@ export type ProjectCommand =
   | { locked: boolean; nodeId: string; type: 'set-stack-item-lock' }
   | { filterType: string; nodeId: string; type: 'set-filter-type' }
   | { contentType: string; nodeId: string; type: 'set-content-type' }
+  | { effectId: string; enabled: boolean; type: 'set-layer-effect-enabled' }
   | { contract: TargetContract; nodeId: string; type: 'set-target-contract' }
   | { background: CanvasBackground; nodeId: string; type: 'set-target-background' }
   | { type: 'connect'; wire: ProjectWire }
@@ -38,6 +46,12 @@ export type ProjectCommand =
   | { commands: readonly ProjectCommand[]; type: 'batch' };
 
 function removeFromParent(project: PixelfProject, nodeId: string): void {
+  const effectOwner = findLayerEffectOwner(project, nodeId);
+  if (effectOwner !== null) {
+    const index = effectOwner.effectIds.indexOf(nodeId);
+    if (index >= 0) effectOwner.effectIds.splice(index, 1);
+    return;
+  }
   const parent = findPrimaryParent(project, nodeId);
   if (parent === null) {
     const rootIndex = project.targetIds.indexOf(nodeId);
@@ -89,6 +103,9 @@ function descendants(
   else if (node && 'childId' in node && node.childId) {
     descendants(project, node.childId, found);
   }
+  if (node?.type === 'layer' || node?.type === 'group') {
+    for (const effectId of node.effectIds) descendants(project, effectId, found);
+  }
   return found;
 }
 
@@ -107,6 +124,22 @@ function applyMutable(project: PixelfProject, command: ProjectCommand): void {
       }
       project.nodes[command.node.id] = structuredClone(command.node);
       attachToParent(project, command.node.id, command.parentId, command.index);
+      return;
+    }
+    case 'insert-layer-effect': {
+      if (project.nodes[command.effect.id] !== undefined) {
+        throw new Error(`Node ${command.effect.id} already exists`);
+      }
+      const owner = project.nodes[command.ownerId];
+      if (owner?.type !== 'layer' && owner?.type !== 'group') {
+        throw new Error(`Layer effect owner ${command.ownerId} is not a layer or group`);
+      }
+      project.nodes[command.effect.id] = structuredClone(command.effect);
+      owner.effectIds.splice(
+        Math.min(command.index ?? owner.effectIds.length, owner.effectIds.length),
+        0,
+        command.effect.id,
+      );
       return;
     }
     case 'remove-node': {
@@ -214,6 +247,14 @@ function applyMutable(project: PixelfProject, command: ProjectCommand): void {
       node.parameters = parameters;
       return;
     }
+    case 'set-layer-effect-enabled': {
+      const node = project.nodes[command.effectId];
+      if (node === undefined || !node.type.startsWith('effect/') || !('enabled' in node)) {
+        throw new Error(`Cannot change enabled state for non-effect ${command.effectId}`);
+      }
+      node.enabled = command.enabled;
+      return;
+    }
     case 'set-target-contract': {
       const node = project.nodes[command.nodeId];
       if (node?.type !== 'target') throw new Error(`${command.nodeId} is not a target`);
@@ -284,6 +325,19 @@ export function duplicateSubtreeCommand(project: PixelfProject, nodeId: string):
   const root = project.nodes[nodeId];
   if (root === undefined) throw new Error(`Cannot duplicate missing node ${nodeId}`);
   if (root.type === 'target') throw new Error('Duplicate target is not a branch operation');
+  if (root.type.startsWith('effect/')) {
+    const owner = findLayerEffectOwner(project, nodeId);
+    if (owner === null) throw new Error(`Cannot duplicate detached layer effect ${nodeId}`);
+    const copy = structuredClone(root) as LayerEffectNode;
+    copy.id = createOpaqueId('node');
+    copy.name = `${copy.name} copy`;
+    return {
+      effect: copy,
+      index: owner.effectIds.indexOf(nodeId) + 1,
+      ownerId: owner.id,
+      type: 'insert-layer-effect',
+    };
+  }
   const parent = findPrimaryParent(project, nodeId);
   if (parent === null) throw new Error(`Cannot duplicate detached node ${nodeId}`);
   const copiedIds = descendants(project, nodeId);
@@ -301,6 +355,9 @@ export function duplicateSubtreeCommand(project: PixelfProject, nodeId: string):
       copy.childIds = copy.childIds.map(childId => replacements.get(childId) ?? childId);
     } else if ('childId' in copy && copy.childId !== null) {
       copy.childId = replacements.get(copy.childId) ?? copy.childId;
+    }
+    if (copy.type === 'layer' || copy.type === 'group') {
+      copy.effectIds = copy.effectIds.map(effectId => replacements.get(effectId) ?? effectId);
     }
     commands.push({ node: copy, parentId: null, type: 'insert-node' });
   }

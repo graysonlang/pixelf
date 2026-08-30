@@ -29,6 +29,7 @@ import {
   type FilterLayerNode,
   type ContentLayerNode,
   type ProcessorNode,
+  type LayerEffectNode,
 } from '../src/project/index.js';
 
 const pixels = new Float32Array([
@@ -267,6 +268,48 @@ describe('reversible processing vocabulary', () => {
       new Map([['asset-processing', { data: pixels, height: 3, revision: 'pattern', width: 3 }]]),
     );
     assert.equal(patternProjection.graph.entities[1]?.source.kind, 'pattern');
+  });
+
+  it('owns layer effects with their layer and preserves history-safe identity', () => {
+    const state = new EditorState(projectFixture());
+    const effect = createNode('effect/drop-shadow', 'node-drop-shadow') as LayerEffectNode;
+    state.dispatch(
+      { effect, ownerId: 'node-layer', type: 'insert-layer-effect' },
+      { label: 'Add drop shadow' },
+    );
+    const layer = state.project.nodes['node-layer'];
+    assert.equal(layer?.type, 'layer');
+    if (layer?.type !== 'layer') return;
+    assert.deepEqual(layer.effectIds, [effect.id]);
+    const projection = projectTargetToGraph(
+      state.project,
+      'node-target',
+      new Map([['asset-processing', { data: pixels, height: 3, revision: 'effect', width: 3 }]]),
+    );
+    assert.equal(projection.graph.entities[0]?.layerEffects?.[0]?.kind, 'drop-shadow');
+
+    state.dispatch(duplicateSubtreeCommand(state.project, effect.id), {
+      label: 'Duplicate layer effect',
+    });
+    const duplicatedOwner = state.project.nodes['node-layer'];
+    assert.equal(duplicatedOwner?.type, 'layer');
+    if (duplicatedOwner?.type !== 'layer') return;
+    assert.equal(duplicatedOwner.effectIds.length, 2);
+    state.dispatch(
+      { effectId: effect.id, enabled: false, type: 'set-layer-effect-enabled' },
+      { label: 'Disable layer effect' },
+    );
+    assert.equal(state.project.nodes[effect.id]?.type, 'effect/drop-shadow');
+    state.undo();
+    const restored = state.project.nodes[effect.id];
+    assert.ok(restored && 'enabled' in restored && restored.enabled);
+
+    state.dispatch({ nodeId: 'node-layer', type: 'remove-node' }, { label: 'Delete layer' });
+    assert.equal(state.project.nodes[effect.id], undefined);
+    assert.equal(
+      Object.values(state.project.nodes).some(node => node.type.startsWith('effect/')),
+      false,
+    );
   });
 
   it('evaluates and GPU-encodes every pixel operation with matching alpha-safe bytes', () => {

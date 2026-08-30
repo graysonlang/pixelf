@@ -43,7 +43,7 @@ export interface NodeDefinition {
   description: string;
   execution?: ExecutionBehavior;
   interchangeGroup?: string;
-  kind: 'content' | 'filter' | 'group' | 'layer' | 'processor' | 'source' | 'target';
+  kind: 'content' | 'effect' | 'filter' | 'group' | 'layer' | 'processor' | 'source' | 'target';
   parameters: readonly ParameterDefinition[];
   ports: readonly PortDefinition[];
   region: RegionBehavior;
@@ -169,6 +169,25 @@ function contentGenerator(
       { direction: 'output', key: 'image', kind: 'image', label: 'Image' },
     ],
     region: { kind: 'source' },
+    title,
+    type,
+  });
+}
+
+function layerEffect(
+  type: string,
+  title: string,
+  description: string,
+  parameters: readonly ParameterDefinition[],
+  region: RegionBehavior,
+): NodeDefinition {
+  return defineNode({
+    childPolicy: 'none',
+    description,
+    kind: 'effect',
+    parameters,
+    ports: [],
+    region,
     title,
     type,
   });
@@ -307,6 +326,45 @@ const definitions = [
     numberParameter('offsetX', 'Offset X', 0, -100000, 100000),
     numberParameter('offsetY', 'Offset Y', 0, -100000, 100000),
   ]),
+  layerEffect(
+    'effect/drop-shadow',
+    'Drop shadow',
+    'Builds a colored, offset, blurred shadow from the owner coverage.',
+    [
+      colorParameter('color', 'Color', '#000000'),
+      {
+        default: 0.5,
+        key: 'opacity',
+        kind: 'number',
+        label: 'Opacity',
+        maximum: 1,
+        minimum: 0,
+        presentation: 'percentage',
+      },
+      numberParameter('offsetX', 'Offset X', 0, -100000, 100000),
+      numberParameter('offsetY', 'Offset Y', 8, -100000, 100000),
+      numberParameter('radius', 'Radius', 8, 0, 1000),
+    ],
+    { kind: 'halo', radiusParameter: 'radius' },
+  ),
+  layerEffect(
+    'effect/background-blur',
+    'Background blur',
+    'Blurs the accumulated backdrop beneath the owner coverage.',
+    [
+      numberParameter('radius', 'Radius', 8, 0, 1000),
+      {
+        default: 1,
+        key: 'opacity',
+        kind: 'number',
+        label: 'Opacity',
+        maximum: 1,
+        minimum: 0,
+        presentation: 'percentage',
+      },
+    ],
+    { kind: 'halo', radiusParameter: 'radius' },
+  ),
   processor(
     'process/crop',
     'Crop',

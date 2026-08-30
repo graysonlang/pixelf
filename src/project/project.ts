@@ -7,6 +7,7 @@ import {
   type ContentLayerNode,
   type GroupNode,
   type JsonValue,
+  type LayerEffectNode,
   type LayerNode,
   type PixelfProject,
   type ProcessorNode,
@@ -101,6 +102,9 @@ export function createNode(
       type: 'content',
       visible: true,
     } as ContentLayerNode;
+  }
+  if (type.startsWith('effect/')) {
+    return { enabled: true, id, name, parameters, type } as LayerEffectNode;
   }
   if (type.startsWith('process/')) {
     return { childId: null, id, name, parameters, type } as ProcessorNode;
@@ -359,6 +363,18 @@ export function parseProject(source: string): PixelfProject {
 export interface PrimaryParent {
   index: number;
   node: GroupNode | TargetNode | LayerNode | ProcessorNode;
+}
+
+export function findLayerEffectOwner(
+  project: PixelfProject,
+  effectId: string,
+): GroupNode | LayerNode | null {
+  for (const node of Object.values(project.nodes)) {
+    if ((node.type === 'layer' || node.type === 'group') && node.effectIds.includes(effectId)) {
+      return node;
+    }
+  }
+  return null;
 }
 
 export function findPrimaryParent(project: PixelfProject, childId: string): PrimaryParent | null {

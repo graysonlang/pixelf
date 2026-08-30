@@ -115,6 +115,11 @@ export interface ContentLayerNode extends BaseNode {
   visible: boolean;
 }
 
+export interface LayerEffectNode extends BaseNode {
+  enabled: boolean;
+  type: `effect/${string}`;
+}
+
 export interface ProcessorNode extends BaseNode {
   childId: string | null;
   type: `process/${string}`;
@@ -131,6 +136,7 @@ export type ProjectNode =
   | FilterLayerNode
   | ContentLayerNode
   | GroupNode
+  | LayerEffectNode
   | ProcessorNode
   | SourceNode;
 export type UnaryNode = LayerNode | ProcessorNode;

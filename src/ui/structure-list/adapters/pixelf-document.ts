@@ -1,4 +1,4 @@
-import { findPrimaryParent } from '../../../project/project.js';
+import { findLayerEffectOwner, findPrimaryParent } from '../../../project/project.js';
 import { nodeRegistry } from '../../../project/registry.js';
 import type { PixelfProject, ProjectNode } from '../../../project/types.js';
 import type { Row, StructureAdapter } from '../model.js';
@@ -15,9 +15,22 @@ function primaryChildren(node: ProjectNode): readonly string[] {
   return [];
 }
 
+function documentChildren(node: ProjectNode): readonly string[] {
+  const effects = node.type === 'layer' || node.type === 'group' ? node.effectIds : [];
+  return [...effects, ...primaryChildren(node)];
+}
+
 function layerStackChildren(project: PixelfProject, node: ProjectNode): readonly string[] {
   if (node.type === 'target') return [];
-  if (node.type === 'group') return node.childIds.toReversed();
+  if (node.type === 'group') return [...node.effectIds, ...node.childIds.toReversed()];
+  if (node.type === 'layer') {
+    return [
+      ...node.effectIds,
+      ...primaryChildren(node).filter(
+        childId => project.nodes[childId]?.type !== 'source/imported',
+      ),
+    ];
+  }
   return primaryChildren(node).filter(
     childId => project.nodes[childId]?.type !== 'source/imported',
   );
@@ -67,9 +80,11 @@ function describe(
 ): Omit<Row, 'depth' | 'documentIndex' | 'height'> {
   const node = snapshot.project.nodes[id];
   if (node === undefined) throw new Error(`Cannot describe missing Pixelf node ${id}`);
-  const parent = findPrimaryParent(snapshot.project, id);
-  const isStackLayer = layerStack && parent?.node.type === 'target';
-  const children = layerStack ? layerStackChildren(snapshot.project, node) : primaryChildren(node);
+  const primaryParent = findPrimaryParent(snapshot.project, id);
+  const effectOwner = findLayerEffectOwner(snapshot.project, id);
+  const parent = primaryParent?.node ?? effectOwner;
+  const isStackLayer = layerStack && primaryParent?.node.type === 'target';
+  const children = layerStack ? layerStackChildren(snapshot.project, node) : documentChildren(node);
   return {
     acceptsVisualDepth:
       node.type === 'filter' ||
@@ -82,13 +97,15 @@ function describe(
     kind: node.type,
     name: layerStack && node.type === 'target' ? snapshot.project.name : node.name,
     nodeId: node.id,
-    parentId: isStackLayer ? null : (parent?.node.id ?? null),
+    parentId: isStackLayer ? null : (parent?.id ?? null),
     relation:
       node.type === 'target' || isStackLayer
         ? 'root'
-        : parent?.node.type === 'target' || parent?.node.type === 'group'
-          ? 'ordered-child'
-          : 'unary-child',
+        : effectOwner !== null
+          ? 'attached-child'
+          : primaryParent?.node.type === 'target' || primaryParent?.node.type === 'group'
+            ? 'ordered-child'
+            : 'unary-child',
     selectable: true,
   };
 }
@@ -100,7 +117,7 @@ export function createPixelfStructureAdapter(
     childOrder,
     childrenOf: (snapshot, id) => {
       const node = snapshot.project.nodes[id];
-      return node === undefined ? [] : primaryChildren(node);
+      return node === undefined ? [] : documentChildren(node);
     },
     describe,
     revisionOf: snapshot => snapshot.revision,

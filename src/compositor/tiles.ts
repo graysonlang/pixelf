@@ -154,7 +154,11 @@ export function renderTiles(request: TileRequest, cache = new TileCache()): Rend
       };
       if (
         (request.graph.filters?.length ?? 0) > 0 ||
-        request.graph.entities.some(entity => entity.source.kind === 'graph')
+        request.graph.entities.some(
+          entity =>
+            entity.source.kind === 'graph' ||
+            entity.layerEffects?.some(effect => effect.kind === 'background-blur'),
+        )
       ) {
         let filteredSurface = cache.get(key);
         if (filteredSurface === undefined) {

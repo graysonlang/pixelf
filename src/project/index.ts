@@ -30,6 +30,7 @@ export {
   createOpaqueId,
   createUntitledCompositeProject,
   DEFAULT_TARGET_CONTRACT,
+  findLayerEffectOwner,
   findPrimaryParent,
   migrateProject,
   parseProject,

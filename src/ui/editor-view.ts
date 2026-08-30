@@ -79,6 +79,9 @@ export function renderProjectTree(
     onVisibilityChange: options.onVisibilityChange,
     rowState: row => {
       const node = project.nodes[row.nodeId];
+      if (node?.type.startsWith('effect/') && 'enabled' in node) {
+        return { visible: node.enabled };
+      }
       return node?.type === 'layer' ||
         node?.type === 'filter' ||
         node?.type === 'content' ||
