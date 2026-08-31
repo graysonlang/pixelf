@@ -2252,8 +2252,6 @@ const dispose = createRoot(disposeRoot => {
   stage.addEventListener('wheel', onStageWheel, { passive: false });
   stage.addEventListener('pointerdown', event => {
     if (event.button !== 0) return;
-    currentEditor()?.select([]);
-    setSelectedNodeId(null);
     if (selectedImage() === null || activeTool() !== 'move') return;
     panState = {
       pointerId: event.pointerId,
