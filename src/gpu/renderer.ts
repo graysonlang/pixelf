@@ -1,4 +1,11 @@
-import { graphHash, image, type Entity, type Graph } from '../compositor/graph.js';
+import {
+  graphHash,
+  image,
+  type Entity,
+  type Graph,
+  type ImageSource,
+  type SolidSource,
+} from '../compositor/graph.js';
 import { renderRegion } from '../compositor/render.js';
 import type { GpuContext } from './device.js';
 import type { PresentTarget } from './presentation.js';
@@ -194,12 +201,22 @@ export function gpuDirectRenderable(graph: Graph): boolean {
     (graph.filters?.length ?? 0) === 0 &&
     graph.entities.every(
       entity =>
-        entity.source.kind === 'image' &&
+        (entity.source.kind === 'image' || entity.source.kind === 'solid') &&
         entity.effects.length === 0 &&
         (entity.layerEffects?.length ?? 0) === 0 &&
         entity.mask === undefined &&
         entity.blend === 'normal',
     )
+  );
+}
+
+function imageForGpuSource(source: ImageSource | SolidSource): ImageSource {
+  if (source.kind === 'image') return source;
+  return image(
+    1,
+    1,
+    new Float32Array([source.r, source.g, source.b, source.a]),
+    `solid:${source.r}:${source.g}:${source.b}:${source.a}`,
   );
 }
 
@@ -572,7 +589,7 @@ export class GpuImageRenderer {
     const activeUniforms = new Set<string>();
     const visibleEntities = projection?.scissor === null ? [] : graph.entities;
     for (const entity of visibleEntities) {
-      if (entity.source.kind !== 'image') {
+      if (entity.source.kind !== 'image' && entity.source.kind !== 'solid') {
         throw new Error(`The first WebGPU path cannot render ${entity.source.kind} sources`);
       }
       if (entity.effects.length > 0 || entity.mask !== undefined || entity.blend !== 'normal') {
@@ -582,6 +599,8 @@ export class GpuImageRenderer {
       }
       const uniform = this.uniformFor(entity.id);
       activeUniforms.add(entity.id);
+      const sourceWidth = entity.source.kind === 'image' ? entity.source.width : entity.w;
+      const sourceHeight = entity.source.kind === 'image' ? entity.source.height : entity.h;
       const [a, b, c, d, e, f] =
         projection === undefined
           ? placement(entity)
@@ -590,8 +609,8 @@ export class GpuImageRenderer {
               projection,
               entity.w,
               entity.h,
-              entity.source.width,
-              entity.source.height,
+              sourceWidth,
+              sourceHeight,
             );
       this.gpu.queue.writeBuffer(
         uniform,
@@ -611,7 +630,7 @@ export class GpuImageRenderer {
           0,
         ]),
       );
-      const texture = textureForImage(this.gpu, this.textures, entity.source);
+      const texture = textureForImage(this.gpu, this.textures, imageForGpuSource(entity.source));
       const bindGroup = this.gpu.device.createBindGroup({
         entries: [
           { binding: 0, resource: { buffer: uniform, size: 48 } },
@@ -703,7 +722,7 @@ export class GpuImageRenderer {
     const pipelineLayout = this.gpu.device.createPipelineLayout({
       bindGroupLayouts: [bindGroupLayout],
     });
-    const pipeline = this.gpu.device.createRenderPipeline({
+    const pipeline = await this.gpu.device.createRenderPipelineAsync({
       fragment: {
         entryPoint: 'fragmentMain',
         module,
@@ -751,7 +770,7 @@ export class GpuImageRenderer {
     const pipelineLayout = this.gpu.device.createPipelineLayout({
       bindGroupLayouts: [bindGroupLayout],
     });
-    const pipeline = this.gpu.device.createRenderPipeline({
+    const pipeline = await this.gpu.device.createRenderPipelineAsync({
       fragment: {
         entryPoint: 'mipFragment',
         module,

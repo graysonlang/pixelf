@@ -244,6 +244,14 @@ describe('reversible processing vocabulary', () => {
       type: 'set-parameter',
       value: 0.4,
     });
+    const solidProjection = projectTargetToGraph(
+      faded,
+      'node-target',
+      new Map([['asset-processing', { data: pixels, height: 3, revision: 'solid', width: 3 }]]),
+    );
+    assert.equal(solidProjection.graph.entities[1]?.source.kind, 'solid');
+    assert.equal(gpuDirectRenderable(solidProjection.graph), true);
+    assert.equal(flattenGraphForGpu(solidProjection.graph, 3, 3), solidProjection.graph);
     const gradient = applyProjectCommand(faded, {
       contentType: 'content/gradient',
       nodeId: content.id,

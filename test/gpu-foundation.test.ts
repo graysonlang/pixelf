@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { srgbChannelToLinear } from '../src/browser/decode-image.js';
-import { image, makeSurface } from '../src/compositor/index.js';
+import { image, makeSurface, solid } from '../src/compositor/index.js';
 import {
   alignedUniformSize,
   alignTo,
@@ -151,7 +151,7 @@ describe('WebGPU foundation', () => {
     assert.equal(hybridNearestBlend(6), 1);
   });
 
-  it('waits for the pipeline before acquiring a presentation texture', async () => {
+  it('compiles solid presentation pipelines asynchronously before acquiring a texture', async () => {
     const shaderStageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'GPUShaderStage');
     const textureUsageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'GPUTextureUsage');
     const bufferUsageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'GPUBufferUsage');
@@ -161,7 +161,7 @@ describe('WebGPU foundation', () => {
     });
     Object.defineProperty(globalThis, 'GPUTextureUsage', {
       configurable: true,
-      value: { COPY_SRC: 1, RENDER_ATTACHMENT: 2, TEXTURE_BINDING: 4 },
+      value: { COPY_DST: 1, COPY_SRC: 2, RENDER_ATTACHMENT: 4, TEXTURE_BINDING: 8 },
     });
     Object.defineProperty(globalThis, 'GPUBufferUsage', {
       configurable: true,
@@ -184,13 +184,19 @@ describe('WebGPU foundation', () => {
         finish: () => ({}),
       }),
       createPipelineLayout: () => ({}),
-      createRenderPipeline: () => ({}),
+      createRenderPipeline: () => {
+        throw new Error('Synchronous pipeline creation blocks interaction');
+      },
+      createRenderPipelineAsync: async () => {
+        events.push('pipeline-ready');
+        return {} as GPURenderPipeline;
+      },
       createSampler: () => ({}),
       createShaderModule: (descriptor: GPUShaderModuleDescriptor) => {
         shaderSources.push(descriptor.code);
         return {
           getCompilationInfo: async () => {
-            events.push('pipeline-ready');
+            events.push('shader-info');
             return { messages: [] };
           },
         };
@@ -206,6 +212,7 @@ describe('WebGPU foundation', () => {
         onSubmittedWorkDone: async () => {},
         submit: () => events.push('submitted'),
         writeBuffer: () => {},
+        writeTexture: () => {},
       } as unknown as GPUQueue,
     });
     const target = {
@@ -221,8 +228,30 @@ describe('WebGPU foundation', () => {
       viewFormat: 'bgra8unorm-srgb' as GPUTextureFormat,
     };
     try {
-      await renderer.present({ entities: [] }, target, 1, 1);
+      await renderer.present(
+        {
+          entities: [
+            {
+              blend: 'normal',
+              effects: [],
+              h: 1,
+              id: 'solid-layer',
+              opacity: 0.5,
+              source: solid(0.25, 0.5, 0.75),
+              w: 1,
+              x: 0,
+              y: 0,
+            },
+          ],
+        },
+        target,
+        1,
+        1,
+      );
       assert.deepEqual(events, [
+        'shader-info',
+        'shader-info',
+        'shader-info',
         'pipeline-ready',
         'pipeline-ready',
         'pipeline-ready',
